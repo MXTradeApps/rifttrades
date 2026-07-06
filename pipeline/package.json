@@ -1,0 +1,19 @@
+{
+  "name": "rifttrades-pipeline",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Daily pipeline: TCGCSV (TCGplayer) + CardMarket -> Supabase shared Riftbound card & price database.",
+  "scripts": {
+    "ingest": "node src/run.js",
+    "dry-run": "node src/run.js --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.0",
+    "dotenv": "^17.4.2",
+    "papaparse": "^5.5.4"
+  }
+}
