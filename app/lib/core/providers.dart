@@ -339,11 +339,31 @@ final tradeHistoryProvider =
 class TradeDraftNotifier extends Notifier<Trade> {
   @override
   Trade build() {
-    // Use read (not watch) so changing price settings does not wipe the draft.
+    // Re-price the live draft whenever the price source/type changes, so
+    // switching settings updates every existing line (and the currency),
+    // not just cards added afterwards. We listen (rather than watch) so the
+    // draft's cards are kept instead of being wiped on a settings change.
+    ref.listen(pricingProvider, (_, next) => _repriceAll(next));
     final pricing = ref.read(pricingProvider);
     return Trade(
       id: 'draft',
       createdAt: DateTime.now(),
+      currencySymbol: pricing.symbol,
+    );
+  }
+
+  /// Recomputes [TradeItem.priceEach] for every line from the current pricing
+  /// and refreshes the draft's currency symbol.
+  void _repriceAll(Pricing pricing) {
+    state = state.copyWith(
+      haveItems: [
+        for (final i in state.haveItems)
+          i.copyWith(priceEach: pricing.value(i.card) ?? 0)
+      ],
+      wantItems: [
+        for (final i in state.wantItems)
+          i.copyWith(priceEach: pricing.value(i.card) ?? 0)
+      ],
       currencySymbol: pricing.symbol,
     );
   }
