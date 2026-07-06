@@ -18,13 +18,16 @@ read-only** via RLS; only the pipeline's `service_role` key can write. Never put
 | Table | Rows | Notes |
 | --- | --- | --- |
 | `sets` | ~9 | TCGplayer groups / expansions (`group_id`, `name`) |
-| `cards` | ~1,660 | one row per printing; `product_id` PK, `set_id` → `sets.group_id` |
-| `card_prices` | 1:1 with cards | current TCGplayer (USD) + CardMarket (EUR) prices |
+| `cards` | ~1,660 | one row per **printing**; PK `id` = `"<product_id>-<subtype>"` (e.g. `684123-foil`), `set_id` → `sets.group_id` |
+| `card_prices` | 1:1 with cards | current TCGplayer (USD) + CardMarket (EUR) prices; `card_id` → `cards.id` |
 | `price_history` | daily | one snapshot per card per day for charts |
 | `pipeline_runs` | — | ingest log (not client-readable) |
 | `cards_with_prices` | view | cards + `set_name` + current prices (easiest to query) |
 
 ### Key `cards` columns
+- `id` — stable per-printing PK, `"<product_id>-<subtype>"` (Normal and Foil are
+  separate rows since they share `product_id`); use this to key collections/trades
+- `product_id` — TCGplayer id (NOT unique across finishes); `unique_id` — `SSSNNNN` convenience id
 - `name`, `clean_name`, `rarity`, `sub_type_name`, `is_foil`, `is_sealed`
 - `collector_number` — e.g. `"147/219"` (the OCR **scan key**)
 - `image_url` — TCGplayer CDN card art

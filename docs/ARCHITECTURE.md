@@ -104,8 +104,9 @@ Dart model maps 1:1 to typed columns:
 
 | Column | Meaning | Notes |
 | --- | --- | --- |
-| `product_id` | TCGplayer product id | primary key per printing |
-| `unique_id` | stable id, e.g. `"RB683790"` | |
+| `id` | **primary key per printing**, `"<product_id>-<subtype>"` | e.g. `684123-foil` |
+| `product_id` | TCGplayer product id | NOT unique (Normal+Foil share it) |
+| `unique_id` | `SSSNNNN` convenience id | mirrors fabtrades/web-app convention |
 | `set_id`, `set_name` | set | e.g. `24560`, `"Unleashed"` |
 | `name`, `clean_name` | card name | |
 | `image_url` | card art (TCGplayer CDN) | |
@@ -118,8 +119,8 @@ Dart model maps 1:1 to typed columns:
 | `cm_avg/low/trend` (+ `…_foil`) | CardMarket EUR | `numeric`, `null` if unmatched |
 
 **Notes for the Dart model:**
-- Distinct printings (normal vs foil, alt-art) are separate rows keyed by `product_id`;
-  group by `name` for display.
+- Distinct printings (normal vs foil, alt-art) are separate rows keyed by `id`
+  (`product_id` alone is not unique); group by `name` for display.
 - Filter sealed products with `is_sealed = false` server-side.
 - `price_history(card_id, captured_on, tcg_market, tcg_low, cm_trend, cm_low)` backs charts.
 
@@ -133,9 +134,9 @@ Dart model maps 1:1 to typed columns:
 - **User data (local, optionally cloud-synced later):**
 
 ```
-collection(product_id, quantity, condition, is_wanted)
+collection(card_id, quantity, condition, is_wanted)   -- card_id = cards.id
 trades(id, created_at, notes)
-trade_items(trade_id, side, product_id?, quantity, cash_amount?, price_at_time)
+trade_items(trade_id, side, card_id?, quantity, cash_amount?, price_at_time)
 settings(price_source, price_type)   -- tcgplayer|cardmarket, market|low
 ```
 
