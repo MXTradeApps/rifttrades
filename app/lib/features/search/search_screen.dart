@@ -17,7 +17,6 @@ class BrowseScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sets = CardRepository.setNames;
-    final scheme = Theme.of(context).colorScheme;
     // Watching the catalog here preloads it as soon as the app opens, so
     // tapping into a set later is instant.
     final counts = ref.watch(catalogProvider).maybeWhen(
@@ -40,16 +39,11 @@ class BrowseScreen extends ConsumerWidget {
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: sets.length,
-        separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
+        separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
         itemBuilder: (context, i) {
           final set = sets[i];
           final count = counts[set];
           return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: scheme.primaryContainer,
-              child: Icon(Icons.style_outlined,
-                  color: scheme.onPrimaryContainer),
-            ),
             title: Text(set,
                 style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: count == null ? null : Text('$count cards'),
