@@ -265,6 +265,32 @@ class TradeDraftNotifier extends Notifier<Trade> {
         : state.copyWith(wantItems: items);
   }
 
+  /// Swaps the printing of an existing line (e.g. Normal <-> Foil), keeping the
+  /// quantity and re-pricing for the new finish. Merges if the target printing
+  /// is already present on the same side.
+  void replaceCard(TradeSide side, String oldCardId, CardModel newCard) {
+    if (oldCardId == newCard.id) return;
+    final pricing = ref.read(pricingProvider);
+    final items = side == TradeSide.have
+        ? [...state.haveItems]
+        : [...state.wantItems];
+    final idx = items.indexWhere((i) => i.card.id == oldCardId);
+    if (idx < 0) return;
+    final qty = items[idx].quantity;
+    final existing = items.indexWhere((i) => i.card.id == newCard.id);
+    if (existing >= 0 && existing != idx) {
+      items[existing] =
+          items[existing].copyWith(quantity: items[existing].quantity + qty);
+      items.removeAt(idx);
+    } else {
+      items[idx] = TradeItem(
+          card: newCard, quantity: qty, priceEach: pricing.value(newCard) ?? 0);
+    }
+    state = side == TradeSide.have
+        ? state.copyWith(haveItems: items)
+        : state.copyWith(wantItems: items);
+  }
+
   void setQuantity(TradeSide side, String cardId, int quantity) {
     List<TradeItem> items = side == TradeSide.have
         ? [...state.haveItems]

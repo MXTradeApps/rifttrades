@@ -4,14 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
+import '../../core/data/card_repository.dart';
 import '../../core/models/app_settings.dart';
+import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
 import '../search/card_picker.dart';
 import 'trade_history_screen.dart';
 
-/// Minimum height either list can be squeezed to when resizing.
-const double _minPaneHeight = 96;
+/// Smallest fraction of the split area either list can be squeezed to.
+const double _minFraction = 0.15;
 const double _dragBarHeight = 108;
 
 class TradeScreen extends ConsumerStatefulWidget {
@@ -60,16 +62,17 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final avail = constraints.maxHeight - _dragBarHeight;
-          final minFrac = (_minPaneHeight / avail).clamp(0.0, 0.5);
-          final frac = _topFraction.clamp(minFrac, 1 - minFrac);
-          final topHeight = avail * frac;
-          final bottomHeight = avail - topHeight;
+          // Flex-based split so panes can never be sized negative, regardless
+          // of the available height.
+          final avail =
+              (constraints.maxHeight - _dragBarHeight).clamp(1.0, double.infinity);
+          final frac = _topFraction.clamp(_minFraction, 1 - _minFraction);
+          final topFlex = (frac * 1000).round();
 
           return Column(
             children: [
-              SizedBox(
-                height: topHeight,
+              Expanded(
+                flex: topFlex,
                 child: _TradeSideList(
                   side: TradeSide.want,
                   title: 'Their cards',
@@ -84,14 +87,13 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                 settings: settings,
                 onDrag: (dy) {
                   setState(() {
-                    final newTop =
-                        (topHeight + dy).clamp(_minPaneHeight, avail - _minPaneHeight);
-                    _topFraction = newTop / avail;
+                    _topFraction =
+                        (frac + dy / avail).clamp(_minFraction, 1 - _minFraction);
                   });
                 },
               ),
-              SizedBox(
-                height: bottomHeight,
+              Expanded(
+                flex: 1000 - topFlex,
                 child: _TradeSideList(
                   side: TradeSide.have,
                   title: 'My cards',
@@ -161,6 +163,7 @@ class _TradeSideList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final notifier = ref.read(tradeDraftProvider.notifier);
+    final catalog = ref.watch(catalogProvider).asData?.value ?? const [];
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(left: BorderSide(color: accent, width: 3)),
@@ -177,6 +180,8 @@ class _TradeSideList extends ConsumerWidget {
               onDec: () =>
                   notifier.setQuantity(side, item.card.id, item.quantity - 1),
               onRemove: () => notifier.removeCard(side, item.card.id),
+              onTap: () => _editFinish(
+                  context, ref, side, item, oppositeFinish(catalog, item.card)),
             ),
           InkWell(
             onTap: () => _pick(context, ref, side),
@@ -329,53 +334,152 @@ class _TradeItemRow extends StatelessWidget {
     required this.onInc,
     required this.onDec,
     required this.onRemove,
+    required this.onTap,
   });
   final TradeItem item;
   final String symbol;
   final VoidCallback onInc;
   final VoidCallback onDec;
   final VoidCallback onRemove;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-      child: Row(
-        children: [
-          CardThumbnail(
-              url: item.card.imageUrl,
-              foil: item.card.isFoil,
-              width: 36,
-              height: 50),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.card.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                Text(
-                  '$symbol${item.priceEach.toStringAsFixed(2)} ea · $symbol${item.lineTotal.toStringAsFixed(2)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ],
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+        child: Row(
+          children: [
+            CardThumbnail(
+                url: item.card.imageUrl,
+                foil: item.card.isFoil,
+                width: 36,
+                height: 50),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(item.card.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 14)),
+                      ),
+                      if (item.card.isFoil) ...[
+                        const SizedBox(width: 6),
+                        const PillBadge(
+                            label: 'FOIL',
+                            color: Color(0xFF9B5DE5),
+                            icon: Icons.auto_awesome),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    '$symbol${item.priceEach.toStringAsFixed(2)} ea · $symbol${item.lineTotal.toStringAsFixed(2)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ),
-          ),
-          _QtyStepper(qty: item.quantity, onInc: onInc, onDec: onDec),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: onRemove,
-          ),
-        ],
+            _QtyStepper(qty: item.quantity, onInc: onInc, onDec: onDec),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: onRemove,
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// Bottom sheet to switch a trade line between its Normal and Foil printing.
+/// The Foil switch is disabled when the card has no alternate finish.
+void _editFinish(
+  BuildContext context,
+  WidgetRef ref,
+  TradeSide side,
+  TradeItem item,
+  CardModel? counterpart,
+) {
+  final pricing = ref.read(pricingProvider);
+  final card = item.card;
+  final normal = card.isFoil ? counterpart : card;
+  final foil = card.isFoil ? card : counterpart;
+
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CardThumbnail(
+                      url: card.imageUrl,
+                      foil: card.isFoil,
+                      width: 40,
+                      height: 56),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(card.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                        CardMetaLine(card: card),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: Icon(Icons.auto_awesome,
+                    color: card.isFoil
+                        ? const Color(0xFF9B5DE5)
+                        : theme.colorScheme.onSurfaceVariant),
+                title: const Text('Foil'),
+                subtitle: Text(
+                  counterpart == null
+                      ? 'No foil version of this card'
+                      : 'Foil ${pricing.priceLabel(foil!)}  ·  Normal ${pricing.priceLabel(normal!)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                value: card.isFoil,
+                onChanged: counterpart == null
+                    ? null
+                    : (_) {
+                        ref
+                            .read(tradeDraftProvider.notifier)
+                            .replaceCard(side, card.id, counterpart);
+                        Navigator.pop(ctx);
+                      },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _QtyStepper extends StatelessWidget {

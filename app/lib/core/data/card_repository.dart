@@ -83,6 +83,22 @@ List<CardModel> filterCards(List<CardModel> all, CardFilters filters) {
   return list;
 }
 
+/// Finds the opposite-finish printing (Normal <-> Foil) of [card] within
+/// [catalog], or null if this card has no alternate finish. Finishes of the
+/// same physical card share a `product_id` and differ only by `is_foil`.
+CardModel? oppositeFinish(List<CardModel> catalog, CardModel card) {
+  for (final c in catalog) {
+    if (c.isFoil == card.isFoil) continue;
+    if (card.productId != null && c.productId == card.productId) return c;
+    if (card.productId == null &&
+        c.name == card.name &&
+        c.collectorNumber == card.collectorNumber) {
+      return c;
+    }
+  }
+  return null;
+}
+
 /// Reads card + price data from the shared Supabase database.
 class CardRepository {
   CardRepository(this._client);
