@@ -44,6 +44,45 @@ class CardFilters {
   static const _sentinel = Object();
 }
 
+/// Applies [filters] to an in-memory catalog (used for instant, offline
+/// browsing). Mirrors the ordering the database previously produced.
+List<CardModel> filterCards(List<CardModel> all, CardFilters filters) {
+  final q = filters.query.trim().toLowerCase();
+  final list = all.where((c) {
+    if (q.isNotEmpty && !c.name.toLowerCase().contains(q)) return false;
+    if (filters.setName != null && c.setName != filters.setName) return false;
+    if (filters.foilOnly && !c.isFoil) return false;
+    return true;
+  }).toList();
+
+  int byPrice(double? a, double? b, {required bool asc}) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1; // nulls last
+    if (b == null) return -1;
+    return asc ? a.compareTo(b) : b.compareTo(a);
+  }
+
+  switch (filters.sort) {
+    case CardSort.nameAsc:
+      list.sort((a, b) =>
+          a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    case CardSort.priceDesc:
+      list.sort((a, b) => byPrice(a.tcgMarket, b.tcgMarket, asc: false));
+    case CardSort.priceAsc:
+      list.sort((a, b) => byPrice(a.tcgMarket, b.tcgMarket, asc: true));
+    case CardSort.numberAsc:
+      list.sort((a, b) {
+        final an = a.collectorNumber;
+        final bn = b.collectorNumber;
+        if (an == null && bn == null) return 0;
+        if (an == null) return 1;
+        if (bn == null) return -1;
+        return an.compareTo(bn);
+      });
+  }
+  return list;
+}
+
 /// Reads card + price data from the shared Supabase database.
 class CardRepository {
   CardRepository(this._client);
@@ -52,33 +91,26 @@ class CardRepository {
 
   static const String _view = 'cards_with_prices';
 
-  Future<List<CardModel>> search(CardFilters filters, {int limit = 60}) async {
-    var builder = _client.from(_view).select().eq('is_sealed', false);
-
-    final q = filters.query.trim();
-    if (q.isNotEmpty) {
-      builder = builder.ilike('name', '%$q%');
+  /// Fetches the entire (non-sealed) catalog for local caching. PostgREST caps
+  /// a single response at 1000 rows, so page through with `range` until drained.
+  Future<List<CardModel>> fetchAll() async {
+    const pageSize = 1000;
+    final all = <CardModel>[];
+    var from = 0;
+    while (true) {
+      final rows = await _client
+          .from(_view)
+          .select()
+          .eq('is_sealed', false)
+          .order('name')
+          .range(from, from + pageSize - 1);
+      final list = rows as List;
+      all.addAll(
+          list.map((r) => CardModel.fromMap(r as Map<String, dynamic>)));
+      if (list.length < pageSize) break;
+      from += pageSize;
     }
-    if (filters.setName != null) {
-      builder = builder.eq('set_name', filters.setName!);
-    }
-    if (filters.foilOnly) {
-      builder = builder.eq('is_foil', true);
-    }
-
-    final transform = switch (filters.sort) {
-      CardSort.nameAsc => builder.order('name'),
-      CardSort.priceDesc =>
-        builder.order('tcg_market', ascending: false, nullsFirst: false),
-      CardSort.priceAsc =>
-        builder.order('tcg_market', ascending: true, nullsFirst: false),
-      CardSort.numberAsc => builder.order('collector_number'),
-    };
-
-    final rows = await transform.limit(limit);
-    return (rows as List)
-        .map((r) => CardModel.fromMap(r as Map<String, dynamic>))
-        .toList();
+    return all;
   }
 
   /// All printings (normal/foil/alt) that share a card name.

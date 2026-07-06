@@ -89,6 +89,37 @@ class CardModel {
     );
   }
 
+  /// Full serialization back to the `cards_with_prices` column names, so a
+  /// printing round-trips losslessly through [fromMap]. Used by the offline
+  /// catalog cache (unlike [toStub], which drops price detail columns).
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'product_id': productId,
+        'set_id': setId,
+        'unique_id': uniqueId,
+        'name': name,
+        'clean_name': cleanName,
+        'set_name': setName,
+        'sub_type_name': subTypeName,
+        'is_foil': isFoil,
+        'rarity': rarity,
+        'collector_number': collectorNumber,
+        'image_url': imageUrl,
+        'tcgplayer_url': tcgplayerUrl,
+        'cardmarket_id': cardmarketId,
+        'tcg_low': tcgLow,
+        'tcg_mid': tcgMid,
+        'tcg_high': tcgHigh,
+        'tcg_market': tcgMarket,
+        'tcg_direct_low': tcgDirectLow,
+        'cm_avg': cmAvg,
+        'cm_low': cmLow,
+        'cm_trend': cmTrend,
+        'cm_avg_foil': cmAvgFoil,
+        'cm_low_foil': cmLowFoil,
+        'cm_trend_foil': cmTrendFoil,
+      };
+
   /// Compact map used to cache a printing alongside user data (collection/trades),
   /// so those screens can render without a network round-trip.
   Map<String, dynamic> toStub() => {

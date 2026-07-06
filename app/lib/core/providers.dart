@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/card_repository.dart';
+import 'data/catalog_repository.dart';
 import 'data/collection_repository.dart';
 import 'data/settings_repository.dart';
 import 'data/trade_repository.dart';
@@ -22,6 +23,51 @@ final supabaseClientProvider =
 
 final cardRepositoryProvider = Provider<CardRepository>(
     (ref) => CardRepository(ref.watch(supabaseClientProvider)));
+
+// ---------------------------------------------------------------------------
+// Card catalog (preloaded + cached locally for instant, offline browsing)
+// ---------------------------------------------------------------------------
+final catalogRepositoryProvider = Provider<CatalogRepository>(
+    (ref) => CatalogRepository(ref.watch(sharedPreferencesProvider)));
+
+/// Holds the whole card catalog. On startup it returns the locally cached
+/// catalog immediately (no spinner) and refreshes prices from Supabase in the
+/// background; if there is no cache yet it fetches once and stores it.
+class CatalogNotifier extends AsyncNotifier<List<CardModel>> {
+  @override
+  Future<List<CardModel>> build() async {
+    final store = ref.watch(catalogRepositoryProvider);
+    final cached = store.load();
+    if (cached != null && cached.isNotEmpty) {
+      _refreshInBackground();
+      return cached;
+    }
+    final cards = await ref.watch(cardRepositoryProvider).fetchAll();
+    await store.save(cards);
+    return cards;
+  }
+
+  Future<void> _refreshInBackground() async {
+    try {
+      final cards = await ref.read(cardRepositoryProvider).fetchAll();
+      await ref.read(catalogRepositoryProvider).save(cards);
+      state = AsyncData(cards);
+    } catch (_) {
+      // Keep serving the cached catalog if the refresh fails.
+    }
+  }
+
+  /// Pull-to-refresh: re-fetch the catalog so the latest synced prices show.
+  Future<void> refresh() async {
+    final cards = await ref.read(cardRepositoryProvider).fetchAll();
+    await ref.read(catalogRepositoryProvider).save(cards);
+    state = AsyncData(cards);
+  }
+}
+
+final catalogProvider =
+    AsyncNotifierProvider<CatalogNotifier, List<CardModel>>(
+        CatalogNotifier.new);
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -71,10 +117,12 @@ class SearchFiltersNotifier extends Notifier<CardFilters> {
   void clear() => state = CardFilters(setName: state.setName);
 }
 
-final searchResultsProvider = FutureProvider<List<CardModel>>((ref) async {
+/// Browse/search results derived by filtering the preloaded catalog in memory,
+/// so entering a set is instant (no network round-trip).
+final browseResultsProvider = Provider<AsyncValue<List<CardModel>>>((ref) {
+  final catalog = ref.watch(catalogProvider);
   final filters = ref.watch(searchFiltersProvider);
-  // Sets can hold hundreds of printings; fetch enough to show the whole set.
-  return ref.watch(cardRepositoryProvider).search(filters, limit: 1000);
+  return catalog.whenData((cards) => filterCards(cards, filters));
 });
 
 // ---------------------------------------------------------------------------

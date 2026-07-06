@@ -28,14 +28,8 @@ class CardPickerScreen extends ConsumerStatefulWidget {
 class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
-  Future<List<CardModel>>? _future;
+  String _query = '';
   bool _foilOnly = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _run('');
-  }
 
   @override
   void dispose() {
@@ -44,22 +38,17 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
     super.dispose();
   }
 
-  void _run(String q) {
-    setState(() {
-      _future = ref.read(cardRepositoryProvider).search(
-            CardFilters(query: q, foilOnly: _foilOnly, sort: CardSort.nameAsc),
-          );
-    });
-  }
-
   void _onChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () => _run(value));
+    _debounce = Timer(const Duration(milliseconds: 200), () {
+      setState(() => _query = value);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final pricing = ref.watch(pricingProvider);
+    final catalog = ref.watch(catalogProvider);
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
       body: Column(
@@ -84,21 +73,25 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
                 label: const Text('Foil only'),
                 avatar: const Icon(Icons.auto_awesome, size: 16),
                 selected: _foilOnly,
-                onSelected: (v) {
-                  _foilOnly = v;
-                  _run(_controller.text);
-                },
+                onSelected: (v) => setState(() => _foilOnly = v),
               ),
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<CardModel>>(
-              future: _future,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final cards = snap.data ?? const [];
+            child: catalog.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) =>
+                  Center(child: Text('Could not load cards.\n$e')),
+              data: (all) {
+                final cards = filterCards(
+                  all,
+                  CardFilters(
+                    query: _query,
+                    foilOnly: _foilOnly,
+                    sort: CardSort.nameAsc,
+                  ),
+                );
                 if (cards.isEmpty) {
                   return const Center(child: Text('No cards found.'));
                 }

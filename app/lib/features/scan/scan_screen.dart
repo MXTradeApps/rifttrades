@@ -198,6 +198,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       ),
       floatingActionButton: _cameraAvailable
           ? FloatingActionButton.large(
+              heroTag: 'scanFab',
               onPressed: _busy ? null : _capture,
               child: _busy
                   ? const CircularProgressIndicator(color: Colors.white)

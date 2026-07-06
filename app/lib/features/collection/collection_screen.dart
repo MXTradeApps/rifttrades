@@ -64,6 +64,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen>
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'collectionFab',
         onPressed: () => _add(context),
         icon: const Icon(Icons.add),
         label: Text(_tab.index == 0 ? 'Add card' : 'Add want'),

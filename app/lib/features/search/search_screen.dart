@@ -18,6 +18,19 @@ class BrowseScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sets = CardRepository.setNames;
     final scheme = Theme.of(context).colorScheme;
+    // Watching the catalog here preloads it as soon as the app opens, so
+    // tapping into a set later is instant.
+    final counts = ref.watch(catalogProvider).maybeWhen(
+          data: (cards) {
+            final m = <String, int>{};
+            for (final c in cards) {
+              final s = c.setName;
+              if (s != null) m[s] = (m[s] ?? 0) + 1;
+            }
+            return m;
+          },
+          orElse: () => const <String, int>{},
+        );
 
     return Scaffold(
       appBar: AppBar(
@@ -30,6 +43,7 @@ class BrowseScreen extends ConsumerWidget {
         separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
         itemBuilder: (context, i) {
           final set = sets[i];
+          final count = counts[set];
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: scheme.primaryContainer,
@@ -38,6 +52,7 @@ class BrowseScreen extends ConsumerWidget {
             ),
             title: Text(set,
                 style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: count == null ? null : Text('$count cards'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               ref.read(searchFiltersProvider.notifier).enterSet(set);
@@ -84,14 +99,11 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
   }
 
   /// Pull-to-refresh: re-query Supabase so the latest synced prices show up.
-  Future<void> _refresh() async {
-    ref.invalidate(searchResultsProvider);
-    await ref.read(searchResultsProvider.future);
-  }
+  Future<void> _refresh() => ref.read(catalogProvider.notifier).refresh();
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(searchResultsProvider);
+    final results = ref.watch(browseResultsProvider);
     final filters = ref.watch(searchFiltersProvider);
     final pricing = ref.watch(pricingProvider);
 
@@ -137,7 +149,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
                 error: (e, _) => _ScrollableCenter(
                   child: _ErrorView(
                     message: e.toString(),
-                    onRetry: () => ref.invalidate(searchResultsProvider),
+                    onRetry: () => ref.invalidate(catalogProvider),
                   ),
                 ),
                 data: (cards) {
