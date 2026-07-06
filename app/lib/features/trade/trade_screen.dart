@@ -1,26 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
+import '../../core/models/app_settings.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
 import '../search/card_picker.dart';
 import 'trade_history_screen.dart';
 
-class TradeScreen extends ConsumerWidget {
+/// Minimum height either list can be squeezed to when resizing.
+const double _minPaneHeight = 96;
+const double _dragBarHeight = 108;
+
+class TradeScreen extends ConsumerStatefulWidget {
   const TradeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TradeScreen> createState() => _TradeScreenState();
+}
+
+class _TradeScreenState extends ConsumerState<TradeScreen> {
+  /// Fraction of the resizable area given to the top ("Their cards") list.
+  double _topFraction = 0.5;
+
+  @override
+  Widget build(BuildContext context) {
     final trade = ref.watch(tradeDraftProvider);
+    final settings = ref.watch(settingsProvider);
     final notifier = ref.read(tradeDraftProvider.notifier);
-    final isEmpty = trade.haveItems.isEmpty &&
-        trade.wantItems.isEmpty &&
-        trade.haveCash == 0 &&
-        trade.wantCash == 0;
+    final isEmpty = trade.haveItems.isEmpty && trade.wantItems.isEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -35,6 +45,12 @@ class TradeScreen extends ConsumerWidget {
           ),
           if (!isEmpty)
             IconButton(
+              icon: const Icon(Icons.save_outlined),
+              tooltip: 'Save trade',
+              onPressed: () => _saveTrade(context, ref, trade),
+            ),
+          if (!isEmpty)
+            IconButton(
               icon: const Icon(Icons.delete_sweep_outlined),
               tooltip: 'Clear trade',
               onPressed: () => _confirmClear(context, notifier),
@@ -42,38 +58,52 @@ class TradeScreen extends ConsumerWidget {
           const SettingsAction(),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: isEmpty
-                ? const _EmptyTrade()
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                    children: [
-                      _SidePanel(
-                        side: TradeSide.have,
-                        title: 'You give',
-                        accent: AppTheme.haveAccent,
-                        items: trade.haveItems,
-                        cash: trade.haveCash,
-                        total: trade.haveTotal,
-                        symbol: trade.currencySymbol,
-                      ),
-                      const SizedBox(height: 12),
-                      _SidePanel(
-                        side: TradeSide.want,
-                        title: 'You receive',
-                        accent: AppTheme.wantAccent,
-                        items: trade.wantItems,
-                        cash: trade.wantCash,
-                        total: trade.wantTotal,
-                        symbol: trade.currencySymbol,
-                      ),
-                    ],
-                  ),
-          ),
-          isEmpty ? const _AddBar() : _BalanceBar(trade: trade),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final avail = constraints.maxHeight - _dragBarHeight;
+          final minFrac = (_minPaneHeight / avail).clamp(0.0, 0.5);
+          final frac = _topFraction.clamp(minFrac, 1 - minFrac);
+          final topHeight = avail * frac;
+          final bottomHeight = avail - topHeight;
+
+          return Column(
+            children: [
+              SizedBox(
+                height: topHeight,
+                child: _TradeSideList(
+                  side: TradeSide.want,
+                  title: 'Their cards',
+                  accent: AppTheme.wantAccent,
+                  items: trade.wantItems,
+                  symbol: trade.currencySymbol,
+                  addLabel: 'Add their cards',
+                ),
+              ),
+              _DragBar(
+                trade: trade,
+                settings: settings,
+                onDrag: (dy) {
+                  setState(() {
+                    final newTop =
+                        (topHeight + dy).clamp(_minPaneHeight, avail - _minPaneHeight);
+                    _topFraction = newTop / avail;
+                  });
+                },
+              ),
+              SizedBox(
+                height: bottomHeight,
+                child: _TradeSideList(
+                  side: TradeSide.have,
+                  title: 'My cards',
+                  accent: AppTheme.haveAccent,
+                  items: trade.haveItems,
+                  symbol: trade.currencySymbol,
+                  addLabel: 'Add my cards',
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -83,7 +113,7 @@ class TradeScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Clear trade?'),
-        content: const Text('This removes all cards and cash from the draft.'),
+        content: const Text('This removes all cards from the trade.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -101,175 +131,193 @@ class TradeScreen extends ConsumerWidget {
   }
 }
 
-class _EmptyTrade extends ConsumerWidget {
-  const _EmptyTrade();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.swap_horiz, size: 64, color: scheme.primary),
-            const SizedBox(height: 16),
-            Text('Build a trade',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Text(
-              'Add cards to each side and RiftTrades keeps the values balanced in real time.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AddBar extends ConsumerWidget {
-  const _AddBar();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add to Give'),
-                onPressed: () => _pick(context, ref, TradeSide.have),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add to Receive'),
-                onPressed: () => _pick(context, ref, TradeSide.want),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 Future<void> _pick(BuildContext context, WidgetRef ref, TradeSide side) async {
   final card = await CardPickerScreen.show(context,
-      title: side == TradeSide.have ? 'Add to Give' : 'Add to Receive');
+      title: side == TradeSide.have ? 'Add my cards' : 'Add their cards');
   if (card != null) {
     ref.read(tradeDraftProvider.notifier).addCard(side, card);
   }
 }
 
-class _SidePanel extends ConsumerWidget {
-  const _SidePanel({
+/// One scrollable, always-visible side of the trade with an "Add …" footer row.
+class _TradeSideList extends ConsumerWidget {
+  const _TradeSideList({
     required this.side,
     required this.title,
     required this.accent,
     required this.items,
-    required this.cash,
-    required this.total,
     required this.symbol,
+    required this.addLabel,
   });
 
   final TradeSide side;
   final String title;
   final Color accent;
   final List<TradeItem> items;
-  final double cash;
-  final double total;
   final String symbol;
+  final String addLabel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final notifier = ref.read(tradeDraftProvider.notifier);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 20,
-                  decoration: BoxDecoration(
-                      color: accent,
-                      borderRadius: BorderRadius.circular(4)),
-                ),
-                const SizedBox(width: 8),
-                Text(title,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                const Spacer(),
-                Text(
-                  '$symbol${total.toStringAsFixed(2)}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800, color: accent),
-                ),
-              ],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: accent, width: 3)),
+      ),
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          for (final item in items)
+            _TradeItemRow(
+              item: item,
+              symbol: symbol,
+              onInc: () =>
+                  notifier.setQuantity(side, item.card.id, item.quantity + 1),
+              onDec: () =>
+                  notifier.setQuantity(side, item.card.id, item.quantity - 1),
+              onRemove: () => notifier.removeCard(side, item.card.id),
             ),
-            const SizedBox(height: 4),
-            if (items.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('No cards yet.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
-              )
-            else
-              for (final item in items)
-                _TradeItemRow(
-                  item: item,
-                  symbol: symbol,
-                  onInc: () => notifier.setQuantity(
-                      side, item.card.id, item.quantity + 1),
-                  onDec: () => notifier.setQuantity(
-                      side, item.card.id, item.quantity - 1),
-                  onRemove: () => notifier.removeCard(side, item.card.id),
-                ),
-            const Divider(height: 16),
-            Row(
-              children: [
-                Icon(Icons.payments_outlined,
-                    size: 18, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                const Text('Cash'),
-                const Spacer(),
-                SizedBox(
-                  width: 110,
-                  child: _CashField(
-                    initial: cash,
-                    symbol: symbol,
-                    onChanged: (v) => notifier.setCash(side, v),
+          InkWell(
+            onTap: () => _pick(context, ref, side),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.add, size: 20, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    addLabel,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add card'),
-                onPressed: () => _pick(context, ref, side),
+                ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The draggable summary bar between the two lists. Drag vertically to give
+/// more room to either side; shows each side's total and the running delta.
+class _DragBar extends StatelessWidget {
+  const _DragBar({
+    required this.trade,
+    required this.settings,
+    required this.onDrag,
+  });
+
+  final Trade trade;
+  final AppSettings settings;
+  final ValueChanged<double> onDrag;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final symbol = trade.currencySymbol;
+    final theirs = trade.wantTotal;
+    final mine = trade.haveTotal;
+    final diff = theirs - mine; // + => you gain value
+    final balanced = diff.abs() < 0.01;
+    final Color deltaColor = balanced
+        ? theme.colorScheme.onSurfaceVariant
+        : (diff >= 0 ? AppTheme.positive : AppTheme.negative);
+    final String deltaText = balanced
+        ? 'Even'
+        : '${diff >= 0 ? '+' : '-'}$symbol${diff.abs().toStringAsFixed(2)}';
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: (d) => onDrag(d.delta.dy),
+      child: Container(
+        height: _dragBarHeight,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          border: Border.symmetric(
+            horizontal: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            _summaryRow(
+              theme,
+              icon: Icons.south,
+              accent: AppTheme.wantAccent,
+              label: 'Their ${trade.wantCount} '
+                  '${trade.wantCount == 1 ? 'card' : 'cards'}',
+              value: '$symbol${theirs.toStringAsFixed(2)}',
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.sell_outlined,
+                      size: 13, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${settings.source.label} · ${settings.type.label}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const Spacer(),
+                  Icon(balanced ? Icons.balance : Icons.trending_up,
+                      size: 15, color: deltaColor),
+                  const SizedBox(width: 4),
+                  Text(deltaText,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                          color: deltaColor, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+            _summaryRow(
+              theme,
+              icon: Icons.north,
+              accent: AppTheme.haveAccent,
+              label: 'My ${trade.haveCount} '
+                  '${trade.haveCount == 1 ? 'card' : 'cards'}',
+              value: '$symbol${mine.toStringAsFixed(2)}',
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _summaryRow(
+    ThemeData theme, {
+    required IconData icon,
+    required Color accent,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: accent),
+        const SizedBox(width: 6),
+        Text(label,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        const Spacer(),
+        Text(value,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800)),
+      ],
     );
   }
 }
@@ -292,7 +340,7 @@ class _TradeItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
       child: Row(
         children: [
           CardThumbnail(
@@ -364,177 +412,49 @@ class _QtyStepper extends StatelessWidget {
   Widget _stepBtn(IconData icon, VoidCallback onTap) => InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
-        child: Padding(padding: const EdgeInsets.all(6), child: Icon(icon, size: 16)),
+        child: Padding(
+            padding: const EdgeInsets.all(6), child: Icon(icon, size: 16)),
       );
 }
 
-class _CashField extends StatefulWidget {
-  const _CashField(
-      {required this.initial, required this.symbol, required this.onChanged});
-  final double initial;
-  final String symbol;
-  final ValueChanged<double> onChanged;
-
-  @override
-  State<_CashField> createState() => _CashFieldState();
-}
-
-class _CashFieldState extends State<_CashField> {
-  late final TextEditingController _c = TextEditingController(
-      text: widget.initial == 0 ? '' : widget.initial.toStringAsFixed(2));
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: _c,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      textAlign: TextAlign.right,
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+Future<void> _saveTrade(BuildContext context, WidgetRef ref, Trade trade) async {
+  final notesController = TextEditingController();
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Save trade'),
+      content: TextField(
+        controller: notesController,
+        decoration: const InputDecoration(
+          labelText: 'Notes (optional)',
+          hintText: 'e.g. Traded with Alex at LGS',
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save trade')),
       ],
-      decoration: InputDecoration(
-        isDense: true,
-        prefixText: widget.symbol,
-        hintText: '0.00',
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      ),
-      onChanged: (v) => widget.onChanged(double.tryParse(v) ?? 0),
+    ),
+  );
+  if (confirmed != true) return;
+
+  final finalTrade = Trade(
+    id: DateTime.now().millisecondsSinceEpoch.toString(),
+    createdAt: DateTime.now(),
+    notes: notesController.text.trim(),
+    haveItems: trade.haveItems,
+    wantItems: trade.wantItems,
+    currencySymbol: trade.currencySymbol,
+  );
+  ref.read(tradeHistoryProvider.notifier).addTrade(finalTrade);
+  ref.read(tradeDraftProvider.notifier).clear();
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Trade saved to history')),
     );
-  }
-}
-
-class _BalanceBar extends ConsumerWidget {
-  const _BalanceBar({required this.trade});
-  final Trade trade;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final delta = trade.delta;
-    final symbol = trade.currencySymbol;
-    final balanced = delta.abs() < 0.01;
-    final Color color = balanced
-        ? AppTheme.positive
-        : (delta > 0 ? AppTheme.negative : AppTheme.positive);
-
-    final String label;
-    if (balanced) {
-      label = 'Even trade';
-    } else if (delta > 0) {
-      label = 'You give $symbol${delta.abs().toStringAsFixed(2)} more';
-    } else {
-      label = 'You gain $symbol${delta.abs().toStringAsFixed(2)} in value';
-    }
-
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          border: Border(
-              top: BorderSide(color: theme.colorScheme.outlineVariant)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(balanced ? Icons.balance : Icons.trending_up,
-                        color: color, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  color: color,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13)),
-                          Text(
-                            'Give $symbol${trade.haveTotal.toStringAsFixed(2)}  •  Get $symbol${trade.wantTotal.toStringAsFixed(2)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton.icon(
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('Save'),
-              onPressed: () => _save(context, ref),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _save(BuildContext context, WidgetRef ref) async {
-    final notesController = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Save trade'),
-        content: TextField(
-          controller: notesController,
-          decoration: const InputDecoration(
-            labelText: 'Notes (optional)',
-            hintText: 'e.g. Traded with Alex at LGS',
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save trade')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    final saved = trade.copyWith(notes: notesController.text.trim());
-    final finalTrade = Trade(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      createdAt: DateTime.now(),
-      notes: saved.notes,
-      haveItems: saved.haveItems,
-      wantItems: saved.wantItems,
-      haveCash: saved.haveCash,
-      wantCash: saved.wantCash,
-      currencySymbol: saved.currencySymbol,
-    );
-    ref.read(tradeHistoryProvider.notifier).addTrade(finalTrade);
-    ref.read(tradeDraftProvider.notifier).clear();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trade saved to history')),
-      );
-    }
   }
 }
