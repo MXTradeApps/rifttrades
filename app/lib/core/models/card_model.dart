@@ -16,6 +16,10 @@ class CardModel {
   final String? tcgplayerUrl;
   final int? cardmarketId;
 
+  /// When the pricing pipeline last refreshed this printing's prices. Sourced
+  /// from the `price_updated_at` column of `cards_with_prices`.
+  final DateTime? priceUpdatedAt;
+
   // TCGplayer prices (USD, nullable).
   final double? tcgLow;
   final double? tcgMid;
@@ -46,6 +50,7 @@ class CardModel {
     this.imageUrl,
     this.tcgplayerUrl,
     this.cardmarketId,
+    this.priceUpdatedAt,
     this.tcgLow,
     this.tcgMid,
     this.tcgHigh,
@@ -75,6 +80,7 @@ class CardModel {
       imageUrl: map['image_url'] as String?,
       tcgplayerUrl: map['tcgplayer_url'] as String?,
       cardmarketId: _toInt(map['cardmarket_id']),
+      priceUpdatedAt: _toDate(map['price_updated_at']),
       tcgLow: _toDouble(map['tcg_low']),
       tcgMid: _toDouble(map['tcg_mid']),
       tcgHigh: _toDouble(map['tcg_high']),
@@ -107,6 +113,7 @@ class CardModel {
         'image_url': imageUrl,
         'tcgplayer_url': tcgplayerUrl,
         'cardmarket_id': cardmarketId,
+        'price_updated_at': priceUpdatedAt?.toIso8601String(),
         'tcg_low': tcgLow,
         'tcg_mid': tcgMid,
         'tcg_high': tcgHigh,
@@ -154,6 +161,12 @@ class CardModel {
     if (v == null) return null;
     if (v is num) return v.toInt();
     return int.tryParse(v.toString());
+  }
+
+  static DateTime? _toDate(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return v;
+    return DateTime.tryParse(v.toString());
   }
 }
 

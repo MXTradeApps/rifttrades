@@ -109,6 +109,135 @@ List<CardModel> filterCards(List<CardModel> all, CardFilters filters) {
   return list;
 }
 
+// ---------------------------------------------------------------------------
+// Grouping printings by card name (for the grouped Browse view)
+// ---------------------------------------------------------------------------
+
+/// All printings/versions that share a single card name, plus the
+/// "representative" printing whose price/art is shown on the collapsed row.
+class CardGroup {
+  const CardGroup({
+    required this.name,
+    required this.representative,
+    required this.versions,
+  });
+
+  final String name;
+
+  /// The base-rarity printing used for the collapsed row (see [_baseFirst]).
+  final CardModel representative;
+
+  /// Every printing in this group (base first), e.g. Normal / Foil / alt-art.
+  final List<CardModel> versions;
+
+  bool get hasMultiple => versions.length > 1;
+}
+
+/// Ordering of rarities from most "base"/standard (0) to most premium, used to
+/// choose which printing represents a group. Unknown rarities sort last.
+int rarityRank(String? rarity) {
+  switch (rarity?.toLowerCase()) {
+    case 'common':
+      return 0;
+    case 'uncommon':
+      return 1;
+    case 'rare':
+      return 2;
+    case 'epic':
+      return 3;
+    case 'champion':
+    case 'legendary':
+      return 4;
+    case 'showcase':
+      return 5;
+    case 'promo':
+      return 6;
+    default:
+      return 7;
+  }
+}
+
+/// First run of digits in a collector number like "147/219" -> 147, used to
+/// order printings within a group. Returns null when there is no number.
+int? _leadingNumber(String? raw) {
+  if (raw == null) return null;
+  final match = RegExp(r'\d+').firstMatch(raw);
+  return match == null ? null : int.tryParse(match.group(0)!);
+}
+
+/// Comparator that puts the most "base" printing first: non-foil before foil,
+/// then lowest rarity, then a printing that actually has a price, then lowest
+/// collector number. Used both to pick the representative and to order the
+/// version list.
+int _baseFirst(CardModel a, CardModel b) {
+  if (a.isFoil != b.isFoil) return a.isFoil ? 1 : -1;
+  final ra = rarityRank(a.rarity);
+  final rb = rarityRank(b.rarity);
+  if (ra != rb) return ra.compareTo(rb);
+  final ap = a.tcgMarket ?? a.tcgLow;
+  final bp = b.tcgMarket ?? b.tcgLow;
+  if ((ap == null) != (bp == null)) return ap == null ? 1 : -1;
+  final an = _leadingNumber(a.collectorNumber);
+  final bn = _leadingNumber(b.collectorNumber);
+  if (an != null && bn != null && an != bn) return an.compareTo(bn);
+  return a.id.compareTo(b.id);
+}
+
+/// Groups [cards] by card name into [CardGroup]s, ordering the groups by the
+/// requested [sort] (applied to each group's representative printing). Assumes
+/// [cards] has already been filtered by [filterCards].
+List<CardGroup> groupCardsByName(List<CardModel> cards, CardSort sort) {
+  final byName = <String, List<CardModel>>{};
+  final order = <String>[];
+  for (final c in cards) {
+    final list = byName[c.name];
+    if (list == null) {
+      byName[c.name] = [c];
+      order.add(c.name);
+    } else {
+      list.add(c);
+    }
+  }
+
+  final groups = <CardGroup>[];
+  for (final name in order) {
+    final versions = byName[name]!..sort(_baseFirst);
+    groups.add(CardGroup(
+      name: name,
+      representative: versions.first,
+      versions: versions,
+    ));
+  }
+
+  int byPrice(double? a, double? b, {required bool asc}) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return asc ? a.compareTo(b) : b.compareTo(a);
+  }
+
+  switch (sort) {
+    case CardSort.nameAsc:
+      groups.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    case CardSort.priceDesc:
+      groups.sort((a, b) => byPrice(
+          a.representative.tcgMarket, b.representative.tcgMarket, asc: false));
+    case CardSort.priceAsc:
+      groups.sort((a, b) => byPrice(
+          a.representative.tcgMarket, b.representative.tcgMarket, asc: true));
+    case CardSort.numberAsc:
+      groups.sort((a, b) {
+        final an = a.representative.collectorNumber;
+        final bn = b.representative.collectorNumber;
+        if (an == null && bn == null) return 0;
+        if (an == null) return 1;
+        if (bn == null) return -1;
+        return an.compareTo(bn);
+      });
+  }
+  return groups;
+}
+
 /// Finds the opposite-finish printing (Normal <-> Foil) of [card] within
 /// [catalog], or null if this card has no alternate finish. Finishes of the
 /// same physical card share a `product_id` and differ only by `is_foil`.

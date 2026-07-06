@@ -48,4 +48,8 @@ class Pricing {
   String formatValue(double v) => _fmt.format(v);
 
   String get symbol => settings.source.symbol;
+
+  /// Human label of the marketplace the current prices come from, e.g.
+  /// "TCGplayer" or "CardMarket" — used for on-screen price attribution.
+  String get sourceLabel => settings.source.label;
 }

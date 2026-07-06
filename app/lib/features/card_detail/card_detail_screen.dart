@@ -210,20 +210,56 @@ class _PriceCard extends StatelessWidget {
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w700)),
                 const Spacer(),
-                Text(
-                  'Using ${settings.source.label} · ${settings.type.label}',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
+                PriceSourceBadge(source: settings.source.label),
               ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Showing ${settings.source.label} · ${settings.type.label}',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             _PriceGroup(title: 'TCGplayer (USD)', rows: tcgRows),
             const Divider(height: 24),
             _PriceGroup(title: 'CardMarket (EUR)', rows: cmRows),
+            const SizedBox(height: 16),
+            _PriceAttribution(updatedAt: card.priceUpdatedAt),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Credits where the price data comes from and when it was last synced, so the
+/// numbers are always traceable to their marketplace source.
+class _PriceAttribution extends StatelessWidget {
+  const _PriceAttribution({required this.updatedAt});
+  final DateTime? updatedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall
+        ?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final updated = updatedAt == null
+        ? null
+        : DateFormat('MMM d, yyyy').format(updatedAt!.toLocal());
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.storefront_outlined,
+            size: 14, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Price data from TCGplayer & CardMarket'
+            '${updated == null ? '' : ' · updated $updated'}',
+            style: style,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -143,6 +143,7 @@ class CardRow extends StatelessWidget {
     required this.card,
     required this.priceLabel,
     this.secondaryLabel,
+    this.priceSource,
     this.onTap,
     this.onAdd,
     this.trailing,
@@ -151,6 +152,10 @@ class CardRow extends StatelessWidget {
   final CardModel card;
   final String priceLabel;
   final String? secondaryLabel;
+
+  /// When set, a small marketplace attribution (e.g. "TCGplayer") is shown
+  /// beneath the price so the source of the number is always clear.
+  final String? priceSource;
   final VoidCallback? onTap;
   final VoidCallback? onAdd;
   final Widget? trailing;
@@ -205,6 +210,10 @@ class CardRow extends StatelessWidget {
                   Text(secondaryLabel!,
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
+                if (priceSource != null) ...[
+                  const SizedBox(height: 2),
+                  PriceSourceTag(source: priceSource!),
+                ],
               ],
             ),
             if (trailing != null) ...[const SizedBox(width: 4), trailing!],
@@ -256,6 +265,50 @@ class AddListRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Tiny, muted price-source attribution (e.g. a storefront glyph + "TCGplayer")
+/// shown beside/under a price so users always know where the number comes from.
+class PriceSourceTag extends StatelessWidget {
+  const PriceSourceTag({super.key, required this.source});
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.storefront_outlined, size: 11, color: scheme.onSurfaceVariant),
+        const SizedBox(width: 3),
+        Text(
+          source,
+          style: TextStyle(
+            fontSize: 10,
+            height: 1.1,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A pill badge crediting the marketplace a price comes from, for use in more
+/// prominent spots such as the card detail price card header.
+class PriceSourceBadge extends StatelessWidget {
+  const PriceSourceBadge({super.key, required this.source});
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    return PillBadge(
+      label: source,
+      color: AppTheme.seed,
+      icon: Icons.storefront_outlined,
     );
   }
 }
