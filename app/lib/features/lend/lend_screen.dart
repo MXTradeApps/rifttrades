@@ -5,10 +5,10 @@ import '../../app/app.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
 import '../../core/logic/pricing.dart';
-import '../../core/models/lend_entry.dart';
+import '../../core/models/lend_group.dart';
 import '../../core/providers.dart';
-import '../card_detail/card_detail_screen.dart';
-import '../search/card_picker.dart';
+import 'lend_group_screen.dart';
+import 'person_name_dialog.dart';
 
 class LendScreen extends ConsumerStatefulWidget {
   const LendScreen({super.key});
@@ -30,10 +30,10 @@ class _LendScreenState extends ConsumerState<LendScreen>
 
   @override
   Widget build(BuildContext context) {
-    final entries = ref.watch(lendProvider);
+    final groups = ref.watch(lendProvider);
     final pricing = ref.watch(pricingProvider);
-    final lentOut = entries.where((e) => !e.isBorrowing).toList();
-    final borrowing = entries.where((e) => e.isBorrowing).toList();
+    final lentOut = groups.where((g) => !g.isBorrowing).toList();
+    final borrowing = groups.where((g) => g.isBorrowing).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -42,107 +42,70 @@ class _LendScreenState extends ConsumerState<LendScreen>
         bottom: TabBar(
           controller: _tab,
           tabs: [
-            Tab(text: 'Lent out (${_count(lentOut)})'),
-            Tab(text: 'Borrowing (${_count(borrowing)})'),
+            Tab(text: 'Lent out (${lentOut.length})'),
+            Tab(text: 'Borrowing (${borrowing.length})'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tab,
         children: [
-          _LendList(
-            entries: lentOut,
+          _GroupList(
+            groups: lentOut,
             pricing: pricing,
             isBorrowing: false,
-            emptyText: "You haven't lent out any cards yet.",
+            emptyText: "You haven't lent out any cards yet.\n"
+                'Create a batch for someone you lent cards to.',
           ),
-          _LendList(
-            entries: borrowing,
+          _GroupList(
+            groups: borrowing,
             pricing: pricing,
             isBorrowing: true,
-            emptyText: "You aren't borrowing any cards yet.",
+            emptyText: "You aren't borrowing any cards yet.\n"
+                'Create a batch for someone you borrowed cards from.',
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'lendFab',
-        onPressed: () => _add(context),
+        onPressed: () => _newGroup(context),
         icon: const Icon(Icons.add),
-        label: Text(_tab.index == 0 ? 'Lend a card' : 'Borrow a card'),
+        label: Text(_tab.index == 0 ? 'New loan' : 'New borrow'),
       ),
     );
   }
 
-  int _count(List<LendEntry> e) => e.fold<int>(0, (s, x) => s + x.quantity);
-
-  Future<void> _add(BuildContext context) async {
+  Future<void> _newGroup(BuildContext context) async {
     final isBorrowing = _tab.index == 1;
-    final card = await CardPickerScreen.show(context,
-        title: isBorrowing ? 'Borrow a card' : 'Lend a card');
-    if (card == null || !context.mounted) return;
-    final personName = await _askPersonName(context, isBorrowing: isBorrowing);
-    // A null result means the dialog was dismissed — cancel the add.
-    if (personName == null) return;
-    ref.read(lendProvider.notifier).add(
-          card,
+    final personName = await askPersonName(context, isBorrowing: isBorrowing);
+    if (personName == null || !context.mounted) return;
+    final id = ref.read(lendProvider.notifier).createGroup(
           personName: personName.isEmpty ? null : personName,
           isBorrowing: isBorrowing,
         );
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => LendGroupScreen(groupId: id)),
+    );
   }
 }
 
-/// Prompts for an optional person name. Returns the entered string (possibly
-/// empty for "no name"), or null if the dialog was cancelled/dismissed.
-Future<String?> _askPersonName(
-  BuildContext context, {
-  required bool isBorrowing,
-  String? initial,
-}) {
-  final controller = TextEditingController(text: initial ?? '');
-  return showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(isBorrowing ? 'Borrowing from' : 'Lent to'),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(
-          labelText: 'Name (optional)',
-          hintText: 'e.g. Alex',
-        ),
-        onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-          child: const Text('Save'),
-        ),
-      ],
-    ),
-  );
-}
-
-class _LendList extends ConsumerWidget {
-  const _LendList({
-    required this.entries,
+class _GroupList extends ConsumerWidget {
+  const _GroupList({
+    required this.groups,
     required this.pricing,
     required this.isBorrowing,
     required this.emptyText,
   });
 
-  final List<LendEntry> entries;
+  final List<LendGroup> groups;
   final Pricing pricing;
   final bool isBorrowing;
   final String emptyText;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (entries.isEmpty) {
+    if (groups.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -155,258 +118,163 @@ class _LendList extends ConsumerWidget {
         ),
       );
     }
-    final total = entries.fold<double>(
-        0, (s, e) => s + (pricing.value(e.card) ?? 0) * e.quantity);
-
-    return Column(
-      children: [
-        _TotalHeader(
-          count: entries.fold<int>(0, (s, e) => s + e.quantity),
-          people: entries.map((e) => e.personName).whereType<String>().toSet(),
-          total: pricing.formatValue(total),
-          isBorrowing: isBorrowing,
-        ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 96),
-            itemCount: entries.length,
-            separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
-            itemBuilder: (context, i) =>
-                _LendRow(entry: entries[i], pricing: pricing),
-          ),
-        ),
-      ],
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+      itemCount: groups.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) =>
+          _GroupCard(group: groups[i], pricing: pricing),
     );
   }
 }
 
-class _TotalHeader extends StatelessWidget {
-  const _TotalHeader({
-    required this.count,
-    required this.people,
-    required this.total,
-    required this.isBorrowing,
-  });
-  final int count;
-  final Set<String> people;
-  final String total;
-  final bool isBorrowing;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = isBorrowing ? AppTheme.wantAccent : AppTheme.positive;
-    final peopleLabel = people.isEmpty
-        ? null
-        : '${people.length} ${people.length == 1 ? 'person' : 'people'}';
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(isBorrowing ? Icons.call_received : Icons.call_made,
-              color: color),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(isBorrowing ? 'Borrowed value' : 'Lent out value',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-              Text(
-                  peopleLabel == null
-                      ? '$count cards'
-                      : '$count cards  •  $peopleLabel',
-                  style: theme.textTheme.bodyMedium),
-            ],
-          ),
-          const Spacer(),
-          Text(total,
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w800, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _LendRow extends ConsumerWidget {
-  const _LendRow({required this.entry, required this.pricing});
-  final LendEntry entry;
+class _GroupCard extends ConsumerWidget {
+  const _GroupCard({required this.group, required this.pricing});
+  final LendGroup group;
   final Pricing pricing;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final notifier = ref.read(lendProvider.notifier);
-    final card = entry.card;
-    final lineValue = (pricing.value(card) ?? 0) * entry.quantity;
+    final scheme = theme.colorScheme;
+    final color = group.isBorrowing ? AppTheme.wantAccent : AppTheme.positive;
+    final total = group.items
+        .fold<double>(0, (s, i) => s + (pricing.value(i.card) ?? 0) * i.quantity);
+    final name =
+        group.personName?.isNotEmpty == true ? group.personName! : 'Someone';
 
     return Dismissible(
-      key: ValueKey(entry.id),
+      key: ValueKey(group.id),
       direction: DismissDirection.endToStart,
       background: Container(
-        color: AppTheme.negative,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: AppTheme.negative,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => notifier.remove(entry.id),
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => CardDetailScreen(card: card))),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
-            children: [
-              CardThumbnail(url: card.imageUrl, foil: card.isFoil),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      confirmDismiss: (_) => _confirmDelete(context),
+      onDismissed: (_) =>
+          ref.read(lendProvider.notifier).removeGroup(group.id),
+      child: Material(
+        color: theme.cardTheme.color ?? scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => LendGroupScreen(groupId: group.id))),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(card.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 3),
-                    CardMetaLine(card: card),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        RarityBadge(rarity: card.rarity),
-                        if (card.isFoil) ...[
-                          const SizedBox(width: 5),
-                          const PillBadge(
-                              label: 'FOIL',
-                              color: Color(0xFF9B5DE5),
-                              icon: Icons.auto_awesome),
-                        ],
-                        const SizedBox(width: 5),
-                        _PersonChip(
-                          personName: entry.personName,
-                          isBorrowing: entry.isBorrowing,
-                          onTap: () => _editPerson(context, notifier),
-                        ),
-                      ],
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: color.withValues(alpha: 0.15),
+                      child: Icon(
+                          group.isBorrowing
+                              ? Icons.call_received
+                              : Icons.call_made,
+                          size: 18,
+                          color: color),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w700)),
+                          Text(
+                              '${group.cardCount} '
+                              '${group.cardCount == 1 ? 'card' : 'cards'}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    Text(pricing.formatValue(total),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800, color: color)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right, color: scheme.outline),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(pricing.formatValue(lineValue),
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
-                  _MiniStepper(
-                    qty: entry.quantity,
-                    onInc: () =>
-                        notifier.setQuantity(entry.id, entry.quantity + 1),
-                    onDec: () =>
-                        notifier.setQuantity(entry.id, entry.quantity - 1),
-                  ),
+                if (group.items.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _ThumbStrip(group: group),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Future<void> _editPerson(BuildContext context, LendNotifier notifier) async {
-    final name = await _askPersonName(context,
-        isBorrowing: entry.isBorrowing, initial: entry.personName);
-    if (name == null) return;
-    notifier.setPersonName(entry.id, name.isEmpty ? null : name);
-  }
-}
-
-class _PersonChip extends StatelessWidget {
-  const _PersonChip({
-    required this.personName,
-    required this.isBorrowing,
-    required this.onTap,
-  });
-  final String? personName;
-  final bool isBorrowing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final hasName = personName != null && personName!.isNotEmpty;
-    final label = hasName ? personName! : 'Add name';
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: scheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.person_outline,
-                size: 12, color: scheme.onSecondaryContainer),
-            const SizedBox(width: 3),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    fontStyle: hasName ? FontStyle.normal : FontStyle.italic,
-                    color: scheme.onSecondaryContainer)),
-          ],
-        ),
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this batch?'),
+        content: const Text('This removes the whole loan and its cards.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete')),
+        ],
       ),
     );
+    return ok ?? false;
   }
 }
 
-class _MiniStepper extends StatelessWidget {
-  const _MiniStepper(
-      {required this.qty, required this.onInc, required this.onDec});
-  final int qty;
-  final VoidCallback onInc;
-  final VoidCallback onDec;
+/// A horizontal strip of small card thumbnails previewing a group.
+class _ThumbStrip extends StatelessWidget {
+  const _ThumbStrip({required this.group});
+  final LendGroup group;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-      ),
+    const maxThumbs = 6;
+    final items = group.items.take(maxThumbs).toList();
+    final overflow = group.items.length - items.length;
+    return SizedBox(
+      height: 56,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          InkWell(
-            onTap: onDec,
-            child: const Padding(
-                padding: EdgeInsets.all(5), child: Icon(Icons.remove, size: 15)),
-          ),
-          SizedBox(
-            width: 20,
-            child: Text('$qty',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 13)),
-          ),
-          InkWell(
-            onTap: onInc,
-            child: const Padding(
-                padding: EdgeInsets.all(5), child: Icon(Icons.add, size: 15)),
-          ),
+          for (final i in items)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: CardThumbnail(
+                  url: i.card.imageUrl,
+                  width: 40,
+                  height: 56,
+                  foil: i.card.isFoil),
+            ),
+          if (overflow > 0)
+            Container(
+              width: 40,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('+$overflow',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13)),
+            ),
         ],
       ),
     );

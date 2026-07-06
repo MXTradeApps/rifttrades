@@ -12,7 +12,7 @@ import 'logic/pricing.dart';
 import 'models/app_settings.dart';
 import 'models/card_model.dart';
 import 'models/collection_entry.dart';
-import 'models/lend_entry.dart';
+import 'models/lend_group.dart';
 import 'models/trade.dart';
 
 /// Overridden in main() with the real instance.
@@ -212,68 +212,99 @@ final collectionProvider =
 final lendRepositoryProvider = Provider<LendRepository>(
     (ref) => LendRepository(ref.watch(sharedPreferencesProvider)));
 
-class LendNotifier extends Notifier<List<LendEntry>> {
+class LendNotifier extends Notifier<List<LendGroup>> {
   @override
-  List<LendEntry> build() => ref.watch(lendRepositoryProvider).load();
+  List<LendGroup> build() => ref.watch(lendRepositoryProvider).load();
 
   void _persist() => ref.read(lendRepositoryProvider).save(state);
 
-  void add(
-    CardModel card, {
-    int quantity = 1,
-    String? personName,
-    bool isBorrowing = false,
-  }) {
+  /// Creates a new (empty) group and returns its id so the caller can open it.
+  String createGroup({String? personName, bool isBorrowing = false}) {
     final name = personName?.trim();
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
     state = [
-      LendEntry(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        card: card,
-        quantity: quantity,
+      LendGroup(
+        id: id,
         personName: (name == null || name.isEmpty) ? null : name,
         isBorrowing: isBorrowing,
-        addedAt: DateTime.now(),
+        createdAt: DateTime.now(),
       ),
       ...state,
     ];
     _persist();
+    return id;
   }
 
-  void setQuantity(String id, int quantity) {
+  void removeGroup(String groupId) {
+    state = state.where((g) => g.id != groupId).toList();
+    _persist();
+  }
+
+  void setPersonName(String groupId, String? personName) {
+    final name = personName?.trim();
+    _updateGroup(
+        groupId,
+        (g) => g.copyWith(
+              personName: name,
+              clearPersonName: name == null || name.isEmpty,
+            ));
+  }
+
+  void addCard(String groupId, CardModel card, {int quantity = 1}) {
+    _updateGroup(groupId, (g) {
+      final items = [...g.items];
+      final idx = items.indexWhere((i) => i.card.id == card.id);
+      if (idx >= 0) {
+        items[idx] = items[idx].copyWith(quantity: items[idx].quantity + quantity);
+      } else {
+        items.add(LendItem(card: card, quantity: quantity));
+      }
+      return g.copyWith(items: items);
+    });
+  }
+
+  void setCardQuantity(String groupId, String cardId, int quantity) {
     if (quantity <= 0) {
-      remove(id);
+      removeCard(groupId, cardId);
       return;
     }
-    state = [
-      for (final e in state)
-        if (e.id == id) e.copyWith(quantity: quantity) else e
-    ];
-    _persist();
+    _updateGroup(groupId, (g) {
+      final items = [
+        for (final i in g.items)
+          if (i.card.id == cardId) i.copyWith(quantity: quantity) else i
+      ];
+      return g.copyWith(items: items);
+    });
   }
 
-  void setPersonName(String id, String? personName) {
-    final name = personName?.trim();
-    state = [
-      for (final e in state)
-        if (e.id == id)
-          e.copyWith(
-            personName: name,
-            clearPersonName: name == null || name.isEmpty,
-          )
-        else
-          e
-    ];
-    _persist();
+  void removeCard(String groupId, String cardId) {
+    _updateGroup(groupId, (g) {
+      final items = g.items.where((i) => i.card.id != cardId).toList();
+      return g.copyWith(items: items);
+    });
   }
 
-  void remove(String id) {
-    state = state.where((e) => e.id != id).toList();
+  void _updateGroup(String groupId, LendGroup Function(LendGroup) update) {
+    state = [
+      for (final g in state)
+        if (g.id == groupId) update(g) else g
+    ];
     _persist();
   }
 }
 
 final lendProvider =
-    NotifierProvider<LendNotifier, List<LendEntry>>(LendNotifier.new);
+    NotifierProvider<LendNotifier, List<LendGroup>>(LendNotifier.new);
+
+/// A single group looked up by id, so a detail screen stays in sync and
+/// re-renders as cards are added/removed (returns null if it was deleted).
+final lendGroupProvider = Provider.family<LendGroup?, String>((ref, id) {
+  final groups = ref.watch(lendProvider);
+  for (final g in groups) {
+    if (g.id == id) return g;
+  }
+  return null;
+});
 
 // ---------------------------------------------------------------------------
 // Trade history (saved trades)
