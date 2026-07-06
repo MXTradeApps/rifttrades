@@ -3,53 +3,114 @@
 class CardModel {
   final String id; // stable printing key, e.g. "684123-foil"
   final int? productId;
+  final int? setId;
+  final String? uniqueId;
   final String name;
+  final String? cleanName;
   final String? setName;
   final String? subTypeName;
   final bool isFoil;
   final String? rarity;
   final String? collectorNumber;
   final String? imageUrl;
+  final String? tcgplayerUrl;
+  final int? cardmarketId;
 
-  // Prices (nullable — a printing may be unpriced or have no EU match).
-  final double? tcgMarket; // USD
-  final double? tcgLow; // USD
-  final double? cmTrend; // EUR
-  final double? cmLow; // EUR
+  // TCGplayer prices (USD, nullable).
+  final double? tcgLow;
+  final double? tcgMid;
+  final double? tcgHigh;
+  final double? tcgMarket;
+  final double? tcgDirectLow;
+
+  // CardMarket prices (EUR, nullable).
+  final double? cmAvg;
+  final double? cmLow;
+  final double? cmTrend;
+  final double? cmAvgFoil;
+  final double? cmLowFoil;
+  final double? cmTrendFoil;
 
   const CardModel({
     required this.id,
     required this.name,
     this.productId,
+    this.setId,
+    this.uniqueId,
+    this.cleanName,
     this.setName,
     this.subTypeName,
     this.isFoil = false,
     this.rarity,
     this.collectorNumber,
     this.imageUrl,
-    this.tcgMarket,
+    this.tcgplayerUrl,
+    this.cardmarketId,
     this.tcgLow,
-    this.cmTrend,
+    this.tcgMid,
+    this.tcgHigh,
+    this.tcgMarket,
+    this.tcgDirectLow,
+    this.cmAvg,
     this.cmLow,
+    this.cmTrend,
+    this.cmAvgFoil,
+    this.cmLowFoil,
+    this.cmTrendFoil,
   });
 
   factory CardModel.fromMap(Map<String, dynamic> map) {
     return CardModel(
       id: map['id'] as String,
       productId: _toInt(map['product_id']),
+      setId: _toInt(map['set_id']),
+      uniqueId: map['unique_id'] as String?,
       name: (map['name'] as String?) ?? '',
+      cleanName: map['clean_name'] as String?,
       setName: map['set_name'] as String?,
       subTypeName: map['sub_type_name'] as String?,
       isFoil: (map['is_foil'] as bool?) ?? false,
       rarity: map['rarity'] as String?,
       collectorNumber: map['collector_number'] as String?,
       imageUrl: map['image_url'] as String?,
-      tcgMarket: _toDouble(map['tcg_market']),
+      tcgplayerUrl: map['tcgplayer_url'] as String?,
+      cardmarketId: _toInt(map['cardmarket_id']),
       tcgLow: _toDouble(map['tcg_low']),
-      cmTrend: _toDouble(map['cm_trend']),
+      tcgMid: _toDouble(map['tcg_mid']),
+      tcgHigh: _toDouble(map['tcg_high']),
+      tcgMarket: _toDouble(map['tcg_market']),
+      tcgDirectLow: _toDouble(map['tcg_direct_low']),
+      cmAvg: _toDouble(map['cm_avg']),
       cmLow: _toDouble(map['cm_low']),
+      cmTrend: _toDouble(map['cm_trend']),
+      cmAvgFoil: _toDouble(map['cm_avg_foil']),
+      cmLowFoil: _toDouble(map['cm_low_foil']),
+      cmTrendFoil: _toDouble(map['cm_trend_foil']),
     );
   }
+
+  /// Compact map used to cache a printing alongside user data (collection/trades),
+  /// so those screens can render without a network round-trip.
+  Map<String, dynamic> toStub() => {
+        'id': id,
+        'product_id': productId,
+        'name': name,
+        'set_name': setName,
+        'sub_type_name': subTypeName,
+        'is_foil': isFoil,
+        'rarity': rarity,
+        'collector_number': collectorNumber,
+        'image_url': imageUrl,
+        'tcg_market': tcgMarket,
+        'tcg_low': tcgLow,
+        'cm_trend': cmTrend,
+        'cm_low': cmLow,
+      };
+
+  factory CardModel.fromStub(Map<String, dynamic> map) => CardModel.fromMap(map);
+
+  /// Label for the finish, e.g. "Normal" / "Foil".
+  String get finishLabel => isFoil ? 'Foil' : (subTypeName ?? 'Normal');
 
   // PostgREST can return numeric columns as num or String; handle both.
   static double? _toDouble(dynamic v) {
@@ -62,5 +123,32 @@ class CardModel {
     if (v == null) return null;
     if (v is num) return v.toInt();
     return int.tryParse(v.toString());
+  }
+}
+
+/// One day's price snapshot for a printing (from `price_history`).
+class PricePoint {
+  final DateTime capturedOn;
+  final double? tcgMarket;
+  final double? tcgLow;
+  final double? cmTrend;
+  final double? cmLow;
+
+  const PricePoint({
+    required this.capturedOn,
+    this.tcgMarket,
+    this.tcgLow,
+    this.cmTrend,
+    this.cmLow,
+  });
+
+  factory PricePoint.fromMap(Map<String, dynamic> map) {
+    return PricePoint(
+      capturedOn: DateTime.parse(map['captured_on'] as String),
+      tcgMarket: CardModel._toDouble(map['tcg_market']),
+      tcgLow: CardModel._toDouble(map['tcg_low']),
+      cmTrend: CardModel._toDouble(map['cm_trend']),
+      cmLow: CardModel._toDouble(map['cm_low']),
+    );
   }
 }

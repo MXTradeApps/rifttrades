@@ -1,38 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'app/app.dart';
 import 'core/config/supabase_config.dart';
-import 'features/search/search_screen.dart';
+import 'core/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Supabase.initialize(
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
   );
-  runApp(const RiftTradesApp());
-}
+  final prefs = await SharedPreferences.getInstance();
 
-class RiftTradesApp extends StatelessWidget {
-  const RiftTradesApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    const seed = Color(0xFF1A5A7A);
-    return MaterialApp(
-      title: 'RiftTrades',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: seed,
-        brightness: Brightness.light,
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: seed,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
-      home: const SearchScreen(),
-    );
-  }
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const RiftTradesApp(),
+    ),
+  );
 }

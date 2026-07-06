@@ -8,8 +8,10 @@ balance trades, manage want lists/collection, and scan cards.
 [`../pipeline`](../pipeline). The same DB backs any other app (incl. the existing web
 app). See §3 and [`DATABASE.md`](DATABASE.md).
 
-> Status: planning. No app code yet. This document is the source of truth for the
-> stack, data model, and roadmap.
+> Status: Phases 0–5 built (search, card detail, trade balancer + history, collection &
+> want lists, card scanning). See [`../context.md`](../context.md) for the current app
+> code map and handoff notes. This document remains the source of truth for stack, data
+> model, and roadmap.
 
 ---
 

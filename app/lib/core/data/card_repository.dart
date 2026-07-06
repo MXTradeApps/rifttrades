@@ -2,6 +2,52 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/card_model.dart';
 
+enum CardSort {
+  nameAsc('Name (A–Z)'),
+  priceDesc('Price (high → low)'),
+  priceAsc('Price (low → high)'),
+  numberAsc('Collector #');
+
+  const CardSort(this.label);
+  final String label;
+}
+
+class CardFilters {
+  final String query;
+  final String? setName;
+  final String? rarity;
+  final bool foilOnly;
+  final CardSort sort;
+
+  const CardFilters({
+    this.query = '',
+    this.setName,
+    this.rarity,
+    this.foilOnly = false,
+    this.sort = CardSort.nameAsc,
+  });
+
+  bool get hasActiveFilters =>
+      setName != null || rarity != null || foilOnly || sort != CardSort.nameAsc;
+
+  CardFilters copyWith({
+    String? query,
+    Object? setName = _sentinel,
+    Object? rarity = _sentinel,
+    bool? foilOnly,
+    CardSort? sort,
+  }) =>
+      CardFilters(
+        query: query ?? this.query,
+        setName: setName == _sentinel ? this.setName : setName as String?,
+        rarity: rarity == _sentinel ? this.rarity : rarity as String?,
+        foilOnly: foilOnly ?? this.foilOnly,
+        sort: sort ?? this.sort,
+      );
+
+  static const _sentinel = Object();
+}
+
 /// Reads card + price data from the shared Supabase database.
 class CardRepository {
   CardRepository(this._client);
@@ -10,30 +56,92 @@ class CardRepository {
 
   static const String _view = 'cards_with_prices';
 
-  /// Search real (non-sealed) cards by name. Empty query returns the first page
-  /// alphabetically. Cheapest-priced printings are surfaced via name ordering.
-  Future<List<CardModel>> searchCards(String query, {int limit = 50}) async {
+  Future<List<CardModel>> search(CardFilters filters, {int limit = 60}) async {
     var builder = _client.from(_view).select().eq('is_sealed', false);
 
-    final trimmed = query.trim();
-    if (trimmed.isNotEmpty) {
-      builder = builder.ilike('name', '%$trimmed%');
+    final q = filters.query.trim();
+    if (q.isNotEmpty) {
+      builder = builder.ilike('name', '%$q%');
+    }
+    if (filters.setName != null) {
+      builder = builder.eq('set_name', filters.setName!);
+    }
+    if (filters.rarity != null) {
+      builder = builder.eq('rarity', filters.rarity!);
+    }
+    if (filters.foilOnly) {
+      builder = builder.eq('is_foil', true);
     }
 
-    final rows = await builder.order('name').limit(limit);
+    final transform = switch (filters.sort) {
+      CardSort.nameAsc => builder.order('name'),
+      CardSort.priceDesc =>
+        builder.order('tcg_market', ascending: false, nullsFirst: false),
+      CardSort.priceAsc =>
+        builder.order('tcg_market', ascending: true, nullsFirst: false),
+      CardSort.numberAsc => builder.order('collector_number'),
+    };
+
+    final rows = await transform.limit(limit);
     return (rows as List)
         .map((r) => CardModel.fromMap(r as Map<String, dynamic>))
         .toList();
   }
 
-  /// Look up printings by collector number (used by card scanning later).
+  /// All printings (normal/foil/alt) that share a card name.
+  Future<List<CardModel>> printingsForName(String name) async {
+    final rows = await _client
+        .from(_view)
+        .select()
+        .eq('name', name)
+        .eq('is_sealed', false)
+        .order('is_foil');
+    return (rows as List)
+        .map((r) => CardModel.fromMap(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Daily price snapshots for a printing (oldest → newest) for charts.
+  Future<List<PricePoint>> priceHistory(String cardId) async {
+    final rows = await _client
+        .from('price_history')
+        .select()
+        .eq('card_id', cardId)
+        .order('captured_on');
+    return (rows as List)
+        .map((r) => PricePoint.fromMap(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Look up printings by collector number (used by card scanning).
   Future<List<CardModel>> findByCollectorNumber(String collectorNumber) async {
     final rows = await _client
         .from(_view)
         .select()
+        .eq('is_sealed', false)
         .eq('collector_number', collectorNumber);
     return (rows as List)
         .map((r) => CardModel.fromMap(r as Map<String, dynamic>))
         .toList();
   }
+
+  static const List<String> setNames = [
+    'Origins',
+    'Origins: Proving Grounds',
+    'Spiritforged',
+    'Unleashed',
+    'Vendetta',
+    'Riftbound Promotional Cards',
+    'Riftbound Judge Promotional Cards',
+    'Riftbound Organized Play Promotional Cards',
+  ];
+
+  static const List<String> rarities = [
+    'Common',
+    'Uncommon',
+    'Rare',
+    'Epic',
+    'Showcase',
+    'Promo',
+  ];
 }

@@ -1,34 +1,25 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app.dart';
+import '../../app/card_actions.dart';
+import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
-import '../../core/models/card_model.dart';
+import '../../core/providers.dart';
+import '../card_detail/card_detail_screen.dart';
 
-class SearchScreen extends StatefulWidget {
+class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
-  late final CardRepository _repo = CardRepository(Supabase.instance.client);
-  final TextEditingController _controller = TextEditingController();
-
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  final _controller = TextEditingController();
   Timer? _debounce;
-  List<CardModel> _results = const [];
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load('');
-  }
 
   @override
   void dispose() {
@@ -38,42 +29,28 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _onChanged(String value) {
+    setState(() {}); // refresh clear button
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () => _load(value));
-  }
-
-  Future<void> _load(String query) async {
-    setState(() {
-      _loading = true;
-      _error = null;
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      ref.read(searchFiltersProvider.notifier).setQuery(value);
     });
-    try {
-      final results = await _repo.searchCards(query);
-      if (!mounted) return;
-      setState(() {
-        _results = results;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final results = ref.watch(searchResultsProvider);
+    final filters = ref.watch(searchFiltersProvider);
+    final pricing = ref.watch(pricingProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('RiftTrades'),
-        centerTitle: false,
+        actions: const [SettingsAction()],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
             child: TextField(
               controller: _controller,
               onChanged: _onChanged,
@@ -87,180 +64,203 @@ class _SearchScreenState extends State<SearchScreen> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _controller.clear();
-                          _load('');
+                          ref
+                              .read(searchFiltersProvider.notifier)
+                              .setQuery('');
+                          setState(() {});
                         },
                       ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
               ),
             ),
           ),
-          Expanded(child: _buildBody()),
+          _FilterBar(filters: filters),
+          const SizedBox(height: 4),
+          Expanded(
+            child: results.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _ErrorView(
+                message: e.toString(),
+                onRetry: () => ref.invalidate(searchResultsProvider),
+              ),
+              data: (cards) {
+                if (cards.isEmpty) {
+                  return const _EmptyView();
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  itemCount: cards.length,
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, indent: 72),
+                  itemBuilder: (context, i) {
+                    final card = cards[i];
+                    return CardRow(
+                      card: card,
+                      priceLabel: pricing.priceLabel(card),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => CardDetailScreen(card: card),
+                        ),
+                      ),
+                      onAdd: () => showCardActions(context, ref, card),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildBody() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 40),
-              const SizedBox(height: 12),
-              Text('Could not load cards.\n$_error',
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => _load(_controller.text),
-                child: const Text('Retry'),
-              ),
+class _FilterBar extends ConsumerWidget {
+  const _FilterBar({required this.filters});
+  final CardFilters filters;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(searchFiltersProvider.notifier);
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          _DropChip<String?>(
+            label: filters.setName ?? 'Set',
+            selected: filters.setName != null,
+            value: filters.setName,
+            items: [
+              const PopupMenuItem(value: null, child: Text('All sets')),
+              ...CardRepository.setNames.map(
+                  (s) => PopupMenuItem(value: s, child: Text(s))),
             ],
+            onSelected: notifier.setSet,
           ),
-        ),
-      );
-    }
-    if (_results.isEmpty) {
-      return const Center(child: Text('No cards found.'));
-    }
-    return ListView.separated(
-      itemCount: _results.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => _CardTile(card: _results[i]),
-    );
-  }
-}
-
-class _CardTile extends StatelessWidget {
-  const _CardTile({required this.card});
-
-  final CardModel card;
-
-  static final NumberFormat _usd =
-      NumberFormat.currency(locale: 'en_US', symbol: '\$');
-  static final NumberFormat _eur =
-      NumberFormat.currency(locale: 'en_US', symbol: '€');
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      leading: _Thumbnail(url: card.imageUrl),
-      title: Text(card.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Row(
-        children: [
-          if (card.setName != null)
-            Flexible(
-              child: Text(
-                card.setName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall,
-              ),
+          const SizedBox(width: 8),
+          _DropChip<String?>(
+            label: filters.rarity ?? 'Rarity',
+            selected: filters.rarity != null,
+            value: filters.rarity,
+            items: [
+              const PopupMenuItem(value: null, child: Text('All rarities')),
+              ...CardRepository.rarities.map(
+                  (r) => PopupMenuItem(value: r, child: Text(r))),
+            ],
+            onSelected: notifier.setRarity,
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: const Text('Foil'),
+            avatar: const Icon(Icons.auto_awesome, size: 16),
+            selected: filters.foilOnly,
+            onSelected: notifier.setFoilOnly,
+          ),
+          const SizedBox(width: 8),
+          _DropChip<CardSort>(
+            label: 'Sort',
+            selected: filters.sort != CardSort.nameAsc,
+            value: filters.sort,
+            icon: Icons.sort,
+            items: CardSort.values
+                .map((s) =>
+                    PopupMenuItem(value: s, child: Text(s.label)))
+                .toList(),
+            onSelected: notifier.setSort,
+          ),
+          if (filters.hasActiveFilters) ...[
+            const SizedBox(width: 8),
+            ActionChip(
+              label: const Text('Clear'),
+              avatar: const Icon(Icons.close, size: 16),
+              onPressed: notifier.clear,
             ),
-          if (card.isFoil) ...[
-            const SizedBox(width: 6),
-            _Badge(label: 'Foil', color: theme.colorScheme.tertiary),
-          ],
-          if (card.collectorNumber != null) ...[
-            const SizedBox(width: 6),
-            Text('#${card.collectorNumber}',
-                style: theme.textTheme.bodySmall),
           ],
         ],
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            card.tcgMarket != null ? _usd.format(card.tcgMarket) : '—',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          if (card.cmTrend != null)
-            Text(_eur.format(card.cmTrend), style: theme.textTheme.bodySmall),
-        ],
-      ),
     );
   }
 }
 
-class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({this.url});
-
-  final String? url;
-
-  @override
-  Widget build(BuildContext context) {
-    const double w = 44;
-    const double h = 62;
-    if (url == null || url!.isEmpty) {
-      return Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: const Icon(Icons.image_not_supported, size: 18),
-      );
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: CachedNetworkImage(
-        imageUrl: url!,
-        width: w,
-        height: h,
-        fit: BoxFit.cover,
-        placeholder: (_, _) => const SizedBox(
-          width: w,
-          height: h,
-          child: Center(
-            child: SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
-        errorWidget: (_, _, _) => const SizedBox(
-          width: w,
-          height: h,
-          child: Icon(Icons.broken_image, size: 18),
-        ),
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label, required this.color});
+class _DropChip<T> extends StatelessWidget {
+  const _DropChip({
+    required this.label,
+    required this.selected,
+    required this.value,
+    required this.items,
+    required this.onSelected,
+    this.icon,
+  });
 
   final String label;
-  final Color color;
+  final bool selected;
+  final T value;
+  final List<PopupMenuEntry<T>> items;
+  final ValueChanged<T> onSelected;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<T>(
+      initialValue: value,
+      onSelected: onSelected,
+      itemBuilder: (_) => items,
+      child: Chip(
+        backgroundColor: selected ? scheme.primaryContainer : null,
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 4)],
+            Text(label),
+            const Icon(Icons.arrow_drop_down, size: 18),
+          ],
+        ),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-            fontSize: 11, color: color, fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+class _EmptyView extends StatelessWidget {
+  const _EmptyView();
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.search_off, size: 48, color: scheme.outline),
+          const SizedBox(height: 12),
+          const Text('No cards match your filters.'),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 44),
+            const SizedBox(height: 12),
+            Text('Could not load cards.\n$message',
+                textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
       ),
     );
   }
