@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
-import '../features/collection/collection_screen.dart';
-import '../features/scan/scan_screen.dart';
+import '../features/lend/lend_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/trade/trade_screen.dart';
+import '../features/want_list/want_list_screen.dart';
 import 'theme.dart';
 
 class RiftTradesApp extends StatelessWidget {
@@ -34,11 +34,13 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 0;
 
+  // Note: the Scan feature (ScanScreen) is still implemented and can be
+  // re-enabled by adding it back here and to the navigation destinations.
   static const _screens = [
     BrowseScreen(),
     TradeScreen(),
-    CollectionScreen(),
-    ScanScreen(),
+    WantListScreen(),
+    LendScreen(),
   ];
 
   @override
@@ -74,14 +76,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             label: 'Trade',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.style_outlined),
-            selectedIcon: Icon(Icons.style),
-            label: 'Collection',
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite),
+            label: 'Want List',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.qr_code_scanner_outlined),
-            selectedIcon: Icon(Icons.qr_code_scanner),
-            label: 'Scan',
+            icon: Icon(Icons.sync_alt_outlined),
+            selectedIcon: Icon(Icons.sync_alt),
+            label: 'Lend',
           ),
         ],
       ),

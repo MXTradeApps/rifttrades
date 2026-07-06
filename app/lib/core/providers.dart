@@ -5,12 +5,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'data/card_repository.dart';
 import 'data/catalog_repository.dart';
 import 'data/collection_repository.dart';
+import 'data/lend_repository.dart';
 import 'data/settings_repository.dart';
 import 'data/trade_repository.dart';
 import 'logic/pricing.dart';
 import 'models/app_settings.dart';
 import 'models/card_model.dart';
 import 'models/collection_entry.dart';
+import 'models/lend_entry.dart';
 import 'models/trade.dart';
 
 /// Overridden in main() with the real instance.
@@ -203,6 +205,75 @@ class CollectionNotifier extends Notifier<List<CollectionEntry>> {
 final collectionProvider =
     NotifierProvider<CollectionNotifier, List<CollectionEntry>>(
         CollectionNotifier.new);
+
+// ---------------------------------------------------------------------------
+// Lend / borrow tracker
+// ---------------------------------------------------------------------------
+final lendRepositoryProvider = Provider<LendRepository>(
+    (ref) => LendRepository(ref.watch(sharedPreferencesProvider)));
+
+class LendNotifier extends Notifier<List<LendEntry>> {
+  @override
+  List<LendEntry> build() => ref.watch(lendRepositoryProvider).load();
+
+  void _persist() => ref.read(lendRepositoryProvider).save(state);
+
+  void add(
+    CardModel card, {
+    int quantity = 1,
+    String? personName,
+    bool isBorrowing = false,
+  }) {
+    final name = personName?.trim();
+    state = [
+      LendEntry(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        card: card,
+        quantity: quantity,
+        personName: (name == null || name.isEmpty) ? null : name,
+        isBorrowing: isBorrowing,
+        addedAt: DateTime.now(),
+      ),
+      ...state,
+    ];
+    _persist();
+  }
+
+  void setQuantity(String id, int quantity) {
+    if (quantity <= 0) {
+      remove(id);
+      return;
+    }
+    state = [
+      for (final e in state)
+        if (e.id == id) e.copyWith(quantity: quantity) else e
+    ];
+    _persist();
+  }
+
+  void setPersonName(String id, String? personName) {
+    final name = personName?.trim();
+    state = [
+      for (final e in state)
+        if (e.id == id)
+          e.copyWith(
+            personName: name,
+            clearPersonName: name == null || name.isEmpty,
+          )
+        else
+          e
+    ];
+    _persist();
+  }
+
+  void remove(String id) {
+    state = state.where((e) => e.id != id).toList();
+    _persist();
+  }
+}
+
+final lendProvider =
+    NotifierProvider<LendNotifier, List<LendEntry>>(LendNotifier.new);
 
 // ---------------------------------------------------------------------------
 // Trade history (saved trades)
