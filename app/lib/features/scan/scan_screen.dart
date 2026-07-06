@@ -14,7 +14,18 @@ import '../card_detail/card_detail_screen.dart';
 final _collectorRegex = RegExp(r'\b(\d{1,3})\s*/\s*(\d{1,3})\b');
 
 class ScanScreen extends ConsumerStatefulWidget {
-  const ScanScreen({super.key});
+  const ScanScreen({super.key, this.pickMode = false});
+
+  /// When true, tapping a match returns that [CardModel] via [Navigator.pop]
+  /// instead of showing the add-to actions. Used to scan-to-add from a trade.
+  final bool pickMode;
+
+  /// Opens the scanner as a picker and resolves with the chosen card (or null).
+  static Future<CardModel?> pick(BuildContext context) {
+    return Navigator.of(context).push<CardModel>(
+      MaterialPageRoute(builder: (_) => const ScanScreen(pickMode: true)),
+    );
+  }
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -170,7 +181,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan'),
+        title: Text(widget.pickMode ? 'Scan a card to add' : 'Scan'),
         actions: [
           IconButton(
             icon: const Icon(Icons.keyboard),
@@ -287,6 +298,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
       itemBuilder: (context, i) {
         final card = _matches[i];
+        if (widget.pickMode) {
+          return CardRow(
+            card: card,
+            priceLabel: pricing.priceLabel(card),
+            trailing: const Icon(Icons.add_circle),
+            onTap: () => Navigator.of(context).pop(card),
+          );
+        }
         return CardRow(
           card: card,
           priceLabel: pricing.priceLabel(card),

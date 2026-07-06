@@ -9,6 +9,7 @@ import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
+import '../scan/scan_screen.dart';
 import '../search/card_picker.dart';
 import 'trade_history_screen.dart';
 
@@ -141,6 +142,13 @@ Future<void> _pick(BuildContext context, WidgetRef ref, TradeSide side) async {
   }
 }
 
+Future<void> _scan(BuildContext context, WidgetRef ref, TradeSide side) async {
+  final card = await ScanScreen.pick(context);
+  if (card != null) {
+    ref.read(tradeDraftProvider.notifier).addCard(side, card);
+  }
+}
+
 /// One scrollable, always-visible side of the trade with an "Add …" footer row.
 class _TradeSideList extends ConsumerWidget {
   const _TradeSideList({
@@ -161,7 +169,6 @@ class _TradeSideList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final notifier = ref.read(tradeDraftProvider.notifier);
     final catalog = ref.watch(catalogProvider).asData?.value ?? const [];
     return DecoratedBox(
@@ -183,24 +190,14 @@ class _TradeSideList extends ConsumerWidget {
               onTap: () => _editFinish(
                   context, ref, side, item, oppositeFinish(catalog, item.card)),
             ),
-          InkWell(
+          AddListRow(
+            label: addLabel,
             onTap: () => _pick(context, ref, side),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-              child: Row(
-                children: [
-                  Icon(Icons.add, size: 20, color: theme.colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    addLabel,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          ),
+          AddListRow(
+            label: 'Scan a card to add',
+            icon: Icons.qr_code_scanner,
+            onTap: () => _scan(context, ref, side),
           ),
         ],
       ),
