@@ -6,6 +6,18 @@ import { upsertInChunks } from './supabase.js';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
+// Collapse duplicate keys in place, keeping the last occurrence.
+function dedupeByKey(arr, keyFn) {
+  const seen = new Map();
+  for (const item of arr) seen.set(keyFn(item), item);
+  if (seen.size !== arr.length) {
+    const removed = arr.length - seen.size;
+    console.log(`   (deduped ${removed} duplicate key${removed === 1 ? '' : 's'})`);
+    arr.length = 0;
+    arr.push(...seen.values());
+  }
+}
+
 async function main() {
   const startedAt = new Date();
   console.log(`🌀 RiftTrades ingest${DRY_RUN ? ' (dry run)' : ''} @ ${startedAt.toISOString()}`);
@@ -34,15 +46,20 @@ async function main() {
   const allPrices = [];
   const allHistory = [];
 
-  for (const g of groups) {
+  for (const [i, g] of groups.entries()) {
     process.stdout.write(`📄 ${g.name} (group ${g.groupId})... `);
     const products = await fetchGroupProducts(g.groupId);
-    const { cards, prices, history } = buildRows(products, g.groupId, cmByName);
+    const { cards, prices, history } = buildRows(products, g.groupId, i + 1, cmByName);
     allCards.push(...cards);
     allPrices.push(...prices);
     allHistory.push(...history);
     console.log(`${cards.length} products`);
   }
+
+  // Safety net: collapse any exact-duplicate keys so a single upsert can't touch a row twice.
+  dedupeByKey(allCards, (c) => c.id);
+  dedupeByKey(allPrices, (p) => p.card_id);
+  dedupeByKey(allHistory, (h) => `${h.card_id}|${h.captured_on}`);
 
   const cmMatched = allCards.filter((c) => c.cardmarket_id !== null).length;
   console.log(
@@ -71,7 +88,7 @@ async function main() {
     console.log('⬆️  Upserting sets...');
     await upsertInChunks(supabase, 'sets', setRows, 'group_id');
     console.log('⬆️  Upserting cards...');
-    await upsertInChunks(supabase, 'cards', allCards, 'product_id');
+    await upsertInChunks(supabase, 'cards', allCards, 'id');
     console.log('⬆️  Upserting card_prices...');
     await upsertInChunks(supabase, 'card_prices', allPrices, 'card_id');
     console.log('⬆️  Upserting price_history (daily snapshot)...');

@@ -26,8 +26,23 @@ export function toBigInt(value) {
   return Number.isNaN(n) ? null : n;
 }
 
+// A card's Normal and Foil share the same productId, so productId alone is not unique.
+// Build a stable per-printing key from (productId, subTypeName).
+export function subtypeSlug(subTypeName) {
+  const slug = (subTypeName || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'base';
+}
+
+export function printingId(productId, subTypeName) {
+  return `${productId}-${subtypeSlug(subTypeName)}`;
+}
+
 // Turn one set's raw product rows into DB rows for cards / card_prices / price_history.
-export function buildRows(groupProducts, groupId, cmByName) {
+// setNumber feeds the SSSNNNN-style `unique_id` (mirrors the fabtrades/web-app convention).
+export function buildRows(groupProducts, groupId, setNumber, cmByName) {
   const cards = [];
   const prices = [];
   const history = [];
@@ -36,11 +51,13 @@ export function buildRows(groupProducts, groupId, cmByName) {
   const today = now.slice(0, 10);
   const setId = toBigInt(groupId);
 
-  for (const row of groupProducts) {
+  groupProducts.forEach((row, index) => {
     const productId = toBigInt(row.productId);
-    if (!productId || !row.name) continue;
+    if (!productId || !row.name) return;
 
     const isFoil = (row.subTypeName || '').toLowerCase().includes('foil');
+    const id = printingId(productId, row.subTypeName);
+    const uniqueId = `${String(setNumber ?? 0).padStart(3, '0')}${String(index).padStart(4, '0')}`;
 
     // Match CardMarket by cleanName first, then name.
     const cm =
@@ -49,9 +66,10 @@ export function buildRows(groupProducts, groupId, cmByName) {
       null;
 
     cards.push({
+      id,
       product_id: productId,
       set_id: setId,
-      unique_id: `RB${productId}`,
+      unique_id: uniqueId,
       name: row.name,
       clean_name: row.cleanName || null,
       image_url: row.imageUrl || null,
@@ -73,7 +91,7 @@ export function buildRows(groupProducts, groupId, cmByName) {
     const cmLow = cm ? toNumber(cm.low) : null;
 
     prices.push({
-      card_id: productId,
+      card_id: id,
       tcg_low: tcgLow,
       tcg_mid: toNumber(row.midPrice),
       tcg_high: toNumber(row.highPrice),
@@ -89,14 +107,14 @@ export function buildRows(groupProducts, groupId, cmByName) {
     });
 
     history.push({
-      card_id: productId,
+      card_id: id,
       captured_on: today,
       tcg_market: tcgMarket,
       tcg_low: tcgLow,
       cm_trend: cmTrend,
       cm_low: cmLow
     });
-  }
+  });
 
   return { cards, prices, history };
 }
