@@ -44,12 +44,38 @@ class CardFilters {
   static const _sentinel = Object();
 }
 
+/// Builds the lowercased text a card is searched against: its name, plus
+/// cleanName and collectorNumber when present (so number lookups still work).
+String _searchableText(CardModel c) {
+  final buffer = StringBuffer(c.name);
+  if (c.cleanName != null) buffer..write(' ')..write(c.cleanName);
+  if (c.collectorNumber != null) buffer..write(' ')..write(c.collectorNumber);
+  return buffer.toString().toLowerCase();
+}
+
+/// Natural, token-based query matching: the query is split on whitespace into
+/// tokens and a card matches when EVERY token appears somewhere in its
+/// searchable text. This lets "Vex a" match "Vex - Apathetic" even though the
+/// separator means "vex a" isn't a contiguous substring of the name.
+bool _matchesQuery(CardModel c, List<String> tokens) {
+  if (tokens.isEmpty) return true;
+  final text = _searchableText(c);
+  for (final t in tokens) {
+    if (!text.contains(t)) return false;
+  }
+  return true;
+}
+
 /// Applies [filters] to an in-memory catalog (used for instant, offline
 /// browsing). Mirrors the ordering the database previously produced.
 List<CardModel> filterCards(List<CardModel> all, CardFilters filters) {
-  final q = filters.query.trim().toLowerCase();
+  final tokens = filters.query
+      .toLowerCase()
+      .split(RegExp(r'\s+'))
+      .where((t) => t.isNotEmpty)
+      .toList();
   final list = all.where((c) {
-    if (q.isNotEmpty && !c.name.toLowerCase().contains(q)) return false;
+    if (!_matchesQuery(c, tokens)) return false;
     if (filters.setName != null && c.setName != filters.setName) return false;
     if (filters.foilOnly && !c.isFoil) return false;
     return true;
