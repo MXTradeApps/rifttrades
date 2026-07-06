@@ -221,6 +221,45 @@ class CardRow extends StatelessWidget {
   }
 }
 
+/// An in-list "Add …" row (used instead of a FAB), matching the trade screen's
+/// inline add affordance.
+class AddListRow extends StatelessWidget {
+  const AddListRow({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.icon = Icons.add,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Compact metadata row (set • #number) used under card names.
 class CardMetaLine extends StatelessWidget {
   const CardMetaLine({super.key, required this.card, this.style});

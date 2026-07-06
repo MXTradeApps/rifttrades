@@ -54,38 +54,26 @@ class LendGroupScreen extends ConsumerWidget {
             color: color,
           ),
           Expanded(
-            child: group.items.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Text(
-                        'No cards in this batch yet.\nTap “Add card” to build it.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 96),
-                    itemCount: group.items.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, indent: 72),
-                    itemBuilder: (context, i) => _ItemRow(
-                      groupId: group.id,
-                      item: group.items[i],
-                      pricing: pricing,
-                    ),
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 24),
+              children: [
+                for (int i = 0; i < group.items.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, indent: 72),
+                  _ItemRow(
+                    groupId: group.id,
+                    item: group.items[i],
+                    pricing: pricing,
                   ),
+                ],
+                if (group.items.isNotEmpty) const Divider(height: 1),
+                AddListRow(
+                  label: group.isBorrowing ? 'Add borrowed card' : 'Add lent card',
+                  onTap: () => _addCard(context, ref, group),
+                ),
+              ],
+            ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'lendGroupFab',
-        onPressed: () => _addCard(context, ref, group),
-        icon: const Icon(Icons.add),
-        label: const Text('Add card'),
       ),
     );
   }

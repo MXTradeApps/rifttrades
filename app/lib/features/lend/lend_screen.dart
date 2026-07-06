@@ -54,29 +54,23 @@ class _LendScreenState extends ConsumerState<LendScreen>
             groups: lentOut,
             pricing: pricing,
             isBorrowing: false,
-            emptyText: "You haven't lent out any cards yet.\n"
-                'Create a batch for someone you lent cards to.',
+            emptyText: "You haven't lent out any cards yet.",
+            onAdd: () => _newGroup(context, isBorrowing: false),
           ),
           _GroupList(
             groups: borrowing,
             pricing: pricing,
             isBorrowing: true,
-            emptyText: "You aren't borrowing any cards yet.\n"
-                'Create a batch for someone you borrowed cards from.',
+            emptyText: "You aren't borrowing any cards yet.",
+            onAdd: () => _newGroup(context, isBorrowing: true),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'lendFab',
-        onPressed: () => _newGroup(context),
-        icon: const Icon(Icons.add),
-        label: Text(_tab.index == 0 ? 'New loan' : 'New borrow'),
       ),
     );
   }
 
-  Future<void> _newGroup(BuildContext context) async {
-    final isBorrowing = _tab.index == 1;
+  Future<void> _newGroup(BuildContext context,
+      {required bool isBorrowing}) async {
     final personName = await askPersonName(context, isBorrowing: isBorrowing);
     if (personName == null || !context.mounted) return;
     final id = ref.read(lendProvider.notifier).createGroup(
@@ -96,34 +90,40 @@ class _GroupList extends ConsumerWidget {
     required this.pricing,
     required this.isBorrowing,
     required this.emptyText,
+    required this.onAdd,
   });
 
   final List<LendGroup> groups;
   final Pricing pricing;
   final bool isBorrowing;
   final String emptyText;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (groups.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            emptyText,
-            textAlign: TextAlign.center,
-            style:
-                TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      children: [
+        if (groups.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+            child: Text(
+              emptyText,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
           ),
+        for (final g in groups)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _GroupCard(group: g, pricing: pricing),
+          ),
+        AddListRow(
+          label: isBorrowing ? 'New borrow batch' : 'New loan batch',
+          onTap: onAdd,
         ),
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-      itemCount: groups.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, i) =>
-          _GroupCard(group: groups[i], pricing: pricing),
+      ],
     );
   }
 }
