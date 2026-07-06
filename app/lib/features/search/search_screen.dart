@@ -10,14 +10,61 @@ import '../../core/data/card_repository.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
 
-class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+/// Top-level Browse tab: pick a set, then drill into its cards.
+class BrowseScreen extends ConsumerWidget {
+  const BrowseScreen({super.key});
 
   @override
-  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sets = CardRepository.setNames;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Browse'),
+        actions: const [SettingsAction()],
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: sets.length,
+        separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
+        itemBuilder: (context, i) {
+          final set = sets[i];
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor: scheme.primaryContainer,
+              child: Icon(Icons.style_outlined,
+                  color: scheme.onPrimaryContainer),
+            ),
+            title: Text(set,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              ref.read(searchFiltersProvider.notifier).enterSet(set);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SetCardsScreen(setName: set),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
+/// Cards within a single set, with search / foil / sort and pull-to-refresh.
+class SetCardsScreen extends ConsumerStatefulWidget {
+  const SetCardsScreen({super.key, required this.setName});
+
+  final String setName;
+
+  @override
+  ConsumerState<SetCardsScreen> createState() => _SetCardsScreenState();
+}
+
+class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
 
@@ -36,6 +83,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
+  /// Pull-to-refresh: re-query Supabase so the latest synced prices show up.
+  Future<void> _refresh() async {
+    ref.invalidate(searchResultsProvider);
+    await ref.read(searchResultsProvider.future);
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = ref.watch(searchResultsProvider);
@@ -44,7 +97,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('RiftTrades'),
+        title: Text(widget.setName),
         actions: const [SettingsAction()],
       ),
       body: Column(
@@ -56,7 +109,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onChanged: _onChanged,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search Riftbound cards…',
+                hintText: 'Search in ${widget.setName}…',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _controller.text.isEmpty
                     ? null
@@ -76,37 +129,43 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           _FilterBar(filters: filters),
           const SizedBox(height: 4),
           Expanded(
-            child: results.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (e, _) => _ErrorView(
-                message: e.toString(),
-                onRetry: () => ref.invalidate(searchResultsProvider),
-              ),
-              data: (cards) {
-                if (cards.isEmpty) {
-                  return const _EmptyView();
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  itemCount: cards.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, indent: 72),
-                  itemBuilder: (context, i) {
-                    final card = cards[i];
-                    return CardRow(
-                      card: card,
-                      priceLabel: pricing.priceLabel(card),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CardDetailScreen(card: card),
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: results.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => _ScrollableCenter(
+                  child: _ErrorView(
+                    message: e.toString(),
+                    onRetry: () => ref.invalidate(searchResultsProvider),
+                  ),
+                ),
+                data: (cards) {
+                  if (cards.isEmpty) {
+                    return const _ScrollableCenter(child: _EmptyView());
+                  }
+                  return ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 16),
+                    itemCount: cards.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, indent: 72),
+                    itemBuilder: (context, i) {
+                      final card = cards[i];
+                      return CardRow(
+                        card: card,
+                        priceLabel: pricing.priceLabel(card),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => CardDetailScreen(card: card),
+                          ),
                         ),
-                      ),
-                      onAdd: () => showCardActions(context, ref, card),
-                    );
-                  },
-                );
-              },
+                        onAdd: () => showCardActions(context, ref, card),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -128,30 +187,6 @@ class _FilterBar extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         children: [
-          _DropChip<String?>(
-            label: filters.setName ?? 'Set',
-            selected: filters.setName != null,
-            value: filters.setName,
-            items: [
-              const PopupMenuItem(value: null, child: Text('All sets')),
-              ...CardRepository.setNames.map(
-                  (s) => PopupMenuItem(value: s, child: Text(s))),
-            ],
-            onSelected: notifier.setSet,
-          ),
-          const SizedBox(width: 8),
-          _DropChip<String?>(
-            label: filters.rarity ?? 'Rarity',
-            selected: filters.rarity != null,
-            value: filters.rarity,
-            items: [
-              const PopupMenuItem(value: null, child: Text('All rarities')),
-              ...CardRepository.rarities.map(
-                  (r) => PopupMenuItem(value: r, child: Text(r))),
-            ],
-            onSelected: notifier.setRarity,
-          ),
-          const SizedBox(width: 8),
           FilterChip(
             label: const Text('Foil'),
             avatar: const Icon(Icons.auto_awesome, size: 16),
@@ -223,20 +258,38 @@ class _DropChip<T> extends StatelessWidget {
   }
 }
 
+/// Wraps a centered widget in an always-scrollable view so pull-to-refresh
+/// still works when the list is empty or errored.
+class _ScrollableCenter extends StatelessWidget {
+  const _ScrollableCenter({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(child: child),
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyView extends StatelessWidget {
   const _EmptyView();
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.search_off, size: 48, color: scheme.outline),
-          const SizedBox(height: 12),
-          const Text('No cards match your filters.'),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.search_off, size: 48, color: scheme.outline),
+        const SizedBox(height: 12),
+        const Text('No cards match your filters.'),
+      ],
     );
   }
 }
@@ -247,20 +300,18 @@ class _ErrorView extends StatelessWidget {
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 44),
-            const SizedBox(height: 12),
-            Text('Could not load cards.\n$message',
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off, size: 44),
+          const SizedBox(height: 12),
+          Text('Could not load cards.\n$message',
+              textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }

@@ -15,32 +15,28 @@ enum CardSort {
 class CardFilters {
   final String query;
   final String? setName;
-  final String? rarity;
   final bool foilOnly;
   final CardSort sort;
 
   const CardFilters({
     this.query = '',
     this.setName,
-    this.rarity,
     this.foilOnly = false,
     this.sort = CardSort.nameAsc,
   });
 
-  bool get hasActiveFilters =>
-      setName != null || rarity != null || foilOnly || sort != CardSort.nameAsc;
+  /// Filters the user can toggle while browsing a set (set itself excluded).
+  bool get hasActiveFilters => foilOnly || sort != CardSort.nameAsc;
 
   CardFilters copyWith({
     String? query,
     Object? setName = _sentinel,
-    Object? rarity = _sentinel,
     bool? foilOnly,
     CardSort? sort,
   }) =>
       CardFilters(
         query: query ?? this.query,
         setName: setName == _sentinel ? this.setName : setName as String?,
-        rarity: rarity == _sentinel ? this.rarity : rarity as String?,
         foilOnly: foilOnly ?? this.foilOnly,
         sort: sort ?? this.sort,
       );
@@ -65,9 +61,6 @@ class CardRepository {
     }
     if (filters.setName != null) {
       builder = builder.eq('set_name', filters.setName!);
-    }
-    if (filters.rarity != null) {
-      builder = builder.eq('rarity', filters.rarity!);
     }
     if (filters.foilOnly) {
       builder = builder.eq('is_foil', true);
@@ -134,14 +127,5 @@ class CardRepository {
     'Riftbound Promotional Cards',
     'Riftbound Judge Promotional Cards',
     'Riftbound Organized Play Promotional Cards',
-  ];
-
-  static const List<String> rarities = [
-    'Common',
-    'Uncommon',
-    'Rare',
-    'Epic',
-    'Showcase',
-    'Promo',
   ];
 }

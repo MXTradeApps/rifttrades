@@ -35,7 +35,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   int _index = 0;
 
   static const _screens = [
-    SearchScreen(),
+    BrowseScreen(),
     TradeScreen(),
     CollectionScreen(),
     ScanScreen(),
@@ -56,9 +56,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: [
           const NavigationDestination(
-            icon: Icon(Icons.search_outlined),
-            selectedIcon: Icon(Icons.search),
-            label: 'Search',
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view),
+            label: 'Browse',
           ),
           NavigationDestination(
             icon: Badge(

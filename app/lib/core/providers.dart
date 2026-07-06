@@ -62,16 +62,19 @@ class SearchFiltersNotifier extends Notifier<CardFilters> {
   CardFilters build() => const CardFilters();
 
   void setQuery(String q) => state = state.copyWith(query: q);
-  void setSet(String? s) => state = state.copyWith(setName: s);
-  void setRarity(String? r) => state = state.copyWith(rarity: r);
   void setFoilOnly(bool v) => state = state.copyWith(foilOnly: v);
   void setSort(CardSort s) => state = state.copyWith(sort: s);
-  void clear() => state = CardFilters(query: state.query);
+
+  /// Start browsing a set with a fresh set of filters.
+  void enterSet(String setName) => state = CardFilters(setName: setName);
+
+  void clear() => state = CardFilters(setName: state.setName);
 }
 
 final searchResultsProvider = FutureProvider<List<CardModel>>((ref) async {
   final filters = ref.watch(searchFiltersProvider);
-  return ref.watch(cardRepositoryProvider).search(filters);
+  // Sets can hold hundreds of printings; fetch enough to show the whole set.
+  return ref.watch(cardRepositoryProvider).search(filters, limit: 1000);
 });
 
 // ---------------------------------------------------------------------------
