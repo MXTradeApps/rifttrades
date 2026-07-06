@@ -9,7 +9,7 @@
     "dry-run": "node src/run.js --dry-run"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",
