@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/app.dart';
-import '../../app/card_actions.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/providers.dart';
@@ -349,7 +348,7 @@ class _GroupList extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: 16),
       itemCount: groups.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
+      separatorBuilder: (_, _) => const Divider(height: 1, indent: 14),
       itemBuilder: (context, i) => _GroupTile(group: groups[i]),
     );
   }
@@ -357,7 +356,7 @@ class _GroupList extends StatelessWidget {
 
 /// One card name in the grouped browse list. Tapping opens the card detail
 /// screen, where the printings selector lets the user switch between every
-/// version. Names with multiple versions show a "N versions" hint.
+/// version.
 class _GroupTile extends ConsumerWidget {
   const _GroupTile({required this.group});
   final CardGroup group;
@@ -375,44 +374,11 @@ class _GroupTile extends ConsumerWidget {
       card: rep,
       priceLabel: pricing.priceLabel(rep),
       priceSource: pricing.sourceLabel,
+      showThumbnail: false,
+      inlineBadges: true,
       onTap: openDetail,
-      onAdd: group.hasMultiple ? null : () => showCardActions(context, ref, rep),
-      trailing: group.hasMultiple
-          ? _VersionCountChip(count: group.versions.length)
-          : null,
-    );
-  }
-}
-
-/// Trailing hint on a grouped row showing how many printings exist, with a
-/// chevron indicating the row opens the card's detail page.
-class _VersionCountChip extends StatelessWidget {
-  const _VersionCountChip({required this.count});
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: scheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            '$count versions',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: scheme.onSecondaryContainer,
-            ),
-          ),
-        ),
-        Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-      ],
+      trailing: Icon(Icons.chevron_right,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
     );
   }
 }

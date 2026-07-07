@@ -147,11 +147,22 @@ class CardRow extends StatelessWidget {
     this.onTap,
     this.onAdd,
     this.trailing,
+    this.showThumbnail = true,
+    this.inlineBadges = false,
   });
 
   final CardModel card;
   final String priceLabel;
   final String? secondaryLabel;
+
+  /// When false, the card art thumbnail is omitted entirely (and never
+  /// requested from the network). Browse uses this so art only loads on the
+  /// card detail page.
+  final bool showThumbnail;
+
+  /// When true, the rarity/foil chips sit inline with the set • #number meta
+  /// line instead of on their own row below it (used by the browse list).
+  final bool inlineBadges;
 
   /// When set, a small marketplace attribution (e.g. "TCGplayer") is shown
   /// beneath the price so the source of the number is always clear.
@@ -169,8 +180,10 @@ class CardRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
-            CardThumbnail(url: card.imageUrl, foil: card.isFoil),
-            const SizedBox(width: 12),
+            if (showThumbnail) ...[
+              CardThumbnail(url: card.imageUrl, foil: card.isFoil),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,20 +194,37 @@ class CardRow extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 15, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 3),
-                  CardMetaLine(card: card),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      RarityBadge(rarity: card.rarity),
-                      if (card.isFoil) ...[
-                        const SizedBox(width: 5),
-                        const PillBadge(
-                            label: 'FOIL',
-                            color: Color(0xFF9B5DE5),
-                            icon: Icons.auto_awesome),
+                  if (inlineBadges)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        CardMetaLine(card: card),
+                        RarityBadge(rarity: card.rarity),
+                        if (card.isFoil)
+                          const PillBadge(
+                              label: 'FOIL',
+                              color: Color(0xFF9B5DE5),
+                              icon: Icons.auto_awesome),
                       ],
-                    ],
-                  ),
+                    )
+                  else ...[
+                    CardMetaLine(card: card),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        RarityBadge(rarity: card.rarity),
+                        if (card.isFoil) ...[
+                          const SizedBox(width: 5),
+                          const PillBadge(
+                              label: 'FOIL',
+                              color: Color(0xFF9B5DE5),
+                              icon: Icons.auto_awesome),
+                        ],
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
