@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
+import '../../core/data/card_repository.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
@@ -21,14 +22,11 @@ class CardDetailScreen extends ConsumerStatefulWidget {
 
 class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
   late CardModel _selected = widget.card;
-  late Future<List<CardModel>> _printings;
   late Future<List<PricePoint>> _history;
 
   @override
   void initState() {
     super.initState();
-    final repo = ref.read(cardRepositoryProvider);
-    _printings = repo.printingsForName(widget.card.name);
     _loadHistory();
   }
 
@@ -49,6 +47,11 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
     final settings = ref.watch(settingsProvider);
     final pricing = ref.watch(pricingProvider);
     final owned = ref.watch(collectionProvider.notifier).quantityOf(_selected.id);
+    final catalog = ref.watch(catalogProvider).maybeWhen(
+          data: (cards) => cards,
+          orElse: () => const <CardModel>[],
+        );
+    final printings = printingsForCard(catalog, widget.card);
 
     return Scaffold(
       appBar: AppBar(title: Text(_selected.name)),
@@ -104,7 +107,7 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
           ),
           const SizedBox(height: 20),
           _PrintingSelector(
-            printings: _printings,
+            printings: printings,
             selectedId: _selected.id,
             onSelect: _select,
           ),
@@ -125,42 +128,56 @@ class _PrintingSelector extends StatelessWidget {
     required this.selectedId,
     required this.onSelect,
   });
-  final Future<List<CardModel>> printings;
+  final List<CardModel> printings;
   final String selectedId;
   final ValueChanged<CardModel> onSelect;
 
+  /// Distinct, human label for a printing: its art variant ("Alternate Art",
+  /// "Overnumbered", "Signature") or finish for the base card, plus the finish
+  /// when a variant is also foil, and the collector number.
+  static String _label(CardModel c) {
+    final qualifier = nameQualifier(c.name);
+    final parts = <String>[qualifier ?? c.finishLabel];
+    if (qualifier != null && c.isFoil) parts.add('Foil');
+    if (c.collectorNumber != null) parts.add('#${c.collectorNumber}');
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<CardModel>>(
-      future: printings,
-      builder: (context, snap) {
-        final list = snap.data ?? const [];
-        if (list.length < 2) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    if (printings.length < 2) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Text('Printings',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
+            Text('Printings & versions',
+                style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final c in list)
-                  ChoiceChip(
-                    label: Text(
-                        '${c.finishLabel}${c.collectorNumber != null ? ' · #${c.collectorNumber}' : ''}'),
-                    selected: c.id == selectedId,
-                    onSelected: (_) => onSelect(c),
-                  ),
-              ],
-            ),
+            const SizedBox(width: 6),
+            Text('(${printings.length})',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final c in printings)
+              ChoiceChip(
+                avatar: c.isFoil
+                    ? const Icon(Icons.auto_awesome, size: 14)
+                    : null,
+                label: Text(_label(c)),
+                selected: c.id == selectedId,
+                onSelected: (_) => onSelect(c),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

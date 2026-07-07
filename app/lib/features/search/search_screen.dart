@@ -115,6 +115,7 @@ class _SetList extends ConsumerWidget {
           data: (cards) {
             final m = <String, int>{};
             for (final c in cards) {
+              if (isNonCardProduct(c)) continue;
               final s = c.setName;
               if (s != null) m[s] = (m[s] ?? 0) + 1;
             }

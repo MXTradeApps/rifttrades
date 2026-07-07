@@ -75,6 +75,7 @@ List<CardModel> filterCards(List<CardModel> all, CardFilters filters) {
       .where((t) => t.isNotEmpty)
       .toList();
   final list = all.where((c) {
+    if (isNonCardProduct(c)) return false;
     if (!_matchesQuery(c, tokens)) return false;
     if (filters.setName != null && c.setName != filters.setName) return false;
     if (filters.foilOnly && !c.isFoil) return false;
@@ -133,6 +134,44 @@ class CardGroup {
   bool get hasMultiple => versions.length > 1;
 }
 
+/// Whether a catalog row is a sealed-style *product* rather than a real card —
+/// e.g. "Origins - Champion Deck (Jinx)", box sets, Nexus Night promo packs,
+/// pre-rift kits or bulk runes. These slip past the `is_sealed` filter but
+/// uniquely lack BOTH a rarity and a collector number (real cards, including
+/// numberless promos like "Buff", always have at least a rarity), so they are
+/// hidden from browse/search and version lists.
+bool isNonCardProduct(CardModel c) {
+  final noRarity =
+      c.rarity == null || c.rarity!.trim().isEmpty || c.rarity == 'None';
+  final noNumber =
+      c.collectorNumber == null || c.collectorNumber!.trim().isEmpty;
+  return noRarity && noNumber;
+}
+
+/// The trailing parenthetical qualifier of a variant name, e.g.
+/// "Ahri - Inquisitive (Overnumbered)" -> "Overnumbered", or null when the name
+/// carries no qualifier.
+String? nameQualifier(String name) {
+  final match = RegExp(r'\(([^)]*)\)\s*$').firstMatch(name.trim());
+  return match?.group(1);
+}
+
+/// The base card name shared by every art/finish variant of a card, produced by
+/// stripping trailing parenthetical qualifiers like "(Alternate Art)",
+/// "(Overnumbered)", "(Signature)" or "(Metal)". Those tags are a catalog
+/// convention (not part of the real card name), so all variants of a card —
+/// including alternate arts across sets — collapse to a single group key.
+String baseCardName(String name) {
+  var s = name.trim();
+  final re = RegExp(r'\s*\([^)]*\)\s*$');
+  while (re.hasMatch(s)) {
+    final stripped = s.replaceFirst(re, '').trim();
+    if (stripped.isEmpty) break; // don't strip a name that is only "(...)"
+    s = stripped;
+  }
+  return s;
+}
+
 /// Ordering of rarities from most "base"/standard (0) to most premium, used to
 /// choose which printing represents a group. Unknown rarities sort last.
 int rarityRank(String? rarity) {
@@ -183,27 +222,30 @@ int _baseFirst(CardModel a, CardModel b) {
   return a.id.compareTo(b.id);
 }
 
-/// Groups [cards] by card name into [CardGroup]s, ordering the groups by the
-/// requested [sort] (applied to each group's representative printing). Assumes
-/// [cards] has already been filtered by [filterCards].
+/// Groups [cards] by their [baseCardName] into [CardGroup]s, so every art/finish
+/// variant of a card (e.g. Normal, Foil, Alternate Art, Overnumbered, Signature)
+/// collapses into one entry. Groups are ordered by the requested [sort] (applied
+/// to each group's representative printing). Assumes [cards] has already been
+/// filtered by [filterCards].
 List<CardGroup> groupCardsByName(List<CardModel> cards, CardSort sort) {
   final byName = <String, List<CardModel>>{};
   final order = <String>[];
   for (final c in cards) {
-    final list = byName[c.name];
+    final key = baseCardName(c.name);
+    final list = byName[key];
     if (list == null) {
-      byName[c.name] = [c];
-      order.add(c.name);
+      byName[key] = [c];
+      order.add(key);
     } else {
       list.add(c);
     }
   }
 
   final groups = <CardGroup>[];
-  for (final name in order) {
-    final versions = byName[name]!..sort(_baseFirst);
+  for (final key in order) {
+    final versions = byName[key]!..sort(_baseFirst);
     groups.add(CardGroup(
-      name: name,
+      name: key,
       representative: versions.first,
       versions: versions,
     ));
@@ -236,6 +278,19 @@ List<CardGroup> groupCardsByName(List<CardModel> cards, CardSort sort) {
       });
   }
   return groups;
+}
+
+/// All printings/variants of [card] found in the in-memory [catalog], i.e.
+/// every row whose [baseCardName] matches (Normal, Foil, Alternate Art,
+/// Overnumbered, Signature, … across every set), ordered base-first. Used by
+/// the card detail screen's printing/version selector.
+List<CardModel> printingsForCard(List<CardModel> catalog, CardModel card) {
+  final base = baseCardName(card.name);
+  final list = catalog
+      .where((c) => !isNonCardProduct(c) && baseCardName(c.name) == base)
+      .toList()
+    ..sort(_baseFirst);
+  return list.isEmpty ? [card] : list;
 }
 
 /// Finds the opposite-finish printing (Normal <-> Foil) of [card] within
