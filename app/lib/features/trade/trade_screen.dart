@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app.dart';
@@ -112,9 +113,9 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
   }
 
   void _confirmClear(BuildContext context, TradeDraftNotifier notifier) {
-    showDialog<void>(
+    showAdaptiveDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Clear trade?'),
         content: const Text('This removes all cards from the trade.'),
         actions: [
@@ -509,7 +510,10 @@ class _QtyStepper extends StatelessWidget {
 
   Widget _stepBtn(IconData icon, VoidCallback onTap) => InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         child: Padding(
             padding: const EdgeInsets.all(6), child: Icon(icon, size: 16)),
       );
@@ -517,9 +521,9 @@ class _QtyStepper extends StatelessWidget {
 
 Future<void> _saveTrade(BuildContext context, WidgetRef ref, Trade trade) async {
   final notesController = TextEditingController();
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAdaptiveDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => AlertDialog.adaptive(
       title: const Text('Save trade'),
       content: TextField(
         controller: notesController,

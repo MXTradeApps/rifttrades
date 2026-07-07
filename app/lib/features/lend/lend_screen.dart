@@ -220,9 +220,9 @@ class _GroupCard extends ConsumerWidget {
   }
 
   Future<bool> _confirmDelete(BuildContext context) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AlertDialog.adaptive(
         title: const Text('Delete this batch?'),
         content: const Text('This removes the whole loan and its cards.'),
         actions: [

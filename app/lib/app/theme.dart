@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -118,13 +120,28 @@ class AppTheme {
       labelLarge: baseText.labelLarge?.copyWith(fontWeight: FontWeight.w700),
     );
 
+    // On iOS, center the nav-bar title to match the platform convention; keep
+    // the left-aligned look everywhere else. Uses defaultTargetPlatform (no
+    // BuildContext here), so Android/web/desktop are unaffected.
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       textTheme: textTheme,
       scaffoldBackgroundColor: scaffoldBg,
+      // Platform-adaptive page transitions: Android gets the modern
+      // predictive-back animation; iOS/macOS keep their native slide +
+      // back-swipe gesture.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
-        centerTitle: false,
+        centerTitle: isIOS,
         backgroundColor: scaffoldBg,
         surfaceTintColor: Colors.transparent,
         foregroundColor: scheme.onSurface,

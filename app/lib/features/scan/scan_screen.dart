@@ -325,9 +325,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
   Future<void> _manualEntry() async {
     final controller = TextEditingController(text: _lastNumber ?? '');
-    final result = await showDialog<String>(
+    final result = await showAdaptiveDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Find a card'),
         content: TextField(
           controller: controller,
@@ -440,7 +440,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     if (_initializing) {
       return const AspectRatio(
         aspectRatio: 3 / 4,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: CircularProgressIndicator.adaptive()),
       );
     }
     if (!_cameraAvailable || _controller == null) {

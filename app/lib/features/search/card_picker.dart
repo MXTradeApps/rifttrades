@@ -80,7 +80,7 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
           Expanded(
             child: catalog.when(
               loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+                  const Center(child: CircularProgressIndicator.adaptive()),
               error: (e, _) =>
                   Center(child: Text('Could not load cards.\n$e')),
               data: (all) {

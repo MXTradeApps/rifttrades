@@ -8,9 +8,9 @@ Future<String?> askPersonName(
   String? initial,
 }) {
   final controller = TextEditingController(text: initial ?? '');
-  return showDialog<String>(
+  return showAdaptiveDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => AlertDialog.adaptive(
       title: Text(isBorrowing ? 'Borrowing from' : 'Lent to'),
       content: TextField(
         controller: controller,

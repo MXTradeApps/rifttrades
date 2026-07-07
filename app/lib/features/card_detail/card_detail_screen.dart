@@ -73,7 +73,7 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
                     placeholder: (_, _) => const SizedBox(
                       height: 176,
                       width: 126,
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: CircularProgressIndicator.adaptive()),
                     ),
                     errorWidget: (_, _, _) => Container(
                       height: 176,
@@ -358,7 +358,8 @@ class _HistorySection extends StatelessWidget {
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const SizedBox(
-              height: 60, child: Center(child: CircularProgressIndicator()));
+              height: 60,
+              child: Center(child: CircularProgressIndicator.adaptive()));
         }
         final points = snap.data ?? const [];
         final values = points

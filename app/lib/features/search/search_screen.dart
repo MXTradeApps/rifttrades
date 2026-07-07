@@ -159,7 +159,7 @@ class _GlobalSearchResults extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final catalog = ref.watch(catalogProvider);
     return catalog.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: CircularProgressIndicator.adaptive()),
       error: (e, _) => _ScrollableCenter(
         child: _ErrorView(
           message: e.toString(),
@@ -255,7 +255,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
               onRefresh: _refresh,
               child: groups.when(
                 loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                    const Center(child: CircularProgressIndicator.adaptive()),
                 error: (e, _) => _ScrollableCenter(
                   child: _ErrorView(
                     message: e.toString(),
