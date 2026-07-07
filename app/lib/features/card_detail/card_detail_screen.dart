@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
+import '../../core/data/card_repository.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
@@ -21,14 +22,11 @@ class CardDetailScreen extends ConsumerStatefulWidget {
 
 class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
   late CardModel _selected = widget.card;
-  late Future<List<CardModel>> _printings;
   late Future<List<PricePoint>> _history;
 
   @override
   void initState() {
     super.initState();
-    final repo = ref.read(cardRepositoryProvider);
-    _printings = repo.printingsForName(widget.card.name);
     _loadHistory();
   }
 
@@ -49,68 +47,88 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
     final settings = ref.watch(settingsProvider);
     final pricing = ref.watch(pricingProvider);
     final owned = ref.watch(collectionProvider.notifier).quantityOf(_selected.id);
+    final catalog = ref.watch(catalogProvider).maybeWhen(
+          data: (cards) => cards,
+          orElse: () => const <CardModel>[],
+        );
+    final printings = printingsForCard(catalog, widget.card);
 
     return Scaffold(
       appBar: AppBar(title: Text(_selected.name)),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          Center(
-            child: Hero(
-              tag: 'card_${_selected.id}',
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CachedNetworkImage(
-                  imageUrl: _selected.imageUrl ?? '',
-                  height: 340,
-                  fit: BoxFit.contain,
-                  placeholder: (_, _) => const SizedBox(
-                    height: 340,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  errorWidget: (_, _, _) => Container(
-                    height: 340,
-                    width: 244,
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    child: const Icon(Icons.broken_image_outlined, size: 48),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Hero(
+                tag: 'card_${_selected.id}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: _selected.imageUrl ?? '',
+                    height: 176,
+                    width: 126,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => const SizedBox(
+                      height: 176,
+                      width: 126,
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (_, _, _) => Container(
+                      height: 176,
+                      width: 126,
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: const Icon(Icons.broken_image_outlined, size: 40),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(_selected.name,
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          CardMetaLine(card: _selected, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              RarityBadge(rarity: _selected.rarity),
-              if (_selected.isFoil)
-                const PillBadge(
-                    label: 'FOIL',
-                    color: Color(0xFF9B5DE5),
-                    icon: Icons.auto_awesome),
-              if (owned > 0)
-                PillBadge(
-                    label: 'Owned ×$owned',
-                    color: AppTheme.positive,
-                    icon: Icons.check),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_selected.name,
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    CardMetaLine(
+                        card: _selected, style: theme.textTheme.bodyMedium),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        RarityBadge(rarity: _selected.rarity),
+                        if (_selected.isFoil)
+                          const PillBadge(
+                              label: 'FOIL',
+                              color: Color(0xFF9B5DE5),
+                              icon: Icons.auto_awesome),
+                        if (owned > 0)
+                          PillBadge(
+                              label: 'Owned ×$owned',
+                              color: AppTheme.positive,
+                              icon: Icons.check),
+                      ],
+                    ),
+                    if (printings.length >= 2) ...[
+                      const SizedBox(height: 12),
+                      _PrintingSelector(
+                        printings: printings,
+                        selectedId: _selected.id,
+                        onSelect: _select,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 20),
-          _PrintingSelector(
-            printings: _printings,
-            selectedId: _selected.id,
-            onSelect: _select,
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           _PriceCard(card: _selected, settings: settings, pricing: pricing),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           _HistorySection(history: _history, settings: settings),
         ],
       ),
@@ -125,42 +143,63 @@ class _PrintingSelector extends StatelessWidget {
     required this.selectedId,
     required this.onSelect,
   });
-  final Future<List<CardModel>> printings;
+  final List<CardModel> printings;
   final String selectedId;
   final ValueChanged<CardModel> onSelect;
 
+  /// Short abbreviations for the verbose DB qualifier values.
+  static const _shortQualifiers = <String, String>{
+    'Alternate Art': 'Alt Art',
+    'Overnumbered': 'Overnumber',
+  };
+
+  /// Concise label for a printing: just its art variant ("Alt Art",
+  /// "Overnumber", "Signature") or "Foil"/"Normal" for the base card. The foil
+  /// icon avatar already conveys the finish, so no collector number is shown.
+  static String _label(CardModel c) {
+    final qualifier = nameQualifier(c.name);
+    if (qualifier != null) return _shortQualifiers[qualifier] ?? qualifier;
+    return c.isFoil ? 'Foil' : 'Normal';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<CardModel>>(
-      future: printings,
-      builder: (context, snap) {
-        final list = snap.data ?? const [];
-        if (list.length < 2) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    if (printings.length < 2) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Text('Printings',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
+            Text('Versions',
+                style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final c in list)
-                  ChoiceChip(
-                    label: Text(
-                        '${c.finishLabel}${c.collectorNumber != null ? ' · #${c.collectorNumber}' : ''}'),
-                    selected: c.id == selectedId,
-                    onSelected: (_) => onSelect(c),
-                  ),
-              ],
-            ),
+            const SizedBox(width: 6),
+            Text('(${printings.length})',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final c in printings)
+              ChoiceChip(
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                side: BorderSide(color: theme.colorScheme.outline),
+                avatar: c.isFoil
+                    ? const Icon(Icons.auto_awesome, size: 14)
+                    : null,
+                label: Text(_label(c)),
+                selected: c.id == selectedId,
+                onSelected: (_) => onSelect(c),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -197,7 +236,7 @@ class _PriceCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -209,21 +248,55 @@ class _PriceCard extends StatelessWidget {
                 Text('Prices',
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(width: 8),
+                Text('${settings.source.label} · ${settings.type.label}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant)),
                 const Spacer(),
-                Text(
-                  'Using ${settings.source.label} · ${settings.type.label}',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
+                PriceSourceBadge(source: settings.source.label),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _PriceGroup(title: 'TCGplayer (USD)', rows: tcgRows),
-            const Divider(height: 24),
+            const SizedBox(height: 10),
             _PriceGroup(title: 'CardMarket (EUR)', rows: cmRows),
+            const SizedBox(height: 10),
+            _PriceAttribution(updatedAt: card.priceUpdatedAt),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Credits where the price data comes from and when it was last synced, so the
+/// numbers are always traceable to their marketplace source.
+class _PriceAttribution extends StatelessWidget {
+  const _PriceAttribution({required this.updatedAt});
+  final DateTime? updatedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall
+        ?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    final updated = updatedAt == null
+        ? null
+        : DateFormat('MMM d, yyyy').format(updatedAt!.toLocal());
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.storefront_outlined,
+            size: 14, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Price data from TCGplayer & CardMarket'
+            '${updated == null ? '' : ' · updated $updated'}',
+            style: style,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -240,31 +313,32 @@ class _PriceGroup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title,
-            style: theme.textTheme.labelLarge?.copyWith(
+            style: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.onSurfaceVariant)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (final r in rows)
-              SizedBox(
-                width: 92,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(r.key,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
-                    const SizedBox(height: 2),
-                    Text(r.value,
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                  ],
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final r in rows)
+                Padding(
+                  padding: const EdgeInsets.only(right: 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.key,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant)),
+                      const SizedBox(height: 2),
+                      Text(r.value,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -296,7 +370,7 @@ class _HistorySection extends StatelessWidget {
 
         return Card(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -310,10 +384,10 @@ class _HistorySection extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.w700)),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 if (!hasSeries)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Center(
                       child: Text(
                         'Not enough history yet.\nDaily snapshots build the chart over time.',
@@ -325,7 +399,7 @@ class _HistorySection extends StatelessWidget {
                   )
                 else
                   SizedBox(
-                    height: 160,
+                    height: 120,
                     child: _Sparkline(
                       points: points,
                       values: values,
@@ -397,51 +471,17 @@ class _ActionBar extends ConsumerWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.haveAccent.withValues(alpha: 0.15),
-                    foregroundColor: AppTheme.haveAccent),
-                icon: const Icon(Icons.add),
-                label: const Text('Have'),
-                onPressed: () {
-                  ref
-                      .read(tradeDraftProvider.notifier)
-                      .addCard(TradeSide.have, card);
-                  snack('Added to Have');
-                },
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.wantAccent.withValues(alpha: 0.15),
-                    foregroundColor: AppTheme.wantAccent),
-                icon: const Icon(Icons.add),
-                label: const Text('Want'),
-                onPressed: () {
-                  ref
-                      .read(tradeDraftProvider.notifier)
-                      .addCard(TradeSide.want, card);
-                  snack('Added to Want');
-                },
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.icon(
-                icon: const Icon(Icons.style),
-                label: const Text('Collect'),
-                onPressed: () {
-                  ref.read(collectionProvider.notifier).add(card);
-                  snack('Added to Collection');
-                },
-              ),
-            ),
-          ],
+        child: FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              backgroundColor: AppTheme.wantAccent.withValues(alpha: 0.15),
+              foregroundColor: AppTheme.wantAccent),
+          icon: const Icon(Icons.add),
+          label: const Text('Want'),
+          onPressed: () {
+            ref.read(tradeDraftProvider.notifier).addCard(TradeSide.want, card);
+            snack('Added to Want');
+          },
         ),
       ),
     );

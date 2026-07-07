@@ -142,11 +142,8 @@ Future<void> _pick(BuildContext context, WidgetRef ref, TradeSide side) async {
   }
 }
 
-Future<void> _scan(BuildContext context, WidgetRef ref, TradeSide side) async {
-  final card = await ScanScreen.pick(context);
-  if (card != null) {
-    ref.read(tradeDraftProvider.notifier).addCard(side, card);
-  }
+Future<void> _scan(BuildContext context, WidgetRef ref, TradeSide side) {
+  return ScanScreen.forTrade(context, side);
 }
 
 /// One scrollable, always-visible side of the trade with an "Add …" footer row.

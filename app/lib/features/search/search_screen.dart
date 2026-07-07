@@ -2,17 +2,108 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/app.dart';
-import '../../app/card_actions.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
+import '../scan/scan_screen.dart';
 
-/// Top-level Browse tab: pick a set, then drill into its cards.
-class BrowseScreen extends ConsumerWidget {
+/// Top-level Browse tab: a global search bar over every set, then a list of
+/// sets to drill into. Searching short-circuits the set list and shows grouped
+/// results across the whole catalog.
+class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
+
+  @override
+  ConsumerState<BrowseScreen> createState() => _BrowseScreenState();
+}
+
+class _BrowseScreenState extends ConsumerState<BrowseScreen> {
+  final _controller = TextEditingController();
+  Timer? _debounce;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    setState(() {}); // refresh clear button
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      setState(() => _query = value.trim());
+    });
+  }
+
+  void _clear() {
+    _controller.clear();
+    _debounce?.cancel();
+    setState(() => _query = '');
+  }
+
+  Future<void> _refresh() => refreshPricesWithToast(context, ref);
+
+  @override
+  Widget build(BuildContext context) {
+    final searching = _query.isNotEmpty;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Browse'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Scan a card',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ScanScreen()),
+            ),
+          ),
+          const SettingsAction(),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            child: TextField(
+              controller: _controller,
+              onChanged: _onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search all cards…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _controller.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: _clear,
+                      ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: searching
+                  ? _GlobalSearchResults(query: _query)
+                  : const _SetList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The list of sets to drill into (shown when the global search is empty).
+class _SetList extends ConsumerWidget {
+  const _SetList();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -23,6 +114,7 @@ class BrowseScreen extends ConsumerWidget {
           data: (cards) {
             final m = <String, int>{};
             for (final c in cards) {
+              if (isNonCardProduct(c)) continue;
               final s = c.setName;
               if (s != null) m[s] = (m[s] ?? 0) + 1;
             }
@@ -31,39 +123,63 @@ class BrowseScreen extends ConsumerWidget {
           orElse: () => const <String, int>{},
         );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Browse'),
-        actions: const [SettingsAction()],
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: sets.length,
-        separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
-        itemBuilder: (context, i) {
-          final set = sets[i];
-          final count = counts[set];
-          return ListTile(
-            title: Text(set,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: count == null ? null : Text('$count cards'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              ref.read(searchFiltersProvider.notifier).enterSet(set);
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => SetCardsScreen(setName: set),
-                ),
-              );
-            },
-          );
-        },
-      ),
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: sets.length,
+      separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
+      itemBuilder: (context, i) {
+        final set = sets[i];
+        final count = counts[set];
+        return ListTile(
+          title: Text(set,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: count == null ? null : Text('$count cards'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            ref.read(searchFiltersProvider.notifier).enterSet(set);
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SetCardsScreen(setName: set),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
 
-/// Cards within a single set, with search / foil / sort and pull-to-refresh.
+/// Grouped results for a global (all-sets) query typed in the Browse search bar.
+class _GlobalSearchResults extends ConsumerWidget {
+  const _GlobalSearchResults({required this.query});
+  final String query;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final catalog = ref.watch(catalogProvider);
+    return catalog.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => _ScrollableCenter(
+        child: _ErrorView(
+          message: e.toString(),
+          onRetry: () => ref.invalidate(catalogProvider),
+        ),
+      ),
+      data: (all) {
+        final filtered = filterCards(all, CardFilters(query: query));
+        final groups = groupCardsByName(filtered, CardSort.nameAsc);
+        if (groups.isEmpty) {
+          return const _ScrollableCenter(child: _EmptyView());
+        }
+        return _GroupList(groups: groups);
+      },
+    );
+  }
+}
+
+/// Cards within a single set, grouped by name, with search / foil / sort and
+/// pull-to-refresh.
 class SetCardsScreen extends ConsumerStatefulWidget {
   const SetCardsScreen({super.key, required this.setName});
 
@@ -92,14 +208,14 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
     });
   }
 
-  /// Pull-to-refresh: re-query Supabase so the latest synced prices show up.
-  Future<void> _refresh() => ref.read(catalogProvider.notifier).refresh();
+  /// Pull-to-refresh: re-query Supabase so the latest synced prices show up,
+  /// then toast when the pipeline last updated pricing.
+  Future<void> _refresh() => refreshPricesWithToast(context, ref);
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(browseResultsProvider);
+    final groups = ref.watch(browseGroupsProvider);
     final filters = ref.watch(searchFiltersProvider);
-    final pricing = ref.watch(pricingProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -137,7 +253,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              child: results.when(
+              child: groups.when(
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
                 error: (e, _) => _ScrollableCenter(
@@ -146,36 +262,123 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
                     onRetry: () => ref.invalidate(catalogProvider),
                   ),
                 ),
-                data: (cards) {
-                  if (cards.isEmpty) {
+                data: (list) {
+                  if (list.isEmpty) {
                     return const _ScrollableCenter(child: _EmptyView());
                   }
-                  return ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 16),
-                    itemCount: cards.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, indent: 72),
-                    itemBuilder: (context, i) {
-                      final card = cards[i];
-                      return CardRow(
-                        card: card,
-                        priceLabel: pricing.priceLabel(card),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => CardDetailScreen(card: card),
-                          ),
-                        ),
-                        onAdd: () => showCardActions(context, ref, card),
-                      );
-                    },
-                  );
+                  return _GroupList(groups: list);
                 },
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Refreshes the catalog from Supabase, then shows a toast noting when the
+/// pricing pipeline last refreshed prices (and from which marketplace).
+Future<void> refreshPricesWithToast(BuildContext context, WidgetRef ref) async {
+  try {
+    await ref.read(catalogProvider.notifier).refresh();
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Could not refresh prices. Check your connection.'),
+        ));
+    }
+    return;
+  }
+  if (!context.mounted) return;
+  final updatedAt = ref.read(priceUpdatedAtProvider);
+  final source = ref.read(pricingProvider).sourceLabel;
+  ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+        content: Row(
+          children: [
+            const Icon(Icons.schedule, size: 18, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('${_priceUpdatedLabel(updatedAt)} · $source pricing'),
+            ),
+          ],
+        ),
+      ),
+    );
+}
+
+/// A short, human "prices updated …" phrase from the pipeline timestamp.
+String _priceUpdatedLabel(DateTime? updatedAt) {
+  if (updatedAt == null) return 'Prices refreshed';
+  final local = updatedAt.toLocal();
+  final diff = DateTime.now().difference(local);
+  final String when;
+  if (diff.inMinutes < 1) {
+    when = 'just now';
+  } else if (diff.inMinutes < 60) {
+    when = '${diff.inMinutes}m ago';
+  } else if (diff.inHours < 24) {
+    when = '${diff.inHours}h ago';
+  } else if (diff.inDays == 1) {
+    when = 'yesterday';
+  } else if (diff.inDays < 7) {
+    when = '${diff.inDays}d ago';
+  } else {
+    when = DateFormat('MMM d').format(local);
+  }
+  return 'Prices updated $when';
+}
+
+/// A scrollable list of grouped cards, shared by the set view and global search.
+class _GroupList extends StatelessWidget {
+  const _GroupList({required this.groups});
+  final List<CardGroup> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: groups.length,
+      separatorBuilder: (_, _) => const Divider(height: 1, indent: 14),
+      itemBuilder: (context, i) => _GroupTile(group: groups[i]),
+    );
+  }
+}
+
+/// One card name in the grouped browse list. Tapping opens the card detail
+/// screen, where the printings selector lets the user switch between every
+/// version.
+class _GroupTile extends ConsumerWidget {
+  const _GroupTile({required this.group});
+  final CardGroup group;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pricing = ref.watch(pricingProvider);
+    final rep = group.representative;
+
+    void openDetail() => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => CardDetailScreen(card: rep)),
+        );
+
+    return CardRow(
+      card: rep,
+      priceLabel: pricing.priceLabel(rep),
+      priceSource: pricing.sourceLabel,
+      showThumbnail: false,
+      inlineBadges: true,
+      onTap: openDetail,
+      trailing: Icon(Icons.chevron_right,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
     );
   }
 }

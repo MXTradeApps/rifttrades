@@ -143,14 +143,30 @@ class CardRow extends StatelessWidget {
     required this.card,
     required this.priceLabel,
     this.secondaryLabel,
+    this.priceSource,
     this.onTap,
     this.onAdd,
     this.trailing,
+    this.showThumbnail = true,
+    this.inlineBadges = false,
   });
 
   final CardModel card;
   final String priceLabel;
   final String? secondaryLabel;
+
+  /// When false, the card art thumbnail is omitted entirely (and never
+  /// requested from the network). Browse uses this so art only loads on the
+  /// card detail page.
+  final bool showThumbnail;
+
+  /// When true, the rarity/foil chips sit inline with the set • #number meta
+  /// line instead of on their own row below it (used by the browse list).
+  final bool inlineBadges;
+
+  /// When set, a small marketplace attribution (e.g. "TCGplayer") is shown
+  /// beneath the price so the source of the number is always clear.
+  final String? priceSource;
   final VoidCallback? onTap;
   final VoidCallback? onAdd;
   final Widget? trailing;
@@ -164,8 +180,10 @@ class CardRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
-            CardThumbnail(url: card.imageUrl, foil: card.isFoil),
-            const SizedBox(width: 12),
+            if (showThumbnail) ...[
+              CardThumbnail(url: card.imageUrl, foil: card.isFoil),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,20 +194,37 @@ class CardRow extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 15, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 3),
-                  CardMetaLine(card: card),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      RarityBadge(rarity: card.rarity),
-                      if (card.isFoil) ...[
-                        const SizedBox(width: 5),
-                        const PillBadge(
-                            label: 'FOIL',
-                            color: Color(0xFF9B5DE5),
-                            icon: Icons.auto_awesome),
+                  if (inlineBadges)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        CardMetaLine(card: card),
+                        RarityBadge(rarity: card.rarity),
+                        if (card.isFoil)
+                          const PillBadge(
+                              label: 'FOIL',
+                              color: Color(0xFF9B5DE5),
+                              icon: Icons.auto_awesome),
                       ],
-                    ],
-                  ),
+                    )
+                  else ...[
+                    CardMetaLine(card: card),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        RarityBadge(rarity: card.rarity),
+                        if (card.isFoil) ...[
+                          const SizedBox(width: 5),
+                          const PillBadge(
+                              label: 'FOIL',
+                              color: Color(0xFF9B5DE5),
+                              icon: Icons.auto_awesome),
+                        ],
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -205,6 +240,10 @@ class CardRow extends StatelessWidget {
                   Text(secondaryLabel!,
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
+                if (priceSource != null) ...[
+                  const SizedBox(height: 2),
+                  PriceSourceTag(source: priceSource!),
+                ],
               ],
             ),
             if (trailing != null) ...[const SizedBox(width: 4), trailing!],
@@ -256,6 +295,50 @@ class AddListRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Tiny, muted price-source attribution (e.g. a storefront glyph + "TCGplayer")
+/// shown beside/under a price so users always know where the number comes from.
+class PriceSourceTag extends StatelessWidget {
+  const PriceSourceTag({super.key, required this.source});
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.storefront_outlined, size: 11, color: scheme.onSurfaceVariant),
+        const SizedBox(width: 3),
+        Text(
+          source,
+          style: TextStyle(
+            fontSize: 10,
+            height: 1.1,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A pill badge crediting the marketplace a price comes from, for use in more
+/// prominent spots such as the card detail price card header.
+class PriceSourceBadge extends StatelessWidget {
+  const PriceSourceBadge({super.key, required this.source});
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    return PillBadge(
+      label: source,
+      color: AppTheme.seed,
+      icon: Icons.storefront_outlined,
     );
   }
 }

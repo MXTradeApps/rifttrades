@@ -127,6 +127,32 @@ final browseResultsProvider = Provider<AsyncValue<List<CardModel>>>((ref) {
   return catalog.whenData((cards) => filterCards(cards, filters));
 });
 
+/// Browse results collapsed into one entry per card name (all printings of a
+/// card grouped together), for the grouped Browse view.
+final browseGroupsProvider = Provider<AsyncValue<List<CardGroup>>>((ref) {
+  final results = ref.watch(browseResultsProvider);
+  final sort = ref.watch(searchFiltersProvider).sort;
+  return results.whenData((cards) => groupCardsByName(cards, sort));
+});
+
+/// The most recent moment the pricing pipeline refreshed any card in the
+/// catalog (max `price_updated_at`). Drives the "prices last updated" toast.
+final priceUpdatedAtProvider = Provider<DateTime?>((ref) {
+  return ref.watch(catalogProvider).maybeWhen(
+        data: (cards) {
+          DateTime? latest;
+          for (final c in cards) {
+            final t = c.priceUpdatedAt;
+            if (t != null && (latest == null || t.isAfter(latest))) {
+              latest = t;
+            }
+          }
+          return latest;
+        },
+        orElse: () => null,
+      );
+});
+
 // ---------------------------------------------------------------------------
 // Collection & want lists
 // ---------------------------------------------------------------------------
