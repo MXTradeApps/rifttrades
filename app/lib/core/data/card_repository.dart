@@ -293,6 +293,151 @@ List<CardModel> printingsForCard(List<CardModel> catalog, CardModel card) {
   return list.isEmpty ? [card] : list;
 }
 
+// ---------------------------------------------------------------------------
+// Card scanning / OCR identification (runs fully offline against the catalog)
+// ---------------------------------------------------------------------------
+
+/// A collector number split into its printing index and (optional) set size,
+/// e.g. "124/221" -> number 124, total 221. The `*` used by signature variants
+/// ("225*/221") is ignored so it still parses to 225.
+class ScanNumber {
+  const ScanNumber(this.number, this.total);
+  final int number;
+  final int? total;
+}
+
+/// Matches a printed Riftbound collector number like "147/219", "086 / 219" or
+/// the signature form "225*/221".
+final RegExp collectorNumberRegex = RegExp(r'(\d{1,3})\s*\*?\s*/\s*(\d{1,3})');
+
+/// Parses a stored/scanned collector number. Falls back to a bare number when
+/// no denominator is present.
+ScanNumber? parseScanNumber(String? raw) {
+  if (raw == null) return null;
+  final pair = collectorNumberRegex.firstMatch(raw);
+  if (pair != null) {
+    return ScanNumber(int.parse(pair.group(1)!), int.parse(pair.group(2)!));
+  }
+  final single = RegExp(r'\d{1,4}').firstMatch(raw);
+  if (single != null) return ScanNumber(int.parse(single.group(0)!), null);
+  return null;
+}
+
+/// Common words dropped from name matching so they don't inflate overlap.
+const Set<String> _nameStopwords = {
+  'the', 'of', 'a', 'an', 'and', 'to', 'in', 'for', 'with',
+};
+
+/// The distinctive lowercase tokens of a card name, with any parenthetical
+/// qualifier (e.g. "(Overnumbered)", "(Metal)") removed — those tags are a
+/// catalog convention and are NOT printed on the physical card.
+List<String> nameTokens(String name) {
+  final withoutParens = name.replaceAll(RegExp(r'\([^)]*\)'), ' ');
+  final normalized =
+      withoutParens.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
+  return normalized
+      .split(' ')
+      .where((t) => t.length >= 2 && !_nameStopwords.contains(t))
+      .toList();
+}
+
+/// Lowercased set of alphanumeric words in [text] (apostrophes/punctuation are
+/// stripped so "Kai'Sa" -> "kaisa" matches the catalog's cleaned "KaiSa").
+Set<String> _wordSet(String text) =>
+    text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').split(' ').where((t) => t.isNotEmpty).toSet();
+
+/// Fraction of a card's distinctive name tokens present in [ocrWords] (0–1).
+double _nameOverlap(CardModel card, Set<String> ocrWords) {
+  final tokens = nameTokens(card.name);
+  if (tokens.isEmpty) return 0;
+  var matched = 0;
+  for (final t in tokens) {
+    if (ocrWords.contains(t)) matched++;
+  }
+  return matched / tokens.length;
+}
+
+/// Identifies the most likely card printings for a block of OCR
+/// [recognizedText] against the in-memory [catalog]. Runs fully offline.
+///
+/// Strategy: the printed "NNN/TTT" collector number is the most reliable
+/// identifier on a Riftbound card, so it is used first to gather candidates
+/// (preferring matches where the set-size denominator also agrees). The card
+/// name is then used to pick the right set/variant and to disambiguate numbers
+/// that repeat across sets. When no number can be read, it falls back to a
+/// strict name-only match. Returns [] when nothing is confident, best first.
+List<CardModel> identifyCards(
+  List<CardModel> catalog,
+  String recognizedText, {
+  int limit = 12,
+}) {
+  if (catalog.isEmpty || recognizedText.trim().isEmpty) return const [];
+  final ocrWords = _wordSet(recognizedText);
+  final ocrNumbers = collectorNumberRegex
+      .allMatches(recognizedText)
+      .map((m) => ScanNumber(int.parse(m.group(1)!), int.parse(m.group(2)!)))
+      .toList();
+
+  if (ocrNumbers.isNotEmpty) {
+    final numeratorMatches = <CardModel>[];
+    final fullMatches = <CardModel>[];
+    for (final card in catalog) {
+      final parsed = parseScanNumber(card.collectorNumber);
+      if (parsed == null) continue;
+      for (final n in ocrNumbers) {
+        if (parsed.number != n.number) continue;
+        numeratorMatches.add(card);
+        if (parsed.total != null && parsed.total == n.total) {
+          fullMatches.add(card);
+        }
+        break;
+      }
+    }
+    // Prefer candidates whose set size (denominator) also matched.
+    final candidates = fullMatches.isNotEmpty ? fullMatches : numeratorMatches;
+    if (candidates.isNotEmpty) {
+      return _rankByName(candidates, ocrWords, limit);
+    }
+  }
+
+  // Fallback: no usable number was read — rank the whole catalog by name and
+  // require every distinctive token to be present (avoids false hits from the
+  // ability/flavour text OCR also picks up).
+  final scored = <MapEntry<CardModel, double>>[];
+  for (final card in catalog) {
+    final overlap = _nameOverlap(card, ocrWords);
+    if (overlap >= 1.0) scored.add(MapEntry(card, overlap));
+  }
+  if (scored.isEmpty) return const [];
+  final result = <CardModel>[];
+  for (final e in scored) {
+    result.add(e.key);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+/// Keeps the best name-matching group of number [candidates]. When the name
+/// could not be read (all overlaps 0), returns the candidates as-is so the user
+/// can disambiguate manually.
+List<CardModel> _rankByName(
+    List<CardModel> candidates, Set<String> ocrWords, int limit) {
+  final scored = candidates
+      .map((c) => MapEntry(c, _nameOverlap(c, ocrWords)))
+      .toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  final best = scored.first.value;
+  final threshold = best > 0 ? best - 0.001 : -1.0;
+  final result = <CardModel>[];
+  final seen = <String>{};
+  for (final e in scored) {
+    if (e.value < threshold) break;
+    if (seen.add(e.key.id)) result.add(e.key);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 /// Finds the opposite-finish printing (Normal <-> Foil) of [card] within
 /// [catalog], or null if this card has no alternate finish. Finishes of the
 /// same physical card share a `product_id` and differ only by `is_foil`.
