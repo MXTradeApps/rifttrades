@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/models/app_settings.dart';
 import '../core/providers.dart';
 import '../features/lend/lend_screen.dart';
 import '../features/search/search_screen.dart';
@@ -10,17 +11,20 @@ import '../features/trade/trade_screen.dart';
 import '../features/want_list/want_list_screen.dart';
 import 'theme.dart';
 
-class RiftTradesApp extends StatelessWidget {
+class RiftTradesApp extends ConsumerWidget {
   const RiftTradesApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
     return MaterialApp(
       title: 'RiftTrades',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.dark,
+      themeMode: settings.themeMode == AppThemeMode.dark
+          ? ThemeMode.dark
+          : ThemeMode.light,
       home: const HomeShell(),
     );
   }

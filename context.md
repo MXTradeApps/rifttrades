@@ -73,23 +73,43 @@ the scan key), `is_sealed` (filter `= false`), `cardmarket_id`, `cardmarket_name
   Supabase (no drift mirror yet — TODO if offline catalog is needed).
 - Phase 3 trade balancer + history: DONE (Have/Want + cash, live delta, save → history).
 - Phase 4 collection & want lists: DONE (owned/want tabs, totals, condition, qty, swipe-delete).
-- Phase 5 scan (OCR): DONE (camera + ML Kit collector-number OCR + manual entry fallback +
-  lookup). Camera fails on the emulator (no virtual cam) but preview + fallback work; needs
-  a real device to fully validate OCR.
+- Phase 5 scan: DONE, now VISUAL + OCR. The scanner fuses two offline signals per frame:
+  (a) a 256-bit perceptual hash (pHash) of the card inside the guide rectangle, matched by
+  Hamming distance against precomputed hashes of every catalog image (bundled asset), and
+  (b) the existing ML Kit name/collector-number OCR. Candidates merged via Reciprocal Rank
+  Fusion; two-consecutive-frame lock unchanged. See `docs/card-scanning-research.md` for
+  the research behind the approach (this is "Phase 1" of that doc; Phase 2 = CLIP-style
+  embeddings if foil/glare robustness demands it). Camera fails on the emulator; needs a
+  real device to validate end-to-end.
+  - Hash pipeline: `app/lib/core/scan/phash.dart` (pure Dart, shared by app + tools),
+    `card_hash_index.dart` (asset parse + outlier-test matching), `frame_hasher.dart`
+    (camera frame → guide-rect hash; geometry contract with the scan overlay).
+  - Asset: `app/assets/scan/card_hashes.json` (~115 KB, 1169 images / 1598 printings).
+    Regenerate per set release: `dart run tool/generate_card_hashes.dart` (caches images
+    in `app/tool/.cache/`, gitignored). ~184 promo images 403 on the TCGplayer CDN
+    (mostly Organized Play promos) — those cards fall back to OCR-only scanning.
+  - Robustness check: `dart run tool/verify_hash_robustness.dart` simulates camera noise
+    on real card images; last run: 135/150 top-1, 7 in candidates, 8 rejected, 0 wrong.
 - Phase 6 cloud sync: not started (optional).
 
 ## App code map (lib/)
-- `app/` — theme.dart, app.dart (HomeShell bottom nav), widgets.dart (CardThumbnail,
-  CardRow, PillBadge, RarityBadge), card_actions.dart (add-to sheet).
-- `core/models/` — card_model.dart (+PricePoint), app_settings.dart, trade.dart,
-  collection_entry.dart.
-- `core/data/` — card_repository.dart (search/filters/printings/history), settings/
+- `app/` — theme.dart, app.dart (HomeShell bottom nav; themeMode from settings),
+  widgets.dart (SetLogoTitle, CardThumbnail, CardRow, PillBadge, RarityBadge),
+  card_actions.dart (add-to sheet).
+- `core/models/` — card_model.dart (+PricePoint), app_settings.dart (PriceSource +
+  AppThemeMode), trade.dart, collection_entry.dart.
+- `core/data/` — card_repository.dart (search/filters/printings/history/setNamesFrom),
+  set_logos.dart / set_logo_cache.dart / set_published_on.dart, settings/
   collection/trade repositories (SharedPreferences JSON).
-- `core/logic/pricing.dart` — resolves canonical price for source/type with fallbacks.
-- `core/providers.dart` — all Riverpod providers + notifiers (settings, search, collection,
-  trade history, live trade draft). NOTE: `sharedPreferencesProvider` is overridden in main().
-- `features/` — search/ (search_screen + card_picker), card_detail/, trade/ (trade_screen +
-  trade_history_screen), collection/, scan/, settings/.
+- `core/logic/pricing.dart` — market value + lowValue/lowPriceLabel (trade math = market).
+- `core/logic/set_sort.dart` — Main Sets vs Other, newest-first within tier.
+- `core/providers.dart` — all Riverpod providers + notifiers (settings, catalog,
+  setLogoMap, setPublishedOn, search, collection, trade history, live trade draft).
+  NOTE: `sharedPreferencesProvider` is overridden in main().
+- `features/` — search/ (Browse with set logos + sections), card_detail/, trade/
+  (trade_screen + filler + history), collection/, lend/, scan/, settings/.
+- Browse assets: `assets/setLogos.json`, `assets/setPublishedOn.json`,
+  `assets/set_logos/*.png` (UVS marketing key-art; regen from retailer portal ZIPs).
 
 ## Gotchas / decisions made
 - State mgmt: Riverpod 3.x (Notifier/NotifierProvider). No codegen.
@@ -107,3 +127,15 @@ search, detail, trade, collection, scan, settings). Analyzer clean. Committed + 
 Possible next steps: (a) drift offline catalog mirror (Phase 2 full), (b) Supabase Auth +
 cloud sync (Phase 6), (c) group search results by card name with a printings expander,
 (d) real-device OCR validation, (e) app icon + splash + store metadata.
+
+## Android Play release (CI)
+Manual workflow: `.github/workflows/release-android-closed.yml`
+(`workflow_dispatch` → track/status/optional version overrides).
+
+Required repo secrets (same shape as FAB Trades):
+- `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`,
+  `ANDROID_KEY_ALIAS` (optional, default `upload`)
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` (Play Android Publisher API access for
+  `com.rifttrades.myapp`)
+
+Leave `build_number` blank to auto-pick `max(Play versionCodes)+1`.

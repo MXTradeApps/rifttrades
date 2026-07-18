@@ -1,0 +1,32 @@
+﻿{
+  "source": "https://uvsgames.com/retailer-portal/page-uvs-retailer-portal-marketing-assets-riftbound/",
+  "scrapedAt": "2026-07-18T18:00:00.000Z",
+  "note": "Bundled key-art marks from official UVS EN retailer marketing packs. Isolated set logos are not published as separate PNGs on the portal.",
+  "logos": {
+    "24344": {
+      "name": "Origins",
+      "abbreviation": "OGN",
+      "logoUrl": "asset:set_logos/24344.png"
+    },
+    "24439": {
+      "name": "Origins: Proving Grounds",
+      "abbreviation": "OGS",
+      "logoUrl": "asset:set_logos/24439.png"
+    },
+    "24519": {
+      "name": "Spiritforged",
+      "abbreviation": "SFD",
+      "logoUrl": "asset:set_logos/24519.png"
+    },
+    "24560": {
+      "name": "Unleashed",
+      "abbreviation": "UNL",
+      "logoUrl": "asset:set_logos/24560.png"
+    },
+    "24698": {
+      "name": "Vendetta",
+      "abbreviation": "VEN",
+      "logoUrl": "asset:set_logos/24698.png"
+    }
+  }
+}

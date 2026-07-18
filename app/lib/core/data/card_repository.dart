@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../logic/set_sort.dart';
 import '../models/card_model.dart';
 
 enum CardSort {
@@ -310,6 +311,14 @@ class ScanNumber {
 /// the signature form "225*/221".
 final RegExp collectorNumberRegex = RegExp(r'(\d{1,3})\s*\*?\s*/\s*(\d{1,3})');
 
+/// Every fractional "NNN/TTT" collector number found in a block of (OCR) text,
+/// in reading order. Used both to gather candidates in [identifyCards] and to
+/// boost the fused ranking in [fuseScanCandidates].
+List<ScanNumber> parseScanNumbers(String text) => [
+      for (final m in collectorNumberRegex.allMatches(text))
+        ScanNumber(int.parse(m.group(1)!), int.parse(m.group(2)!)),
+    ];
+
 /// Parses a stored/scanned collector number. Falls back to a bare number when
 /// no denominator is present.
 ScanNumber? parseScanNumber(String? raw) {
@@ -373,10 +382,7 @@ List<CardModel> identifyCards(
 }) {
   if (catalog.isEmpty || recognizedText.trim().isEmpty) return const [];
   final ocrWords = _wordSet(recognizedText);
-  final ocrNumbers = collectorNumberRegex
-      .allMatches(recognizedText)
-      .map((m) => ScanNumber(int.parse(m.group(1)!), int.parse(m.group(2)!)))
-      .toList();
+  final ocrNumbers = parseScanNumbers(recognizedText);
 
   if (ocrNumbers.isNotEmpty) {
     final numeratorMatches = <CardModel>[];
@@ -400,21 +406,71 @@ List<CardModel> identifyCards(
     }
   }
 
-  // Fallback: no usable number was read — rank the whole catalog by name and
-  // require every distinctive token to be present (avoids false hits from the
-  // ability/flavour text OCR also picks up).
-  final scored = <MapEntry<CardModel, double>>[];
+  // Fallback: no usable number was read — require every distinctive name token
+  // to be present (avoids false hits from ability/flavour text), and prefer
+  // cards whose names have MORE distinctive tokens so "Ahri - Inquisitive"
+  // outranks a shorter name that also fully matched a subset of the OCR words.
+  final scored = <MapEntry<CardModel, int>>[];
   for (final card in catalog) {
-    final overlap = _nameOverlap(card, ocrWords);
-    if (overlap >= 1.0) scored.add(MapEntry(card, overlap));
+    final tokens = nameTokens(card.name);
+    if (tokens.isEmpty) continue;
+    if (_nameOverlap(card, ocrWords) < 1.0) continue;
+    scored.add(MapEntry(card, tokens.length));
   }
   if (scored.isEmpty) return const [];
-  final result = <CardModel>[];
-  for (final e in scored) {
-    result.add(e.key);
-    if (result.length >= limit) break;
+  scored.sort((a, b) => b.value.compareTo(a.value));
+  return [for (final e in scored.take(limit)) e.key];
+}
+
+/// Fuses the scanner's two candidate lists — visual (perceptual-hash) matches
+/// and OCR (name/collector-number) matches — into one ranking using Reciprocal
+/// Rank Fusion: score(card) = Σ 1/(k + rank in each list). A card found by
+/// BOTH signals therefore outranks one found by either alone, which is how
+/// production scanners disambiguate near-identical printings.
+///
+/// When [ocrNumbers] holds collector numbers read off the card, any candidate
+/// whose own collector number agrees gets a [numberBonus] — the collector
+/// number is the strongest disambiguator between near-identical printings, so a
+/// visual match confirmed by the printed number should outrank one that isn't.
+List<CardModel> fuseScanCandidates({
+  required List<CardModel> visual,
+  required List<CardModel> ocr,
+  List<ScanNumber> ocrNumbers = const [],
+  double numberBonus = 0.5,
+  int limit = 12,
+}) {
+  if (visual.isEmpty && ocr.isEmpty) return const [];
+
+  const k = 3.0;
+  final scores = <String, double>{};
+  final byId = <String, CardModel>{};
+  void addList(List<CardModel> list) {
+    for (var i = 0; i < list.length; i++) {
+      final card = list[i];
+      byId[card.id] = card;
+      scores[card.id] = (scores[card.id] ?? 0) + 1 / (k + i);
+    }
   }
-  return result;
+
+  addList(visual);
+  addList(ocr);
+
+  if (ocrNumbers.isNotEmpty) {
+    for (final entry in byId.entries) {
+      final parsed = parseScanNumber(entry.value.collectorNumber);
+      if (parsed == null) continue;
+      final agrees = ocrNumbers.any((n) =>
+          n.number == parsed.number &&
+          (n.total == null ||
+              parsed.total == null ||
+              n.total == parsed.total));
+      if (agrees) scores[entry.key] = (scores[entry.key] ?? 0) + numberBonus;
+    }
+  }
+
+  final ranked = scores.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  return [for (final e in ranked.take(limit)) byId[e.key]!];
 }
 
 /// Keeps the best name-matching group of number [candidates]. When the name
@@ -521,14 +577,49 @@ class CardRepository {
         .toList();
   }
 
+  /// Fallback ordered list used when the catalog has not loaded yet.
   static const List<String> setNames = [
+    'Vendetta',
+    'Unleashed',
+    'Spiritforged',
     'Origins',
     'Origins: Proving Grounds',
-    'Spiritforged',
-    'Unleashed',
-    'Vendetta',
     'Riftbound Promotional Cards',
     'Riftbound Judge Promotional Cards',
     'Riftbound Organized Play Promotional Cards',
   ];
+
+  /// Distinct set names present in [cards], ordered for browsing: Main Sets
+  /// then Other — newest release first within each section when
+  /// [publishedOnForGroupId] can resolve a date. Non-card products are
+  /// excluded.
+  static List<String> setNamesFrom(
+    Iterable<CardModel> cards, {
+    DateTime? Function(int groupId)? publishedOnForGroupId,
+  }) {
+    final names = <String>{};
+    final idByName = <String, int>{};
+    for (final c in cards) {
+      if (isNonCardProduct(c)) continue;
+      final s = c.setName;
+      if (s == null || s.trim().isEmpty) continue;
+      names.add(s);
+      final id = c.setId;
+      if (id != null) idByName.putIfAbsent(s, () => id);
+    }
+    final list = names.toList()
+      ..sort((a, b) {
+        final idA = idByName[a];
+        final idB = idByName[b];
+        return compareSetsByBrowseOrder(
+          a,
+          b,
+          publishedOnA:
+              idA == null ? null : publishedOnForGroupId?.call(idA),
+          publishedOnB:
+              idB == null ? null : publishedOnForGroupId?.call(idB),
+        );
+      });
+    return list;
+  }
 }

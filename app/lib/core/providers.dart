@@ -1,8 +1,15 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/card_repository.dart';
+import 'data/set_logo_cache.dart';
+import 'data/set_logos.dart';
+import 'data/set_published_on.dart';
+import 'scan/card_hash_index.dart';
 import 'data/catalog_repository.dart';
 import 'data/collection_repository.dart';
 import 'data/lend_repository.dart';
@@ -71,6 +78,34 @@ final catalogProvider =
     AsyncNotifierProvider<CatalogNotifier, List<CardModel>>(
         CatalogNotifier.new);
 
+/// Perceptual hashes of every catalog image, bundled as an asset for the
+/// visual card scanner (regenerated per set release by
+/// `tool/generate_card_hashes.dart`).
+final cardHashIndexProvider = FutureProvider<CardHashIndex>((ref) async {
+  final jsonText = await rootBundle.loadString('assets/scan/card_hashes.json');
+  return CardHashIndex.fromJson(jsonText);
+});
+
+/// Official Riftbound set logos / key-art (TCGplayer group id → asset/CDN
+/// ref), bundled as an asset. Network URLs are warmed into [SetLogoCache].
+final setLogoMapProvider = FutureProvider<SetLogoMap>((ref) async {
+  final map = await loadSetLogoMap();
+  unawaited(SetLogoCache.warm(map.urls));
+  return map;
+});
+
+/// Set release dates (TCGplayer group id → publishedOn), bundled as an asset
+/// so the browse list can sort newest-first within each section offline.
+final setPublishedOnMapProvider =
+    FutureProvider<SetPublishedOnMap>((ref) => loadSetPublishedOnMap());
+
+/// Catalog keyed by printing id, for O(1) lookups (used by the scanner to
+/// resolve hash-match ids to cards on every frame).
+final catalogByIdProvider = Provider<Map<String, CardModel>>((ref) {
+  final cards = ref.watch(catalogProvider).asData?.value ?? const <CardModel>[];
+  return {for (final c in cards) c.id: c};
+});
+
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
@@ -86,8 +121,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
     ref.read(settingsRepositoryProvider).save(state);
   }
 
-  void setType(PriceType type) {
-    state = state.copyWith(type: type);
+  void setThemeMode(AppThemeMode themeMode) {
+    state = state.copyWith(themeMode: themeMode);
     ref.read(settingsRepositoryProvider).save(state);
   }
 }

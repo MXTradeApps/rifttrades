@@ -105,18 +105,18 @@ void main() {
       final repo = SettingsRepository(await freshPrefs());
       final s = repo.load();
       expect(s.source, PriceSource.tcgplayer);
-      expect(s.type, PriceType.market);
+      expect(s.themeMode, AppThemeMode.dark);
     });
 
     test('save then load round-trips settings', () async {
       final repo = SettingsRepository(await freshPrefs());
       await repo.save(const AppSettings(
         source: PriceSource.cardmarket,
-        type: PriceType.low,
+        themeMode: AppThemeMode.light,
       ));
       final s = repo.load();
       expect(s.source, PriceSource.cardmarket);
-      expect(s.type, PriceType.low);
+      expect(s.themeMode, AppThemeMode.light);
     });
 
     test('defaults on corrupt json', () async {

@@ -1,8 +1,175 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../core/data/set_logo_cache.dart';
 import '../core/models/card_model.dart';
 import 'theme.dart';
+
+/// Official Riftbound set key-art / logo for browse lists. Falls back to
+/// [setName] when the logo URL is missing or fails to load.
+///
+/// Once decoded, frames are retained in [SetLogoCache] and painted with
+/// [RawImage] so rows that remount after a set drill-in (or Settings) do not
+/// unload/reload. First load uses [Image] + [SetLogoCache.providerFor].
+class SetLogoTitle extends StatefulWidget {
+  const SetLogoTitle({
+    super.key,
+    required this.setName,
+    this.logoUrl,
+    this.height = SetLogoCache.defaultHeight,
+    @visibleForTesting this.debugImageProvider,
+  });
+
+  final String setName;
+  final String? logoUrl;
+  final double height;
+
+  /// Test seam: inject a local [ImageProvider] instead of hitting assets/CDN.
+  @visibleForTesting
+  final ImageProvider? debugImageProvider;
+
+  /// URLs that have painted or been memory-precached this process. Once warm,
+  /// we never flash the set-name placeholder on a transient cache miss.
+  static final Set<String> _warmUrls = <String>{};
+
+  /// Mark [url] as already shown so placeholders stay quiet across rebuilds
+  /// and route pops (also used by [SetLogoCache.precacheIntoMemory]).
+  static void markWarm(String url) {
+    if (url.isNotEmpty) _warmUrls.add(url);
+  }
+
+  @visibleForTesting
+  static bool debugIsWarm(String url) => _warmUrls.contains(url);
+
+  @visibleForTesting
+  static void debugResetWarmUrls() => _warmUrls.clear();
+
+  @override
+  State<SetLogoTitle> createState() => _SetLogoTitleState();
+}
+
+class _SetLogoTitleState extends State<SetLogoTitle> {
+  /// Last successfully painted logo chrome. Kept across rebuilds so a brief
+  /// [frame] == null (common after set drill-in / Settings pop) does not
+  /// blank the row while the provider reattaches.
+  Widget? _stableLogo;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = widget.logoUrl;
+    if (url == null || url.isEmpty) {
+      return Text(
+        widget.setName,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      );
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final alreadyWarm = SetLogoTitle._warmUrls.contains(url);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final height = widget.height;
+    final plateHeight = height + SetLogoCache.platePadding;
+    final memCacheHeight = SetLogoCache.memCacheHeightFor(height, dpr);
+
+    final nameFallback = Text(
+      widget.setName,
+      style: const TextStyle(fontWeight: FontWeight.w600),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    // Instant paint after set drill-in remounts the browse row.
+    final retained = SetLogoCache.imageFor(url);
+    if (retained != null) {
+      SetLogoTitle.markWarm(url);
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: plateHeight, maxWidth: 280),
+          child: _logoChrome(
+            plateHeight: plateHeight,
+            isDark: isDark,
+            scheme: scheme,
+            child: RawImage(
+              image: retained,
+              height: height,
+              fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final imageProvider = widget.debugImageProvider ??
+        SetLogoCache.providerFor(url, memCacheHeight: memCacheHeight);
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: plateHeight, maxWidth: 280),
+        child: Image(
+          image: imageProvider,
+          height: height,
+          fit: BoxFit.contain,
+          alignment: Alignment.centerLeft,
+          // Keep the last frame visible while the provider re-resolves after
+          // ImageCache pressure or Navigator pop (set detail / Settings).
+          gaplessPlayback: true,
+          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            if (frame != null || wasSynchronouslyLoaded) {
+              SetLogoTitle.markWarm(url);
+              if (child is RawImage && child.image != null) {
+                SetLogoCache.retain(url, child.image!);
+              }
+              SetLogoCache.ensurePinned(url, imageProvider, context);
+              final painted = _logoChrome(
+                plateHeight: plateHeight,
+                isDark: isDark,
+                scheme: scheme,
+                child: child,
+              );
+              _stableLogo = painted;
+              return painted;
+            }
+            if (_stableLogo != null) return _stableLogo!;
+            if (alreadyWarm) {
+              // Quiet hold — never swap back to the set name once warm.
+              return _logoChrome(
+                plateHeight: plateHeight,
+                isDark: isDark,
+                scheme: scheme,
+                child: child,
+              );
+            }
+            return nameFallback;
+          },
+          errorBuilder: (_, _, _) => nameFallback,
+        ),
+      ),
+    );
+  }
+
+  static Widget _logoChrome({
+    required double plateHeight,
+    required bool isDark,
+    required ColorScheme scheme,
+    required Widget child,
+  }) {
+    return Container(
+      height: plateHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : scheme.onSurface.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: child,
+    );
+  }
+}
 
 /// Rounded card artwork with graceful placeholders.
 class CardThumbnail extends StatelessWidget {

@@ -3,36 +3,36 @@ import 'package:rifttrades/core/models/app_settings.dart';
 
 void main() {
   group('AppSettings', () {
-    test('defaults to TCGplayer market', () {
+    test('defaults to TCGplayer and dark theme', () {
       const s = AppSettings();
       expect(s.source, PriceSource.tcgplayer);
-      expect(s.type, PriceType.market);
+      expect(s.themeMode, AppThemeMode.dark);
     });
 
     test('copyWith overrides selectively', () {
       const s = AppSettings();
       final updated = s.copyWith(source: PriceSource.cardmarket);
       expect(updated.source, PriceSource.cardmarket);
-      expect(updated.type, PriceType.market);
+      expect(updated.themeMode, AppThemeMode.dark);
     });
 
     test('toJson -> fromJson round-trips', () {
       const s = AppSettings(
         source: PriceSource.cardmarket,
-        type: PriceType.low,
+        themeMode: AppThemeMode.light,
       );
       final restored = AppSettings.fromJson(s.toJson());
       expect(restored.source, PriceSource.cardmarket);
-      expect(restored.type, PriceType.low);
+      expect(restored.themeMode, AppThemeMode.light);
     });
 
     test('fromJson falls back to defaults for unknown enum values', () {
       final restored = AppSettings.fromJson({
         'source': 'nope',
-        'type': 'unknown',
+        'themeMode': 'unknown',
       });
       expect(restored.source, PriceSource.tcgplayer);
-      expect(restored.type, PriceType.market);
+      expect(restored.themeMode, AppThemeMode.dark);
     });
 
     test('enum metadata is correct', () {

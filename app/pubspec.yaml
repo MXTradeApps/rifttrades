@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.0+3
 
 environment:
   sdk: ^3.12.2
@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.15.4
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   intl: ^0.20.3
   flutter_riverpod: ^3.3.2
   fl_chart: ^1.2.0
@@ -50,6 +51,8 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   mocktail: ^1.0.4
+  # Used only by tool/generate_card_hashes.dart to decode catalog images.
+  image: ^4.3.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -85,10 +88,14 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    # Perceptual hashes of every catalog image, for the card scanner.
+    # Regenerate with: dart run tool/generate_card_hashes.dart
+    - assets/scan/card_hashes.json
+    # Browse set logos (UVS marketing key-art) + release dates for sort order.
+    - assets/setLogos.json
+    - assets/setPublishedOn.json
+    - assets/set_logos/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

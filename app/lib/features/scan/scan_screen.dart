@@ -13,12 +13,15 @@ import '../../core/data/card_repository.dart';
 import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
+import '../../core/scan/frame_hasher.dart';
 import '../card_detail/card_detail_screen.dart';
 
-/// Live card scanner. Streams camera frames through ML Kit text recognition and
-/// matches the printed name + collector number against the in-memory catalog
-/// (fully offline). Locks onto a card once it has been seen on two consecutive
-/// frames, so a steady aim identifies it hands-free.
+/// Live card scanner. Streams camera frames through two offline recognizers —
+/// a perceptual-hash match of the card image inside the guide rectangle
+/// against precomputed hashes of every catalog scan, and ML Kit OCR of the
+/// printed name + collector number — then fuses both candidate lists. Locks
+/// onto a card once the same top match is seen on two consecutive frames, so
+/// a steady aim identifies it hands-free.
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key, this.tradeSide});
 
@@ -68,6 +71,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   // Two-frame confirmation to reject transient false positives.
   String? _pendingKey;
   int _pendingHits = 0;
+  /// Consecutive empty frames while a pending read is in flight. OCR on a
+  /// real phone flickers empty between good frames; one miss must not wipe
+  /// progress or the gate never reaches 2.
+  int _pendingMisses = 0;
 
   String? _statusMessage;
   List<CardModel> _matches = const [];
@@ -189,26 +196,96 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     _processing = true;
     _lastProcessedAt = now;
     try {
-      final input = _toInputImage(image);
-      if (input == null) return;
-      final result = await _recognizer.processImage(input);
-      if (!mounted || _locked) return;
+      final rotation = _rotationDegrees();
+      if (rotation == null) {
+        debugPrint(
+            '[DEBUG-scan] rot=null orient=${_controller?.value.deviceOrientation} '
+            'sensor=${_controller?.description.sensorOrientation}');
+        return;
+      }
 
       final catalog = ref.read(catalogProvider).asData?.value ?? const [];
       if (catalog.isEmpty) {
-        setState(() => _statusMessage = 'Loading card catalog…');
-        return;
-      }
-      final matches = identifyCards(catalog, result.text);
-      if (matches.isEmpty) {
-        // Keep scanning; don't clear any prior hint aggressively.
-        _pendingKey = null;
-        _pendingHits = 0;
+        if (mounted) setState(() => _statusMessage = 'Loading card catalog…');
         return;
       }
 
-      // Require the same top card on two consecutive reads before locking.
-      final key = matches.first.id;
+      // Signal 1: perceptual hash of the card inside the guide rectangle,
+      // matched against the precomputed catalog hashes.
+      var visual = const <CardModel>[];
+      var bestDist = -1;
+      var zScore = -1.0;
+      var hashOk = false;
+      final hashIndex = ref.read(cardHashIndexProvider).asData?.value;
+      if (hashIndex != null) {
+        final hash = hashCameraFrame(image, rotation);
+        hashOk = hash != null;
+        if (hash != null) {
+          final byId = ref.read(catalogByIdProvider);
+          final matches = hashIndex.match(
+            hash,
+            onStats: (best, mean, z) {
+              bestDist = best;
+              zScore = z;
+            },
+          );
+          visual = [
+            for (final m in matches)
+              for (final id in m.entry.cardIds)
+                if (byId[id] != null) byId[id]!,
+          ];
+        }
+      }
+
+      // Signal 2: OCR of the printed name + collector number.
+      // Isolated from visual so an ML Kit / format failure on Android cannot
+      // discard a successful hash match (that used to silently kill scanning).
+      var ocr = const <CardModel>[];
+      var ocrNumbers = const <ScanNumber>[];
+      var ocrNote = 'skip';
+      final input = _toInputImage(image, rotation);
+      if (input == null) {
+        ocrNote = 'input=null fmt=${image.format.group}/'
+            '${image.format.raw} planes=${image.planes.length}';
+      } else {
+        try {
+          final result = await _recognizer.processImage(input);
+          if (!mounted || _locked) return;
+          ocr = identifyCards(catalog, result.text);
+          ocrNumbers = parseScanNumbers(result.text);
+          final snippet = result.text.replaceAll('\n', ' ').trim();
+          ocrNote = snippet.isEmpty
+              ? 'empty'
+              : '"${snippet.length > 40 ? '${snippet.substring(0, 40)}…' : snippet}"';
+        } catch (e) {
+          // Full exception — PlatformException.message is the useful part.
+          ocrNote = 'err=$e';
+        }
+      }
+
+      final matches =
+          fuseScanCandidates(visual: visual, ocr: ocr, ocrNumbers: ocrNumbers);
+      debugPrint(
+        '[DEBUG-scan] rot=$rotation hash=${hashOk ? 'ok' : 'null'} '
+        'best=$bestDist z=${zScore.toStringAsFixed(1)} '
+        'vis=${visual.length} ocr=${ocr.length} ($ocrNote)',
+      );
+      if (matches.isEmpty) {
+        if (_pendingKey != null) {
+          _pendingMisses++;
+          if (_pendingMisses < 3) return; // tolerate brief OCR flicker
+        }
+        _pendingKey = null;
+        _pendingHits = 0;
+        _pendingMisses = 0;
+        return;
+      }
+      _pendingMisses = 0;
+
+      // Confirm by card identity, not printing id. OCR often returns every
+      // foil/set variant of the same name; keying on printing id made the
+      // two-frame gate flip forever and never lock on a real phone.
+      final key = _scanConfirmKey(matches.first);
       if (key == _pendingKey) {
         _pendingHits++;
       } else {
@@ -216,43 +293,65 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         _pendingHits = 1;
       }
       if (_pendingHits >= 2) {
-        await _lockOn(matches);
+        final locked = [
+          for (final c in matches)
+            if (_scanConfirmKey(c) == key) c
+        ];
+        debugPrint('[DEBUG-scan] LOCK key="$key" n=${locked.length}');
+        await _lockOn(locked.isNotEmpty ? locked : matches);
       } else if (mounted) {
         setState(() => _statusMessage =
             'Reading ${matches.first.name}… hold steady.');
       }
-    } catch (_) {
-      // Ignore per-frame failures; the next frame will retry.
+    } catch (e) {
+      debugPrint('[DEBUG-scan] frame err=$e');
     } finally {
       _processing = false;
     }
   }
 
-  /// Builds an ML Kit [InputImage] from a streamed camera frame, computing the
-  /// correct rotation per platform (see the ML Kit Flutter example).
-  InputImage? _toInputImage(CameraImage image) {
+  /// Stable identity for the two-frame confirmation gate. Strips every
+  /// parenthetical (e.g. "(Overnumbered)") so OCR returning foil/set variants
+  /// of the same card still counts as consecutive hits. Printing id is too
+  /// unstable: the fused list's top entry flips between variants every frame
+  /// and the gate never reaches 2.
+  String _scanConfirmKey(CardModel card) {
+    final stripped =
+        card.name.replaceAll(RegExp(r'\s*\([^)]*\)'), ' ').trim();
+    return stripped.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  }
+
+  /// Clockwise rotation (0/90/180/270) that turns a raw sensor frame into the
+  /// upright displayed image, per platform (see the ML Kit Flutter example).
+  /// Shared by OCR, the frame hasher, and the preview layout.
+  int? _rotationDegrees() {
     final controller = _controller;
     if (controller == null) return null;
     final camera = controller.description;
     final sensorOrientation = camera.sensorOrientation;
+    if (Platform.isIOS) return sensorOrientation;
+    final deviceRotation =
+        _orientationDegrees[controller.value.deviceOrientation];
+    if (deviceRotation == null) return null;
+    return camera.lensDirection == CameraLensDirection.front
+        ? (sensorOrientation + deviceRotation) % 360
+        : (sensorOrientation - deviceRotation + 360) % 360;
+  }
 
-    InputImageRotation? rotation;
-    if (Platform.isIOS) {
-      rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
-    } else {
-      final deviceRotation =
-          _orientationDegrees[controller.value.deviceOrientation];
-      if (deviceRotation == null) return null;
-      final compensated = camera.lensDirection == CameraLensDirection.front
-          ? (sensorOrientation + deviceRotation) % 360
-          : (sensorOrientation - deviceRotation + 360) % 360;
-      rotation = InputImageRotationValue.fromRawValue(compensated);
-    }
+  /// Builds an ML Kit [InputImage] from a streamed camera frame.
+  ///
+  /// Matches the google_mlkit_commons contract: Android must be a single-plane
+  /// NV21 buffer, iOS a single-plane BGRA8888 buffer. Anything else returns
+  /// null so OCR is skipped rather than throwing and poisoning the frame.
+  InputImage? _toInputImage(CameraImage image, int rotationDegrees) {
+    final rotation = InputImageRotationValue.fromRawValue(rotationDegrees);
     if (rotation == null) return null;
 
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
     if (format == null) return null;
-    if (image.planes.isEmpty) return null;
+    if (Platform.isAndroid && format != InputImageFormat.nv21) return null;
+    if (Platform.isIOS && format != InputImageFormat.bgra8888) return null;
+    if (image.planes.length != 1) return null;
     final plane = image.planes.first;
 
     return InputImage.fromBytes(
@@ -304,6 +403,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       _matches = const [];
       _pendingKey = null;
       _pendingHits = 0;
+      _pendingMisses = 0;
       _statusMessage = 'Point at a card to identify it.';
     });
     if (_controller == null) {
@@ -388,8 +488,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Keep the widget rebuilding as the catalog finishes loading.
+    // Keep the widget rebuilding as the catalog finishes loading, and warm the
+    // hash index so it's ready by the first frame.
     ref.watch(catalogProvider);
+    ref.watch(cardHashIndexProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.tradeSide != null ? 'Scan a card to add' : 'Scan'),
@@ -474,16 +576,35 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         ),
       );
     }
+    // Render the preview with BoxFit.cover so the visible region (and thus the
+    // guide rectangle) maps deterministically onto the camera frame — the
+    // frame hasher in frame_hasher.dart mirrors this exact geometry.
+    final controller = _controller!;
+    Widget camera = CameraPreview(controller);
+    final previewSize = controller.value.previewSize;
+    if (previewSize != null) {
+      final rotation = _rotationDegrees() ?? 0;
+      final swap = rotation == 90 || rotation == 270;
+      camera = FittedBox(
+        fit: BoxFit.cover,
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(
+          width: swap ? previewSize.height : previewSize.width,
+          height: swap ? previewSize.width : previewSize.height,
+          child: camera,
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.all(12),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: AspectRatio(
-          aspectRatio: 3 / 4,
+          aspectRatio: kViewportAspect,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CameraPreview(_controller!),
+              camera,
               _ScanOverlay(scanning: _streaming && !_locked),
             ],
           ),
@@ -519,6 +640,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
           return CardRow(
             card: card,
             priceLabel: pricing.priceLabel(card),
+            secondaryLabel: pricing.lowPriceLabel(card),
             trailing: const Icon(Icons.add_circle),
             onTap: () => _addToTrade(card),
           );
@@ -526,6 +648,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         return CardRow(
           card: card,
           priceLabel: pricing.priceLabel(card),
+          secondaryLabel: pricing.lowPriceLabel(card),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => CardDetailScreen(card: card))),
           onAdd: () => showCardActions(context, ref, card),
@@ -535,6 +658,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   }
 }
 
+/// Card-shaped guide rectangle. Its geometry (centered, [kGuideWidthFraction]
+/// of the viewport width, physical card aspect) is shared with the frame
+/// hasher, so a card that fills the guide is exactly the region being matched.
 class _ScanOverlay extends StatelessWidget {
   const _ScanOverlay({required this.scanning});
 
@@ -544,24 +670,28 @@ class _ScanOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: scanning ? Colors.lightGreenAccent : Colors.white70,
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Text(
-                scanning
-                    ? 'Fill the frame with the card • name + number visible'
-                    : 'Paused',
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+        child: FractionallySizedBox(
+          widthFactor: kGuideWidthFraction,
+          child: AspectRatio(
+            aspectRatio: kCardAspect,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: scanning ? Colors.lightGreenAccent : Colors.white70,
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    scanning ? 'Fit the card exactly in the frame' : 'Paused',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
               ),
             ),
           ),

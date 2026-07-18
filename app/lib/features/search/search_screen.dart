@@ -7,6 +7,10 @@ import 'package:intl/intl.dart';
 import '../../app/app.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
+import '../../core/data/set_logo_cache.dart';
+import '../../core/data/set_logos.dart';
+import '../../core/data/set_published_on.dart';
+import '../../core/logic/set_sort.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
 import '../scan/scan_screen.dart';
@@ -102,48 +106,181 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
 }
 
 /// The list of sets to drill into (shown when the global search is empty).
-class _SetList extends ConsumerWidget {
+class _SetList extends ConsumerStatefulWidget {
   const _SetList();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sets = CardRepository.setNames;
-    // Watching the catalog here preloads it as soon as the app opens, so
-    // tapping into a set later is instant.
-    final counts = ref.watch(catalogProvider).maybeWhen(
-          data: (cards) {
-            final m = <String, int>{};
-            for (final c in cards) {
-              if (isNonCardProduct(c)) continue;
-              final s = c.setName;
-              if (s != null) m[s] = (m[s] ?? 0) + 1;
-            }
-            return m;
-          },
-          orElse: () => const <String, int>{},
-        );
+  ConsumerState<_SetList> createState() => _SetListState();
+}
 
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: sets.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
-      itemBuilder: (context, i) {
-        final set = sets[i];
-        final count = counts[set];
-        return ListTile(
-          title: Text(set,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: count == null ? null : Text('$count cards'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            ref.read(searchFiltersProvider.notifier).enterSet(set);
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => SetCardsScreen(setName: set),
-              ),
-            );
+class _SetListState extends ConsumerState<_SetList> {
+  var _memoryPrecacheStarted = false;
+
+  void _precacheLogosIfNeeded(SetLogoMap logos) {
+    if (_memoryPrecacheStarted || logos.isEmpty) return;
+    _memoryPrecacheStarted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      SetLogoCache.precacheIntoMemory(
+        context,
+        logos.urls,
+        onCached: SetLogoTitle.markWarm,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final catalog = ref.watch(catalogProvider);
+    final logos = ref.watch(setLogoMapProvider).asData?.value ?? SetLogoMap.empty;
+    final publishedOn =
+        ref.watch(setPublishedOnMapProvider).asData?.value ??
+            SetPublishedOnMap.empty;
+    _precacheLogosIfNeeded(logos);
+    return catalog.when(
+      loading: () => const Center(child: CircularProgressIndicator.adaptive()),
+      error: (e, _) => _ScrollableCenter(
+        child: _ErrorView(
+          message: e.toString(),
+          onRetry: () => ref.invalidate(catalogProvider),
+        ),
+      ),
+      data: (cards) {
+        final setIds = <String, int>{};
+        for (final c in cards) {
+          if (isNonCardProduct(c)) continue;
+          final s = c.setName;
+          if (s == null) continue;
+          final id = c.setId;
+          if (id != null) setIds.putIfAbsent(s, () => id);
+        }
+        final sets = CardRepository.setNamesFrom(
+          cards,
+          publishedOnForGroupId: publishedOn.forGroupId,
+        );
+        if (sets.isEmpty) {
+          return const _ScrollableCenter(child: _EmptyView());
+        }
+
+        final entries = <_BrowseEntry>[];
+        int? lastTier;
+        for (final set in sets) {
+          final tier = setBrowseTier(set);
+          if (tier != lastTier) {
+            entries.add(_BrowseSectionHeader(browseTierLabel(tier)));
+            lastTier = tier;
+          }
+          entries.add(
+            _BrowseSetRow(
+              setName: set,
+              logoUrl: logos.urlForGroupId(setIds[set]),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: entries.length,
+          itemBuilder: (context, i) {
+            final entry = entries[i];
+            return switch (entry) {
+              _BrowseSectionHeader(:final label) => _SetSectionHeader(
+                  label: label,
+                  isFirst: i == 0,
+                ),
+              _BrowseSetRow(:final setName, :final logoUrl) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _SetTile(
+                      key: ValueKey<String>(setName),
+                      setName: setName,
+                      logoUrl: logoUrl,
+                    ),
+                    if (i < entries.length - 1 && entries[i + 1] is _BrowseSetRow)
+                      const Divider(height: 1, indent: 16),
+                  ],
+                ),
+            };
           },
+        );
+      },
+    );
+  }
+}
+
+sealed class _BrowseEntry {
+  const _BrowseEntry();
+}
+
+class _BrowseSectionHeader extends _BrowseEntry {
+  const _BrowseSectionHeader(this.label);
+  final String label;
+}
+
+class _BrowseSetRow extends _BrowseEntry {
+  const _BrowseSetRow({required this.setName, required this.logoUrl});
+  final String setName;
+  final String? logoUrl;
+}
+
+class _SetSectionHeader extends StatelessWidget {
+  const _SetSectionHeader({required this.label, required this.isFirst});
+
+  final String label;
+  final bool isFirst;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, isFirst ? 4 : 16, 16, 6),
+      child: Text(
+        label.toUpperCase(),
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: scheme.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+/// One browsable set row. Kept alive so logos stay mounted while scrolling.
+class _SetTile extends ConsumerStatefulWidget {
+  const _SetTile({
+    super.key,
+    required this.setName,
+    required this.logoUrl,
+  });
+
+  final String setName;
+  final String? logoUrl;
+
+  @override
+  ConsumerState<_SetTile> createState() => _SetTileState();
+}
+
+class _SetTileState extends ConsumerState<_SetTile>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      title: SetLogoTitle(setName: widget.setName, logoUrl: widget.logoUrl),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        ref.read(searchFiltersProvider.notifier).enterSet(widget.setName);
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SetCardsScreen(setName: widget.setName),
+          ),
         );
       },
     );
@@ -373,6 +510,7 @@ class _GroupTile extends ConsumerWidget {
     return CardRow(
       card: rep,
       priceLabel: pricing.priceLabel(rep),
+      secondaryLabel: pricing.lowPriceLabel(rep),
       priceSource: pricing.sourceLabel,
       showThumbnail: false,
       inlineBadges: true,
