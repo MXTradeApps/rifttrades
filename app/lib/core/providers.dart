@@ -21,6 +21,7 @@ import 'models/card_model.dart';
 import 'models/collection_entry.dart';
 import 'models/lend_group.dart';
 import 'models/trade.dart';
+import 'update/app_update_checker.dart';
 
 /// Overridden in main() with the real instance.
 final sharedPreferencesProvider = Provider<SharedPreferences>(
@@ -32,6 +33,16 @@ final supabaseClientProvider =
 
 final cardRepositoryProvider = Provider<CardRepository>(
     (ref) => CardRepository(ref.watch(supabaseClientProvider)));
+
+/// Lazily resolves Supabase so widget tests without [Supabase.initialize]
+/// can still construct the checker (failures surface inside [AppUpdateChecker.check]).
+final appUpdateCheckerProvider = Provider<AppUpdateChecker>(
+  (ref) => AppUpdateChecker(
+    prefs: ref.watch(sharedPreferencesProvider),
+    // Lazy: widget tests may construct this without Supabase.initialize.
+    client: () => ref.read(supabaseClientProvider),
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // Card catalog (preloaded + cached locally for instant, offline browsing)

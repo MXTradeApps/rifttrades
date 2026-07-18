@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/app_settings.dart';
 import '../core/providers.dart';
+import '../core/update/app_update_dialog.dart';
 import '../features/lend/lend_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -48,6 +49,27 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     WantListScreen(),
     LendScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForAppUpdate());
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    try {
+      final checker = ref.read(appUpdateCheckerProvider);
+      final prompt = await checker.check();
+      if (!mounted || prompt == null) return;
+      await showAppUpdateDialog(
+        context,
+        prompt: prompt,
+        onLater: checker.dismiss,
+      );
+    } catch (_) {
+      // Offline / tests / PackageInfo unavailable — skip quietly.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
