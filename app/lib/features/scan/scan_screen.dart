@@ -265,10 +265,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
       final matches =
           fuseScanCandidates(visual: visual, ocr: ocr, ocrNumbers: ocrNumbers);
+      final expectNv21 = image.width * image.height * 3 ~/ 2;
+      final plane0 = image.planes.isEmpty ? 0 : image.planes.first.bytes.length;
       debugPrint(
         '[DEBUG-scan] rot=$rotation hash=${hashOk ? 'ok' : 'null'} '
         'best=$bestDist z=${zScore.toStringAsFixed(1)} '
-        'vis=${visual.length} ocr=${ocr.length} ($ocrNote)',
+        'vis=${visual.length} ocr=${ocr.length} ($ocrNote) '
+        'fmt=${image.format.group}/${image.format.raw} '
+        'planes=${image.planes.length} bytes=$plane0 expect=$expectNv21',
       );
       if (matches.isEmpty) {
         if (_pendingKey != null) {
