@@ -178,9 +178,10 @@ class _SetListState extends ConsumerState<_SetList> {
           );
         }
 
+        final bottomPad = 16 + MediaQuery.paddingOf(context).bottom + 80;
         return ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.fromLTRB(0, 8, 0, bottomPad),
           itemCount: entries.length,
           itemBuilder: (context, i) {
             final entry = entries[i];
@@ -481,9 +482,15 @@ class _GroupList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Clear the system home indicator, and when this list sits under the shell
+    // NavigationBar (global search) also clear that chrome.
+    final underShellNav = !Navigator.of(context).canPop();
+    final bottomPad = 16 +
+        MediaQuery.paddingOf(context).bottom +
+        (underShellNav ? 80 : 0);
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(bottom: bottomPad),
       itemCount: groups.length,
       separatorBuilder: (_, _) => const Divider(height: 1, indent: 14),
       itemBuilder: (context, i) => _GroupTile(group: groups[i]),

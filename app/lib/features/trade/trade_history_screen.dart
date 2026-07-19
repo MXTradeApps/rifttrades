@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
+import '../../app/widgets.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
 
@@ -86,6 +87,27 @@ class _TradeCard extends ConsumerWidget {
                 ),
               ],
             ),
+            if (trade.haveItems.isNotEmpty || trade.wantItems.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              if (trade.haveItems.isNotEmpty)
+                _ItemList(
+                  label: 'Gave',
+                  items: trade.haveItems,
+                  symbol: symbol,
+                  accent: AppTheme.haveAccent,
+                ),
+              if (trade.haveItems.isNotEmpty && trade.wantItems.isNotEmpty)
+                const SizedBox(height: 8),
+              if (trade.wantItems.isNotEmpty)
+                _ItemList(
+                  label: 'Got',
+                  items: trade.wantItems,
+                  symbol: symbol,
+                  accent: AppTheme.wantAccent,
+                ),
+            ],
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.center,
@@ -126,6 +148,78 @@ class _TradeCard extends ConsumerWidget {
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800, color: accent)),
         Text(count, style: theme.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+class _ItemList extends StatelessWidget {
+  const _ItemList({
+    required this.label,
+    required this.items,
+    required this.symbol,
+    required this.accent,
+  });
+
+  final String label;
+  final List<TradeItem> items;
+  final String symbol;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: accent,
+          ),
+        ),
+        const SizedBox(height: 4),
+        for (final item in items)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                CardThumbnail(
+                  url: item.card.imageUrl,
+                  foil: item.card.isFoil,
+                  width: 32,
+                  height: 44,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.quantity > 1
+                            ? '${item.quantity}× ${item.card.name}'
+                            : item.card.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        '$symbol${item.priceEach.toStringAsFixed(2)} ea'
+                        '${item.quantity > 1 ? ' · $symbol${item.lineTotal.toStringAsFixed(2)}' : ''}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

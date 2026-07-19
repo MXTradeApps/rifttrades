@@ -9,7 +9,6 @@ import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
-import '../../core/models/trade.dart';
 import '../../core/providers.dart';
 
 class CardDetailScreen extends ConsumerStatefulWidget {
@@ -61,25 +60,30 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Hero(
-                tag: 'card_${_selected.id}',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: _selected.imageUrl ?? '',
-                    height: 176,
-                    width: 126,
-                    fit: BoxFit.cover,
-                    placeholder: (_, _) => const SizedBox(
+              GestureDetector(
+                onTap: () => _showCardImageViewer(context, _selected),
+                child: Hero(
+                  tag: 'card_${_selected.id}',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: _selected.imageUrl ?? '',
                       height: 176,
                       width: 126,
-                      child: Center(child: CircularProgressIndicator.adaptive()),
-                    ),
-                    errorWidget: (_, _, _) => Container(
-                      height: 176,
-                      width: 126,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: const Icon(Icons.broken_image_outlined, size: 40),
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => const SizedBox(
+                        height: 176,
+                        width: 126,
+                        child: Center(
+                            child: CircularProgressIndicator.adaptive()),
+                      ),
+                      errorWidget: (_, _, _) => Container(
+                        height: 176,
+                        width: 126,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child:
+                            const Icon(Icons.broken_image_outlined, size: 40),
+                      ),
                     ),
                   ),
                 ),
@@ -135,6 +139,57 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
       bottomNavigationBar: _ActionBar(card: _selected),
     );
   }
+}
+
+void _showCardImageViewer(BuildContext context, CardModel card) {
+  final url = card.imageUrl;
+  if (url == null || url.isEmpty) return;
+  showDialog<void>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.92),
+    builder: (ctx) {
+      return GestureDetector(
+        onTap: () => Navigator.of(ctx).pop(),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: CachedNetworkImage(
+                      imageUrl: url,
+                      fit: BoxFit.contain,
+                      placeholder: (_, _) => const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: CircularProgressIndicator.adaptive(),
+                      ),
+                      errorWidget: (_, _, _) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white70,
+                        size: 64,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _PrintingSelector extends StatelessWidget {
@@ -385,6 +440,14 @@ class _HistorySection extends StatelessWidget {
                             ?.copyWith(fontWeight: FontWeight.w700)),
                   ],
                 ),
+                if (hasSeries) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _historyRangeLabel(points),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 if (!hasSeries)
                   Padding(
@@ -400,7 +463,7 @@ class _HistorySection extends StatelessWidget {
                   )
                 else
                   SizedBox(
-                    height: 120,
+                    height: 140,
                     child: _Sparkline(
                       points: points,
                       values: values,
@@ -417,6 +480,24 @@ class _HistorySection extends StatelessWidget {
   }
 }
 
+/// Human-readable span for the price history X-axis (e.g. "Last 3 months · Mar 4 – Jul 18").
+String _historyRangeLabel(List<PricePoint> points) {
+  if (points.isEmpty) return '';
+  final start = points.first.capturedOn.toLocal();
+  final end = points.last.capturedOn.toLocal();
+  final days = end.difference(start).inDays;
+  final fmt = DateFormat('MMM d');
+  final span = days >= 150
+      ? 'Last 6 months'
+      : days >= 60
+          ? 'Last 3 months'
+          : days >= 25
+              ? 'Last month'
+              : 'Last $days days';
+  if (days < 1) return span;
+  return '$span · ${fmt.format(start)} – ${fmt.format(end)}';
+}
+
 class _Sparkline extends StatelessWidget {
   const _Sparkline({
     required this.points,
@@ -431,17 +512,84 @@ class _Sparkline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final spots = <FlSpot>[];
+    final indexBySpotX = <double, int>{};
     for (var i = 0; i < values.length; i++) {
       final v = values[i];
-      if (v != null) spots.add(FlSpot(i.toDouble(), v));
+      if (v != null) {
+        final x = i.toDouble();
+        spots.add(FlSpot(x, v));
+        indexBySpotX[x] = i;
+      }
     }
+    if (spots.isEmpty) return const SizedBox.shrink();
+
+    final firstX = spots.first.x;
+    final lastX = spots.last.x;
+    final midX = spots[spots.length ~/ 2].x;
+    final labelXs = <double>{firstX, midX, lastX};
+
+    String labelFor(double x) {
+      final i = indexBySpotX[x];
+      if (i == null || i < 0 || i >= points.length) return '';
+      return DateFormat('MMM d').format(points[i].capturedOn.toLocal());
+    }
+
     return LineChart(
       LineChartData(
         gridData: const FlGridData(show: false),
-        titlesData: const FlTitlesData(show: false),
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              interval: 1,
+              getTitlesWidget: (value, meta) {
+                if (!labelXs.contains(value)) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    labelFor(value),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
         borderData: FlBorderData(show: false),
-        lineTouchData: const LineTouchData(enabled: true),
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touched) => touched.map((s) {
+              final i = indexBySpotX[s.x];
+              final date = i == null
+                  ? ''
+                  : DateFormat('MMM d').format(
+                      points[i].capturedOn.toLocal(),
+                    );
+              return LineTooltipItem(
+                '$date\n$symbol${s.y.toStringAsFixed(2)}',
+                TextStyle(
+                  color: theme.colorScheme.onInverseSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
         lineBarsData: [
           LineChartBarData(
             spots: spots,
@@ -477,11 +625,13 @@ class _ActionBar extends ConsumerWidget {
               minimumSize: const Size.fromHeight(48),
               backgroundColor: AppTheme.wantAccent.withValues(alpha: 0.15),
               foregroundColor: AppTheme.wantAccent),
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.favorite_border),
           label: const Text('Want'),
           onPressed: () {
-            ref.read(tradeDraftProvider.notifier).addCard(TradeSide.want, card);
-            snack('Added to Want');
+            ref
+                .read(collectionProvider.notifier)
+                .add(card, isWanted: true);
+            snack('Added to Want list');
           },
         ),
       ),
