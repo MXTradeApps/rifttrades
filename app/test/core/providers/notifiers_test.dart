@@ -81,42 +81,42 @@ void main() {
     });
   });
 
-  group('CollectionNotifier', () {
+  group('BinderNotifier', () {
     test('add merges quantity for a duplicate printing+list', () async {
       final c = await makeContainer();
-      final n = c.read(collectionProvider.notifier);
+      final n = c.read(binderProvider.notifier);
       final card = buildCard(id: 'k');
       n.add(card, quantity: 1);
       n.add(card, quantity: 2);
-      expect(c.read(collectionProvider).length, 1);
+      expect(c.read(binderProvider).length, 1);
       expect(n.quantityOf('k'), 3);
     });
 
-    test('same card in owned vs wanted are separate entries', () async {
+    test('same card in binder vs wanted are separate entries', () async {
       final c = await makeContainer();
-      final n = c.read(collectionProvider.notifier);
+      final n = c.read(binderProvider.notifier);
       final card = buildCard(id: 'k');
       n.add(card, isWanted: false);
       n.add(card, isWanted: true);
-      expect(c.read(collectionProvider).length, 2);
+      expect(c.read(binderProvider).length, 2);
       expect(n.quantityOf('k', isWanted: false), 1);
       expect(n.quantityOf('k', isWanted: true), 1);
     });
 
     test('setQuantity to zero removes the entry', () async {
       final c = await makeContainer();
-      final n = c.read(collectionProvider.notifier);
+      final n = c.read(binderProvider.notifier);
       n.add(buildCard(id: 'k'));
       n.setQuantity('k', false, 0);
-      expect(c.read(collectionProvider), isEmpty);
+      expect(c.read(binderProvider), isEmpty);
     });
 
     test('setCondition updates only the matching entry', () async {
       final c = await makeContainer();
-      final n = c.read(collectionProvider.notifier);
+      final n = c.read(binderProvider.notifier);
       n.add(buildCard(id: 'k'));
       n.setCondition('k', false, 'HP');
-      expect(c.read(collectionProvider).single.condition, 'HP');
+      expect(c.read(binderProvider).single.condition, 'HP');
     });
 
     test('state persists across a rebuilt container', () async {
@@ -125,14 +125,14 @@ void main() {
       final c1 = ProviderContainer(overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
       ]);
-      c1.read(collectionProvider.notifier).add(buildCard(id: 'persist'));
+      c1.read(binderProvider.notifier).add(buildCard(id: 'persist'));
       c1.dispose();
 
       final c2 = ProviderContainer(overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
       ]);
       addTearDown(c2.dispose);
-      expect(c2.read(collectionProvider).single.card.id, 'persist');
+      expect(c2.read(binderProvider).single.card.id, 'persist');
     });
   });
 

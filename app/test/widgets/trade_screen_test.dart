@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rifttrades/core/models/trade.dart';
 import 'package:rifttrades/core/providers.dart';
@@ -41,12 +42,16 @@ void main() {
     expect(find.text('+\$6.00'), findsOneWidget);
   });
 
-  testWidgets('save and clear actions appear once the trade is non-empty',
+  testWidgets('confirm and clear actions appear once the trade is non-empty',
       (tester) async {
     final container = await pumpApp(tester, const TradeScreen());
     await tester.pump();
 
-    expect(find.byTooltip('Save trade'), findsNothing);
+    expect(find.text('Confirm Trade'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Confirm Trade')).onPressed,
+      isNull,
+    );
 
     container.read(tradeDraftProvider.notifier).addCard(
           TradeSide.have,
@@ -54,7 +59,10 @@ void main() {
         );
     await tester.pump();
 
-    expect(find.byTooltip('Save trade'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Confirm Trade')).onPressed,
+      isNotNull,
+    );
     expect(find.byTooltip('Clear trade'), findsOneWidget);
   });
 }

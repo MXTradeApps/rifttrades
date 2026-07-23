@@ -1,46 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rifttrades/app/widgets.dart';
+import 'package:rifttrades/core/providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/fixtures.dart';
 
 void main() {
+  Future<void> pumpRow(WidgetTester tester, Widget child) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+        child: MaterialApp(home: Scaffold(body: child)),
+      ),
+    );
+  }
+
   Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
   group('CardRow', () {
     testWidgets('renders name and price', (tester) async {
-      await tester.pumpWidget(wrap(CardRow(
-        card: buildCard(name: 'Vex - Apathetic'),
-        priceLabel: '\$1.50',
-      )));
+      await pumpRow(
+        tester,
+        CardRow(
+          card: buildCard(name: 'Vex - Apathetic'),
+          priceLabel: '\$1.50',
+        ),
+      );
 
       expect(find.text('Vex - Apathetic'), findsOneWidget);
       expect(find.text('\$1.50'), findsOneWidget);
     });
 
     testWidgets('shows FOIL badge for foil printings', (tester) async {
-      await tester.pumpWidget(wrap(CardRow(
-        card: buildCard(name: 'Vex', isFoil: true),
-        priceLabel: '\$2.00',
-      )));
+      await pumpRow(
+        tester,
+        CardRow(
+          card: buildCard(name: 'Vex', isFoil: true),
+          priceLabel: '\$2.00',
+        ),
+      );
       expect(find.text('FOIL'), findsOneWidget);
     });
 
     testWidgets('hides FOIL badge for non-foil printings', (tester) async {
-      await tester.pumpWidget(wrap(CardRow(
-        card: buildCard(name: 'Vex', isFoil: false),
-        priceLabel: '\$2.00',
-      )));
+      await pumpRow(
+        tester,
+        CardRow(
+          card: buildCard(name: 'Vex', isFoil: false),
+          priceLabel: '\$2.00',
+        ),
+      );
       expect(find.text('FOIL'), findsNothing);
     });
 
     testWidgets('calls onAdd when the add button is tapped', (tester) async {
       var added = false;
-      await tester.pumpWidget(wrap(CardRow(
-        card: buildCard(name: 'Vex'),
-        priceLabel: '\$1.00',
-        onAdd: () => added = true,
-      )));
+      await pumpRow(
+        tester,
+        CardRow(
+          card: buildCard(name: 'Vex'),
+          priceLabel: '\$1.00',
+          onAdd: () => added = true,
+        ),
+      );
 
       await tester.tap(find.byIcon(Icons.add_circle_outline));
       expect(added, isTrue);
@@ -48,11 +76,14 @@ void main() {
 
     testWidgets('omits the thumbnail when showThumbnail is false',
         (tester) async {
-      await tester.pumpWidget(wrap(CardRow(
-        card: buildCard(name: 'Vex'),
-        priceLabel: '\$1.00',
-        showThumbnail: false,
-      )));
+      await pumpRow(
+        tester,
+        CardRow(
+          card: buildCard(name: 'Vex'),
+          priceLabel: '\$1.00',
+          showThumbnail: false,
+        ),
+      );
       expect(find.byType(CardThumbnail), findsNothing);
     });
   });

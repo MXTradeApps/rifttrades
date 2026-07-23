@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rifttrades/core/data/catalog_repository.dart';
-import 'package:rifttrades/core/data/collection_repository.dart';
+import 'package:rifttrades/core/data/binder_repository.dart';
 import 'package:rifttrades/core/data/lend_repository.dart';
 import 'package:rifttrades/core/data/settings_repository.dart';
 import 'package:rifttrades/core/data/trade_repository.dart';
 import 'package:rifttrades/core/models/app_settings.dart';
-import 'package:rifttrades/core/models/collection_entry.dart';
+import 'package:rifttrades/core/models/binder_entry.dart';
 import 'package:rifttrades/core/models/lend_group.dart';
 import 'package:rifttrades/core/models/trade.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,16 +20,16 @@ void main() {
     return SharedPreferences.getInstance();
   }
 
-  group('CollectionRepository', () {
+  group('BinderRepository', () {
     test('returns empty when nothing stored', () async {
-      final repo = CollectionRepository(await freshPrefs());
+      final repo = BinderRepository(await freshPrefs());
       expect(repo.load(), isEmpty);
     });
 
     test('save then load round-trips entries', () async {
-      final repo = CollectionRepository(await freshPrefs());
+      final repo = BinderRepository(await freshPrefs());
       final entries = [
-        CollectionEntry(
+        BinderEntry(
           card: buildCard(id: 'c1', name: 'Vex'),
           quantity: 2,
           condition: 'LP',
@@ -47,9 +47,23 @@ void main() {
     });
 
     test('returns empty on corrupt json', () async {
-      final repo = CollectionRepository(
+      final repo = BinderRepository(
           await freshPrefs({'collection_entries': 'not json'}));
       expect(repo.load(), isEmpty);
+    });
+
+    test('persists under legacy collection_entries key', () async {
+      final prefs = await freshPrefs();
+      final repo = BinderRepository(prefs);
+      await repo.save([
+        BinderEntry(
+          card: buildCard(id: 'legacy'),
+          quantity: 1,
+          addedAt: DateTime.utc(2026, 1, 1),
+        ),
+      ]);
+      expect(prefs.containsKey('collection_entries'), isTrue);
+      expect(prefs.containsKey('binder_entries'), isFalse);
     });
   });
 
