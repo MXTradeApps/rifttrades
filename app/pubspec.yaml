@@ -50,6 +50,17 @@ dependencies:
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.2
 
+dependency_overrides:
+  # iOS image streaming silently dies after ~5 frames on camera_avfoundation
+  # 0.10.x (the 0.10.0+3 Pigeon streaming rewrite): the native side caps
+  # unacknowledged frames at 4 (maxStreamingPendingFramesCount) and the
+  # Dart-side receivedImageStreamData acks stop releasing that throttle, so
+  # the preview stays live but startImageStream delivers nothing (overlay
+  # symptom: rx frozen at ~5, proc=1). Pin the last release before the
+  # rewrite until upstream fixes it. camera 0.12 wants ^0.10.0, hence the
+  # override rather than a normal constraint.
+  camera_avfoundation: 0.9.23+2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

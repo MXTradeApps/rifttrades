@@ -102,6 +102,35 @@ Harness result (synthetic, after rectification on FAB catalog):
 Rectification helps synthetic misalignment a lot; **real phone photos are a
 harder domain** (lighting, foil, imperfect fill, residual geometry mismatch).
 
+### 3.5 iOS: image stream dies after ~5 frames while the preview stays live
+
+Found via TestFlight overlay screenshots (July 2026): `f=1 rx=5 proc=1`,
+frozen for 15+ seconds, stats line byte-for-byte identical across camera
+positions — yet the preview kept updating. Per the diagnostics decision tree
+that is "`rx` frozen → camera stream died at the plugin level", ruling out
+the ML Kit-hang hypothesis (which would show `rx` climbing with `proc`
+frozen).
+
+Root cause: `camera_avfoundation` 0.10.x (the 0.10.0+3 "type-safe Pigeon
+code for image streaming" rewrite). Native iOS refuses to send a streamed
+frame unless fewer than 4 are unacknowledged (`maxStreamingPendingFramesCount`);
+each frame must be acked from Dart via `receivedImageStreamData`, and the ack
+is a fire-and-forget future whose errors are silently swallowed. When the
+handshake breaks, the counter pins at 4 and delivery stops forever — the
+preview survives because it's fed by the same native `captureOutput` callback
+through a texture, not through the event channel. `rx=5` is the signature:
+1 acked frame + 4 that consumed the pending budget.
+
+Two-layer fix:
+
+1. `dependency_overrides: camera_avfoundation: 0.9.23+2` in `app/pubspec.yaml`
+   — last release before the streaming rewrite (`camera` 0.12 requires
+   `^0.10.0`, hence override). Remove once upstream fixes streaming.
+2. Stall watchdog in `scan_screen.dart`: every 2 s, if `rx` hasn't moved while
+   `_streaming && !_locked`, stop + restart the image stream (restart resets
+   the native pending counter to 0, so this also recovers 0.10.x). Restarts
+   show as `rst=N` in the overlay liveness line.
+
 ---
 
 ## 4. How we diagnosed it (feedback loop)
@@ -212,6 +241,9 @@ saw an `NNN/TTT`-style number (Riftbound’s primary printed id).
 4. **Release-vs-debug ML Kit** — early Pixel release build threw
    `PlatformException` every frame; debug later succeeded (model download /
    timing). Worth a cold-install check on a fresh device before each store push.
+5. **Drop the `camera_avfoundation` override** (see §3.5) once an upstream
+   release fixes the Pigeon image-stream throttle stall; re-test on a physical
+   iPhone with the overlay (`rx` must keep climbing past 5).
 
 ---
 

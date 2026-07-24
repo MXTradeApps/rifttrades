@@ -132,6 +132,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   int _framesReceived = 0;
   int _framesProcessed = 0;
 
+  /// Recovers from a dead camera stream while the preview is still live.
+  /// Seen on iOS with camera_avfoundation 0.10.x: the native pending-frame
+  /// throttle (max 4 unacknowledged frames) leaks and delivery stops after
+  /// ~5 frames. Restarting the image stream resets the native counter.
+  Timer? _stallWatchdog;
+  int _lastRxSeen = -1;
+  int _streamRestarts = 0;
+
   /// Repaints the overlay once a second while diagnostics are shown, so the
   /// counters / "last frame X s ago" stay live even when no frames arrive.
   Timer? _diagTicker;
@@ -211,6 +219,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     final controller = _controller;
     _controller = null;
     _streaming = false;
+    _stallWatchdog?.cancel();
+    _stallWatchdog = null;
     if (controller == null) return;
     try {
       if (controller.value.isStreamingImages) {
@@ -273,6 +283,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     try {
       await controller.startImageStream(_processImage);
       _streaming = true;
+      _startStallWatchdog();
       if (mounted && _statusMessage == null) {
         setState(() => _statusMessage = 'Point at a card to identify it.');
       }
@@ -286,6 +297,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
   Future<void> _stopStream() async {
     final controller = _controller;
+    _stallWatchdog?.cancel();
+    _stallWatchdog = null;
     if (controller == null || !_streaming) return;
     _streaming = false;
     try {
@@ -293,6 +306,42 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         await controller.stopImageStream();
       }
     } catch (_) {}
+  }
+
+  void _startStallWatchdog() {
+    _stallWatchdog?.cancel();
+    _lastRxSeen = -1;
+    _stallWatchdog = Timer.periodic(
+        const Duration(seconds: 2), (_) => _checkStreamStall());
+  }
+
+  /// If the stream delivered no frame for a full watchdog period while we
+  /// believe we're scanning, stop + restart the image stream. `rx` frozen is
+  /// plugin-level death (the pipeline never saw the frames), so `_processing`
+  /// and the throttle are irrelevant here.
+  Future<void> _checkStreamStall() async {
+    final controller = _controller;
+    if (!_streaming ||
+        _locked ||
+        controller == null ||
+        !controller.value.isInitialized) {
+      return;
+    }
+    if (_framesReceived != _lastRxSeen) {
+      _lastRxSeen = _framesReceived;
+      return;
+    }
+    _streamRestarts++;
+    _recordDiag(
+        'stream stalled (rx=$_framesReceived frozen) — restart #$_streamRestarts');
+    try {
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
+      await controller.startImageStream(_processImage);
+    } catch (e) {
+      _recordDiag('stream restart failed: $e');
+    }
   }
 
   Future<void> _processImage(CameraImage image) async {
@@ -823,6 +872,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                               ?_cameraError,
                               _lastDiag ?? 'waiting for first frame…',
                               'rx=$_framesReceived proc=$_framesProcessed'
+                                  '${_streamRestarts > 0 ? ' rst=$_streamRestarts' : ''}'
                                   '${_lastDiagAt == null ? '' : ' last=${DateTime.now().difference(_lastDiagAt!).inSeconds}s ago'}',
                             ].join('\n'),
                             style: const TextStyle(
