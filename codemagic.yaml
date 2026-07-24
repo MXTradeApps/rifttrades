@@ -1,0 +1,98 @@
+# Codemagic CI for RiftTrades (Flutter iOS).
+# Flutter project lives at app/ — see working_directory below.
+#
+# Before the first signed upload:
+# 1. Create the App Store Connect app record (Apps → + → New App) for bundle ID
+#    com.rifttrades.rifttrades. That creates the app shell — no binary required yet.
+# 2. The App Store Connect API key is already connected in Codemagic from the
+#    FAB Trades release (Team integrations → Developer Portal, name: codemagickey).
+# 3. Add an App Store provisioning profile for com.rifttrades.rifttrades in
+#    Code signing identities (the Apple Distribution cert from FAB Trades is reused).
+# 4. Replace APP_STORE_APPLE_ID below with the numeric Apple ID from
+#    App Store Connect → App Information once the app record exists.
+#
+workflows:
+  ios-unsigned:
+    name: iOS unsigned (debug)
+    working_directory: app
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Install CocoaPods dependencies
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Build iOS debug without code signing
+        script: flutter build ios --debug --no-codesign
+    artifacts:
+      - build/ios/iphoneos/**/*.app
+      - /tmp/xcodebuild_logs/*.log
+
+  ios-testflight:
+    name: iOS TestFlight
+    working_directory: app
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+
+    integrations:
+      # Must match the name of the key in Codemagic → Team integrations → Developer Portal
+      app_store_connect: codemagickey
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.rifttrades.rifttrades
+      vars:
+        # App Store Connect → App Information → Apple ID (numeric).
+        # Fill in after creating the RiftTrades app record.
+        APP_STORE_APPLE_ID: "REPLACE_WITH_NUMERIC_APPLE_ID"
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+
+      - name: Set up code signing settings on Xcode project
+        script: xcode-project use-profiles
+
+      - name: Set build number
+        script: |
+          # After the first TestFlight upload, this auto-increments. Before that,
+          # it falls back so we stay above pubspec's current +3.
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 3)
+          NEW_BUILD=$((LATEST + 1))
+          echo "Using build number: $NEW_BUILD"
+          echo "NEW_BUILD=$NEW_BUILD" >> "$CM_ENV"
+
+      - name: Flutter build IPA
+        script: |
+          flutter build ipa --release \
+            --build-number="$NEW_BUILD" \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Upload IPA only; turn on TestFlight group submission after first success.
+        submit_to_testflight: false
+        submit_to_app_store: false
+        # After Internal Testing group exists in App Store Connect:
+        # submit_to_testflight: true
+        # beta_groups:
+        #   - Internal testers

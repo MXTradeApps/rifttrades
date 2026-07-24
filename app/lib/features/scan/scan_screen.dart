@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -114,6 +117,68 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   List<CardModel> _matches = const [];
   String? _lastNumber;
 
+  /// On-device diagnostics (bug icon in the app bar) so scan failures can be
+  /// inspected on a phone without a tethered console — the per-frame pipeline
+  /// stats and any camera error are drawn over the viewport when enabled.
+  bool _showDiag = false;
+  String? _lastDiag;
+  DateTime? _lastDiagAt;
+  String? _cameraError;
+
+  /// Frames delivered by the camera stream vs frames the pipeline actually
+  /// processed. If rx stops climbing the camera stream died; if rx climbs but
+  /// proc doesn't, something inside `_processImage` is stuck (e.g. ML Kit
+  /// never completing and leaving `_processing` latched).
+  int _framesReceived = 0;
+  int _framesProcessed = 0;
+
+  /// Repaints the overlay once a second while diagnostics are shown, so the
+  /// counters / "last frame X s ago" stay live even when no frames arrive.
+  Timer? _diagTicker;
+
+  /// The luma grid the hasher actually sampled, rendered as a tiny image —
+  /// shows exactly what the visual matcher "sees" inside the guide.
+  ui.Image? _diagGrid;
+
+  /// Mirrors every `[DEBUG-scan]` console line into the on-screen overlay.
+  void _recordDiag(String line) {
+    debugPrint('[DEBUG-scan] $line');
+    _lastDiag = line;
+    _lastDiagAt = DateTime.now();
+    if (_showDiag && mounted) setState(() {});
+  }
+
+  void _toggleDiag() {
+    setState(() => _showDiag = !_showDiag);
+    _diagTicker?.cancel();
+    _diagTicker = _showDiag
+        ? Timer.periodic(const Duration(seconds: 1), (_) {
+            if (mounted) setState(() {});
+          })
+        : null;
+  }
+
+  /// Renders the sampled 64×64 luma grid into [_diagGrid] for the overlay.
+  void _updateDiagGrid(Float64List grid) {
+    final px = Uint8List(grid.length * 4);
+    for (var i = 0; i < grid.length; i++) {
+      final v = grid[i].clamp(0.0, 255.0).round();
+      px[i * 4] = v;
+      px[i * 4 + 1] = v;
+      px[i * 4 + 2] = v;
+      px[i * 4 + 3] = 255;
+    }
+    ui.decodeImageFromPixels(px, kGraySide, kGraySide, ui.PixelFormat.rgba8888,
+        (img) {
+      if (!mounted || !_showDiag) {
+        img.dispose();
+        return;
+      }
+      _diagGrid = img;
+      setState(() {});
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -124,6 +189,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _diagTicker?.cancel();
     _disposeCamera();
     _recognizer.close();
     super.dispose();
@@ -160,6 +226,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       if (cameras.isEmpty) {
         if (!mounted) return;
         setState(() {
+          _cameraError = 'No cameras reported by the OS.';
           _initializing = false;
           _cameraAvailable = false;
         });
@@ -184,13 +251,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       setState(() {
         _controller = controller;
         _cameraAvailable = true;
+        _cameraError = null;
         _initializing = false;
         _torchOn = false;
       });
       if (!_locked) await _startStream();
-    } catch (_) {
+    } catch (e) {
+      _recordDiag('camera init failed: $e');
       if (!mounted) return;
       setState(() {
+        _cameraError = 'Camera init failed: $e';
         _initializing = false;
         _cameraAvailable = false;
       });
@@ -206,7 +276,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       if (mounted && _statusMessage == null) {
         setState(() => _statusMessage = 'Point at a card to identify it.');
       }
-    } catch (_) {}
+    } catch (e) {
+      _recordDiag('stream start failed: $e');
+      if (mounted) {
+        setState(() => _cameraError = 'Stream start failed: $e');
+      }
+    }
   }
 
   Future<void> _stopStream() async {
@@ -221,6 +296,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   }
 
   Future<void> _processImage(CameraImage image) async {
+    _framesReceived++;
     if (_processing || _locked) return;
     final now = DateTime.now();
     if (_lastProcessedAt != null &&
@@ -229,11 +305,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     }
     _processing = true;
     _lastProcessedAt = now;
+    _framesProcessed++;
     try {
       final rotation = _rotationDegrees();
       if (rotation == null) {
-        debugPrint(
-            '[DEBUG-scan] rot=null orient=${_controller?.value.deviceOrientation} '
+        _recordDiag(
+            'rot=null orient=${_controller?.value.deviceOrientation} '
             'sensor=${_controller?.description.sensorOrientation}');
         return;
       }
@@ -244,15 +321,27 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         return;
       }
 
+      final frameSw = Stopwatch()..start();
+
       // Signal 1: perceptual hash of the card inside the guide rectangle,
       // matched against the precomputed catalog hashes.
       var visual = const <CardModel>[];
       var bestDist = -1;
       var zScore = -1.0;
       var hashOk = false;
+      final hashSw = Stopwatch()..start();
+      // iOS: camera_avfoundation sets videoOrientation on the stream
+      // connection to the device orientation, so streamed buffers arrive
+      // already rotated upright — rotating again by sensorOrientation samples
+      // a sideways region and the hash can never match. Android (Camera2)
+      // streams raw sensor-orientation frames and needs the full rotation.
+      // ML Kit's InputImage still gets [rotation]: its iOS converter ignores
+      // the field, and Android needs it.
+      final hashRotation = Platform.isIOS ? 0 : rotation;
       final hashIndex = ref.read(cardHashIndexProvider).asData?.value;
       if (hashIndex != null) {
-        final hash = hashCameraFrame(image, rotation);
+        final hash = hashCameraFrame(image, hashRotation,
+            onGrid: _showDiag ? _updateDiagGrid : null);
         hashOk = hash != null;
         if (hash != null) {
           final byId = ref.read(catalogByIdProvider);
@@ -270,6 +359,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
           ];
         }
       }
+      final hashMs = hashSw.elapsedMilliseconds;
 
       // Signal 2: OCR of the printed name + collector number.
       // Isolated from visual so an ML Kit / format failure on Android cannot
@@ -277,13 +367,18 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       var ocr = const <CardModel>[];
       var ocrNumbers = const <ScanNumber>[];
       var ocrNote = 'skip';
+      final ocrSw = Stopwatch()..start();
       final input = _toInputImage(image, rotation);
       if (input == null) {
         ocrNote = 'input=null fmt=${image.format.group}/'
             '${image.format.raw} planes=${image.planes.length}';
       } else {
         try {
-          final result = await _recognizer.processImage(input);
+          // A hung native call would otherwise leave `_processing` latched
+          // and silently kill the whole pipeline after one frame.
+          final result = await _recognizer
+              .processImage(input)
+              .timeout(const Duration(seconds: 3));
           if (!mounted || _locked) return;
           ocr = identifyCards(catalog, result.text);
           ocrNumbers = parseScanNumbers(result.text);
@@ -297,16 +392,18 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         }
       }
 
+      final ocrMs = ocrSw.elapsedMilliseconds;
+
       final matches =
           fuseScanCandidates(visual: visual, ocr: ocr, ocrNumbers: ocrNumbers);
-      final expectNv21 = image.width * image.height * 3 ~/ 2;
-      final plane0 = image.planes.isEmpty ? 0 : image.planes.first.bytes.length;
-      debugPrint(
-        '[DEBUG-scan] rot=$rotation hash=${hashOk ? 'ok' : 'null'} '
+      _recordDiag(
+        'f=$_framesProcessed rot=$rotation hashRot=$hashRotation '
+        'hash=${hashOk ? 'ok' : 'null'} '
         'best=$bestDist z=${zScore.toStringAsFixed(1)} '
         'vis=${visual.length} ocr=${ocr.length} ($ocrNote) '
-        'fmt=${image.format.group}/${image.format.raw} '
-        'planes=${image.planes.length} bytes=$plane0 expect=$expectNv21',
+        '${image.width}x${image.height} '
+        'bpr=${image.planes.isEmpty ? 0 : image.planes.first.bytesPerRow} '
+        'hashMs=$hashMs ocrMs=$ocrMs totalMs=${frameSw.elapsedMilliseconds}',
       );
       if (matches.isEmpty) {
         if (_pendingKey != null) {
@@ -342,7 +439,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
             'Reading ${matches.first.name}… hold steady.');
       }
     } catch (e) {
-      debugPrint('[DEBUG-scan] frame err=$e');
+      _recordDiag('frame err=$e');
     } finally {
       _processing = false;
     }
@@ -391,6 +488,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     if (Platform.isIOS && format != InputImageFormat.bgra8888) return null;
     if (image.planes.length != 1) return null;
     final plane = image.planes.first;
+
+    // NV21 = Y (w*h) + interleaved VU (w*h/2). Reject undersized buffers that
+    // make ML Kit's native converter NPE instead of a clear format error.
+    if (Platform.isAndroid) {
+      final expected = image.width * image.height * 3 ~/ 2;
+      if (plane.bytes.length < expected) return null;
+    }
 
     return InputImage.fromBytes(
       bytes: plane.bytes,
@@ -563,6 +667,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
             tooltip: 'Enter name or number',
             onPressed: _manualEntry,
           ),
+          IconButton(
+            icon: Icon(
+                _showDiag ? Icons.bug_report : Icons.bug_report_outlined),
+            tooltip: 'Scan diagnostics',
+            onPressed: _toggleDiag,
+          ),
           const SettingsAction(),
         ],
       ),
@@ -616,6 +726,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                 size: 40, color: Theme.of(context).colorScheme.outline),
             const SizedBox(height: 12),
             const Text('Camera unavailable'),
+            if (_cameraError != null) ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  _cameraError!,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               'Enter a name or collector number instead.',
@@ -662,6 +788,54 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
             children: [
               camera,
               _ScanOverlay(scanning: _streaming && !_locked),
+              if (_showDiag)
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_diagGrid != null) ...[
+                          // The sampled grid is square; stretch it back to
+                          // card aspect so it reads like the crop it is.
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: RawImage(
+                              image: _diagGrid,
+                              width: 63,
+                              height: 88,
+                              fit: BoxFit.fill,
+                              filterQuality: FilterQuality.none,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            [
+                              ?_cameraError,
+                              _lastDiag ?? 'waiting for first frame…',
+                              'rx=$_framesReceived proc=$_framesProcessed'
+                                  '${_lastDiagAt == null ? '' : ' last=${DateTime.now().difference(_lastDiagAt!).inSeconds}s ago'}',
+                            ].join('\n'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
