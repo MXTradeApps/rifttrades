@@ -53,7 +53,7 @@ workflows:
       vars:
         # App Store Connect → App Information → Apple ID (numeric).
         # Fill in after creating the RiftTrades app record.
-        APP_STORE_APPLE_ID: "REPLACE_WITH_NUMERIC_APPLE_ID"
+        APP_STORE_APPLE_ID: "6794404610"
 
     scripts:
       - name: Get Flutter packages
