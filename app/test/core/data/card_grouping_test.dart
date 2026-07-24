@@ -140,6 +140,39 @@ void main() {
     });
   });
 
+  group('withoutPhantomNormals', () {
+    test('drops a subtype-less non-foil row whose product has a foil', () {
+      final phantom = buildCard(
+          id: '1-base', productId: 1, subTypeName: null, isFoil: false);
+      final foil = buildCard(
+          id: '1-foil', productId: 1, subTypeName: 'Foil', isFoil: true);
+      expect(withoutPhantomNormals([phantom, foil]), [foil]);
+    });
+
+    test('keeps a subtype-less non-foil row with no foil sibling', () {
+      final unpriced = buildCard(
+          id: '2-base', productId: 2, subTypeName: null, isFoil: false);
+      expect(withoutPhantomNormals([unpriced]), [unpriced]);
+    });
+
+    test('keeps a real Normal printing alongside its foil', () {
+      final normal = buildCard(
+          id: '3-normal', productId: 3, subTypeName: 'Normal', isFoil: false);
+      final foil = buildCard(
+          id: '3-foil', productId: 3, subTypeName: 'Foil', isFoil: true);
+      expect(withoutPhantomNormals([normal, foil]), [normal, foil]);
+    });
+
+    test('does not treat productId-less rows as foil siblings', () {
+      final noProduct = buildCard(
+          id: 'x', productId: null, subTypeName: null, isFoil: false);
+      final foil = buildCard(
+          id: 'y-foil', productId: null, subTypeName: 'Foil', isFoil: true);
+      expect(withoutPhantomNormals([noProduct, foil]),
+          [noProduct, foil]);
+    });
+  });
+
   group('oppositeFinish', () {
     test('finds the foil sharing a productId', () {
       final normal = buildCard(id: 'n', productId: 100, isFoil: false);

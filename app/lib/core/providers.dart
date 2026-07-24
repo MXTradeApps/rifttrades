@@ -54,6 +54,8 @@ final catalogRepositoryProvider = Provider<CatalogRepository>(
 /// Holds the whole card catalog. On startup it returns the locally cached
 /// catalog immediately (no spinner) and refreshes prices from Supabase in the
 /// background; if there is no cache yet it fetches once and stores it.
+/// Phantom Normal rows (foil-only cards) are stripped before serving, so they
+/// never appear in browse, version selectors or finish swaps.
 class CatalogNotifier extends AsyncNotifier<List<CardModel>> {
   @override
   Future<List<CardModel>> build() async {
@@ -61,18 +63,18 @@ class CatalogNotifier extends AsyncNotifier<List<CardModel>> {
     final cached = store.load();
     if (cached != null && cached.isNotEmpty) {
       _refreshInBackground();
-      return cached;
+      return withoutPhantomNormals(cached);
     }
     final cards = await ref.watch(cardRepositoryProvider).fetchAll();
     await store.save(cards);
-    return cards;
+    return withoutPhantomNormals(cards);
   }
 
   Future<void> _refreshInBackground() async {
     try {
       final cards = await ref.read(cardRepositoryProvider).fetchAll();
       await ref.read(catalogRepositoryProvider).save(cards);
-      state = AsyncData(cards);
+      state = AsyncData(withoutPhantomNormals(cards));
     } catch (_) {
       // Keep serving the cached catalog if the refresh fails.
     }
@@ -82,7 +84,7 @@ class CatalogNotifier extends AsyncNotifier<List<CardModel>> {
   Future<void> refresh() async {
     final cards = await ref.read(cardRepositoryProvider).fetchAll();
     await ref.read(catalogRepositoryProvider).save(cards);
-    state = AsyncData(cards);
+    state = AsyncData(withoutPhantomNormals(cards));
   }
 }
 

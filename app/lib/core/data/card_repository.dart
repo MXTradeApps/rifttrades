@@ -494,6 +494,30 @@ List<CardModel> _rankByName(
   return result;
 }
 
+/// Removes "phantom" Normal printings from a catalog. For cards that are only
+/// printed in foil (e.g. the SP cards in Vendetta), TCGplayer still publishes
+/// a placeholder non-foil row with no `sub_type_name` and no prices. Real
+/// Normal printings always carry `sub_type_name = 'Normal'`, so a subtype-less
+/// non-foil row whose product also has a foil printing is not a real version
+/// and is dropped — leaving the foil printing to represent the card (and its
+/// price) in browse, the version selector and finish swapping. Subtype-less
+/// rows WITHOUT a foil sibling are kept: those are real cards that simply have
+/// no price data yet.
+List<CardModel> withoutPhantomNormals(List<CardModel> cards) {
+  final foilProductIds = <int>{
+    for (final c in cards)
+      if (c.isFoil && c.productId != null) c.productId!,
+  };
+  bool isPhantom(CardModel c) =>
+      !c.isFoil &&
+      c.subTypeName == null &&
+      foilProductIds.contains(c.productId);
+  return [
+    for (final c in cards)
+      if (!isPhantom(c)) c,
+  ];
+}
+
 /// Finds the opposite-finish printing (Normal <-> Foil) of [card] within
 /// [catalog], or null if this card has no alternate finish. Finishes of the
 /// same physical card share a `product_id` and differ only by `is_foil`.
