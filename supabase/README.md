@@ -18,7 +18,11 @@ The Supabase project `tenrvaghaspwdvnwvgrh` backs two products:
 So the version numbers here have gaps, and that is deliberate — the missing
 versions belong to FAB Trades. Two consequences worth knowing:
 
-- `supabase db push` from this repo only ever touches RiftTrades objects.
+- `supabase db push` from this repo refuses to run: the remote has FAB Trades
+  versions with no matching files here, so the CLI aborts before applying
+  anything. Apply migrations by executing their SQL (SQL editor or MCP
+  `execute_sql`), then inserting the version into
+  `supabase_migrations.schema_migrations` by hand.
 - A clean local stack from this repo alone has the Riftbound catalog and, once
   later phases land them, the `rift_*` user-data tables. It will not have FAB's
   tables.
@@ -37,10 +41,10 @@ config.toml    Local stack + CLI configuration
 Edge Functions will live under `functions/` once Phase 5 adds them. Until then
 this directory holds schema only.
 
-Migration filenames must match the versions in `supabase_migrations.schema_migrations`
-on the remote. Applying a migration through the dashboard or MCP records *its own*
-timestamp, so if you do that, rename the local file to match — otherwise
-`supabase db push` sees an unapplied migration and tries to run it again.
+Migration filenames must match the versions you insert into
+`supabase_migrations.schema_migrations` on the remote. When you apply SQL by
+hand, record the local file's version and name — do not let the dashboard mint a
+different timestamp.
 
 ## Working on the schema
 
@@ -49,13 +53,20 @@ The CLI is not committed as a dependency; use `npx supabase` (or install it per 
 
 ```bash
 npx supabase link --project-ref tenrvaghaspwdvnwvgrh
-npx supabase db push                           # apply pending migrations to the linked project
 npx supabase migration list                    # compare local and remote history
+```
+
+To apply a migration: run its SQL against the database, then:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('<version>', '<name>');
 ```
 
 **Never** run `db pull`, `db diff`, or `db reset` against the shared project
 `tenrvaghaspwdvnwvgrh`. Those commands will pull in or try to drop FAB Trades'
-tables. Write migrations by hand.
+tables. Write migrations by hand. `db push` is also unusable here for the
+shared-history reason above.
 
 Never edit an already-applied migration. The remote records a checksum per
 version, so amending one makes local and remote disagree in a way that is

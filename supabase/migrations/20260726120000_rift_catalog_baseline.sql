@@ -7,7 +7,11 @@
 -- Every statement is guarded, because this migration is applied to a database
 -- where all of these objects are already present.
 
-create extension if not exists pg_trgm;
+-- On production the extension already lives in the extensions schema, so this is
+-- a no-op there. On a fresh database (staging, local supabase db start, CI) the
+-- unqualified form would install it into public, which diverges from production
+-- and trips Supabase's "extension in public" advisor.
+create extension if not exists pg_trgm with schema extensions;
 
 create table if not exists public.sets (
   group_id   bigint primary key,

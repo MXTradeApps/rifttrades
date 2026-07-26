@@ -61,9 +61,12 @@ secret = "env(SUPABASE_AUTH_APPLE_SECRET)"
 
 # Staging points at the free fabloodle project so sandbox purchases never touch
 # production entitlements and we do not pay for a persistent branch. Schema is
-# applied with `supabase link --project-ref cnmxaccamqshgvesieez && supabase db push`
-# — see docs/ENVIRONMENTS.md. Auth overrides only what differs; provider secrets
-# still come from that project's environment.
+# applied by running each migration's SQL against the database (SQL editor or
+# MCP execute_sql), then inserting the version into
+# supabase_migrations.schema_migrations by hand — `db push` cannot run from this
+# repo because the shared project has FAB Trades versions with no local files.
+# Auth overrides only what differs; provider secrets still come from that
+# project's environment.
 [remotes.staging]
 project_id = "cnmxaccamqshgvesieez"
 

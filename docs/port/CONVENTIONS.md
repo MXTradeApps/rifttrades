@@ -218,7 +218,7 @@ flutter analyze
 flutter test --dart-define-from-file=env/production.json
 ```
 
-**Baseline to protect:** 224 unit tests and 4 integration tests pass today. The
+**Baseline to protect:** 332 unit tests and 4 integration tests pass today. The
 count must only ever go up. If it drops, you broke something — stop and report.
 
 **Edge Functions**, from `C:\Users\maxes\RiftTrades\supabase\functions`:
@@ -234,7 +234,16 @@ deno test
 
 ```powershell
 npx supabase migration list
-npx supabase db push
+```
+
+`db push` does not work from this repo: the shared project has FAB Trades
+migration versions that will never have files here, so the CLI aborts before
+applying anything. Apply a migration by running its SQL against the database
+(SQL editor or Supabase MCP `execute_sql`), then record the version by hand:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('<version>', '<name>');
 ```
 
 Never run `npx supabase db pull`, `db diff`, or `db reset` against
@@ -248,8 +257,10 @@ Format: `<UTC timestamp>_<snake_case_description>.sql`, e.g.
 
 The `supabase_migrations.schema_migrations` table on the shared project holds
 versions from **both** repos, so this repo's history will have gaps that belong to
-FAB Trades. That is expected. `db push` only applies local versions the remote has
-not seen, so it is safe.
+FAB Trades. That is expected. Because of that shared history, `db push` refuses
+to run at all — apply migrations by executing their SQL against the database,
+then inserting the version row into `supabase_migrations.schema_migrations` by
+hand.
 
 No RiftTrades migration may reference a `fab_*` object. A clean local stack only
 has this repo's migrations, so such a reference would fail in CI.

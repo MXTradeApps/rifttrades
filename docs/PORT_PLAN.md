@@ -341,8 +341,10 @@ Two hazards specific to sharing a project across two repos:
   objects this repo does not know about. Hand-write the baseline.
 - **`supabase_migrations.schema_migrations` is shared.** Migration versions from
   both repos interleave, so this repo's history will have gaps that belong to FAB
-  Trades — the mirror image of what FAB's README documents. `db push` only
-  applies local versions absent from the remote, so it is safe; a clean
+  Trades — the mirror image of what FAB's README documents. `db push` does not
+  work from this repo: the remote has FAB Trades versions with no matching files
+  here, so the CLI aborts before applying anything. Apply migrations by executing
+  their SQL against the database, then inserting the version row by hand. A clean
   `supabase db start` gives a RiftTrades-only database, which means no RiftTrades
   migration may reference a `fab_*` object.
 

@@ -9,15 +9,17 @@ Prerequisite: Phase 0 is `Done`.
 
 ## Read this before you start
 
-The migration you write here will be run by `npx supabase db push` against a
-production database where all of these objects **already exist**. So every
-statement must be safe to re-run: `CREATE TABLE IF NOT EXISTS`,
-`CREATE INDEX IF NOT EXISTS`, `DROP POLICY IF EXISTS` before `CREATE POLICY`.
-The SQL below is already written that way. Do not "simplify" it by removing the
-`IF NOT EXISTS` guards.
+All of these objects **already exist** in production. The migration was not
+executed against the live database; its version was recorded by hand in
+`supabase_migrations.schema_migrations` so local and remote history agree.
+Every statement is still written to be safe to re-run (`CREATE TABLE IF NOT
+EXISTS`, `CREATE INDEX IF NOT EXISTS`, `DROP POLICY IF EXISTS` before
+`CREATE POLICY`) in case the SQL is ever applied to a fresh database. Do not
+"simplify" it by removing the `IF NOT EXISTS` guards.
 
-The project is shared with FAB Trades. Do not run `npx supabase db pull`,
-`db diff`, or `db reset` — see `CONVENTIONS.md`.
+`db push` does not work from this repo — the shared project has FAB Trades
+migration versions that will never have files here. Do not run
+`npx supabase db pull`, `db diff`, or `db reset` either — see `CONVENTIONS.md`.
 
 ## Steps
 
@@ -237,17 +239,17 @@ structure, but the ownership statements must be written from RiftTrades' side.
 
 ### 5. Register the migration as already applied
 
-The objects already exist, so you do not want to actually execute the SQL against
-production — you want the remote to record the version so future pushes behave.
+The objects already exist, so the SQL was not executed against production. The
+version was recorded by hand so local and remote history agree:
 
-```powershell
-npx supabase link --project-ref tenrvaghaspwdvnwvgrh
-npx supabase migration list
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('20260726120000', 'rift_catalog_baseline');
 ```
 
-Compare local and remote. **Stop here and report what `migration list` shows.**
-Whether to `db push` or to mark the version applied depends on that output, and
-getting it wrong writes to production. Do not guess.
+`db push` cannot do this from this repo (shared FAB Trades versions abort the
+CLI). Confirm with `npx supabase migration list` that the version appears on
+both sides.
 
 ## Verify
 
