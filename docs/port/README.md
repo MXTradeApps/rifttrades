@@ -72,7 +72,7 @@ is done.
 | 0 | [PHASE-0.md](PHASE-0.md) | Repo restructure to `apps/mobile` + `services/price-pipeline` | Done |
 | 1 | [PHASE-1.md](PHASE-1.md) | Put the existing schema under version control | Done |
 | 2 | [PHASE-2.md](PHASE-2.md) | Build-time environment config | Done |
-| 3 | [PHASE-3.md](PHASE-3.md) | Supabase Auth (Apple, Google, Discord) | Not started |
+| 3 | [PHASE-3.md](PHASE-3.md) | Supabase Auth (Apple, Google, Discord) | Blocked — code landed, see below |
 | 4 | [PHASE-4.md](PHASE-4.md) | Cloud sync | Not started |
 | 5 | [PHASE-5.md](PHASE-5.md) | Pro subscriptions and entitlements | Not started |
 | 6 | [PHASE-6.md](PHASE-6.md) | CI | Not started |
@@ -90,5 +90,6 @@ these and it is not done, stop and report — do not work around it.
 | Needed before | Task |
 | --- | --- |
 | Phase 3 Verify | Enable Apple, Google, Discord in Supabase; add `rifttrades://login-callback` to the redirect allow-list on **both** projects |
+| Phase 3 step 6 | In Xcode, add the Sign in with Apple capability so `CODE_SIGN_ENTITLEMENTS` is set and `ios/Runner/Runner.entitlements` exists. Step 6 stopped rather than hand-editing `project.pbxproj`, so Apple sign-in cannot work on iOS until this is done. Google and Discord are unaffected. |
 | Phase 5 Verify | Create the RevenueCat project, products, and `RiftTrades Pro` entitlement; set the Supabase function secrets |
 | Phase 7 Verify | Confirm the Codemagic webhook fires on tag push |
