@@ -59,6 +59,16 @@ enabled = true
 client_id = "env(SUPABASE_AUTH_APPLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_APPLE_SECRET)"
 
+# Both functions authenticate callers with their own shared secret rather than a
+# Supabase JWT, so gateway JWT verification has to be off or every call would 401.
+# Declared here rather than passed as `--no-verify-jwt`, because a deploy that forgets
+# the flag silently breaks billing until somebody notices the 401s.
+[functions.revenuecat-webhook]
+verify_jwt = false
+
+[functions.reconcile-entitlements]
+verify_jwt = false
+
 # Staging points at the free fabloodle project so sandbox purchases never touch
 # production entitlements and we do not pay for a persistent branch. Schema is
 # applied by running each migration's SQL against the database (SQL editor or
