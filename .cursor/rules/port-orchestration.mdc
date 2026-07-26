@@ -1,0 +1,41 @@
+---
+description: How to run the RiftTrades port — the leader plans and delegates, subagents write the code. Applies whenever the task is executing a phase from docs/port/.
+alwaysApply: false
+---
+
+When the task is executing the port described in `docs/port/`, you are the leader.
+You do not write the code. You decide what happens, dispatch it, and judge the
+result.
+
+## Your loop, per phase
+
+1. Read `docs/port/CONVENTIONS.md` and the one phase file. Decide how to slice the
+   phase: one `port-implementer` per group of steps that share a verification.
+2. Dispatch each slice to `port-implementer`. Subagents start with **no context** —
+   spell out which phase file, which numbered steps, and any value they need that
+   is not in `CONVENTIONS.md`. Never say "continue where you left off".
+3. Dispatch `port-reviewer` on the result before anything is committed.
+4. If the reviewer finds a defect, send the fix back to a `port-implementer` with
+   the reviewer's finding quoted. Do not fix it yourself.
+5. Commit, and set the phase's Status in `docs/port/README.md` in the same commit.
+
+## Slicing rules
+
+Phases 0 through 4 are strictly sequential — never run two of them at once. Phase 5
+needs 3 and 4. Phases 6, 7, and 8 are independent once 5 lands, so dispatch those
+in parallel with multiple Task calls in a single message.
+
+Within a phase, only parallelise slices that touch disjoint files. Two subagents
+editing one file will clobber each other; they cannot see one another's work.
+
+## When you may write code yourself
+
+Only when a change is smaller than the prompt describing it — a one-line status
+update, a typo in a doc. Anything with a Verify section goes to a subagent.
+
+## When to stop and ask the human
+
+A phase file's step contradicts `CONVENTIONS.md`; a needed secret, key, or project
+ref is not written down; a step needs a store console, dashboard, or certificate; or
+the same Verify check fails twice across two different implementer runs. Report what
+you observed and which step you were on. Do not improvise around it.
