@@ -1,0 +1,3 @@
+# Deno's formatter requires LF. Without this, core.autocrlf checks these out as
+# CRLF on Windows and `deno fmt --check` fails locally while still passing in CI.
+supabase/functions/** text eol=lf
