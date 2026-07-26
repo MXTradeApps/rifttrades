@@ -5,7 +5,7 @@ A cross-platform (Android + iOS) mobile companion app for trading **Riftbound**
 balance trades, manage want lists/collection, and scan cards.
 
 **This app reads from a shared Supabase database** populated daily by the pipeline in
-[`../pipeline`](../pipeline). The same DB backs any other app (incl. the existing web
+[`../services/price-pipeline`](../services/price-pipeline). The same DB backs any other app (incl. the existing web
 app). See §3 and [`DATABASE.md`](DATABASE.md).
 
 > Status: Phases 0–5 built (search, card detail, trade balancer + history, collection &
@@ -55,10 +55,10 @@ Kotlin Multiplatform and React Native is in git history; Flutter won on sync + s
 ## 3. Reuse strategy — the web app is the backend
 
 Rather than each app scraping/parsing data, a **single Supabase database is the shared
-backend**. A Node pipeline (this repo's [`../pipeline`](../pipeline)) ingests the sources
+backend**. A Node pipeline (this repo's [`../services/price-pipeline`](../services/price-pipeline)) ingests the sources
 and upserts them daily; every app just reads Supabase.
 
-### The pipeline (in `pipeline/`, runs daily via GitHub Actions)
+### The pipeline (in `services/price-pipeline/`, runs daily via GitHub Actions)
 Sources — both free, no API key (TCGCSV needs a `User-Agent` header):
 - **TCGCSV** (`tcgcsv.com/tcgplayer/89/...`), Riftbound = **Game ID 89**: sets via `/groups`,
   cards + USD prices + art via each set's `ProductsAndPrices.csv`.
@@ -73,7 +73,7 @@ See [`DATABASE.md`](DATABASE.md) for connection info and example queries.
 
 ```
 [TCGCSV + CardMarket]
-        │  pipeline/ (Node) — daily GitHub Action
+        │  services/price-pipeline/ (Node) — daily GitHub Action
         ▼
 Supabase Postgres:  sets · cards · card_prices · price_history
         │  (RLS: public read-only; pipeline writes with service_role)
@@ -91,7 +91,7 @@ from the `image_url` (TCGplayer CDN).
 
 ### Logic reused from the web app
 - **Pipeline** ports the web app's ingest logic (sealed-product filter, safe numeric
-  parsing, CardMarket name-matching, foil detection) into `pipeline/src/` — already done.
+  parsing, CardMarket name-matching, foil detection) into `services/price-pipeline/src/` — already done.
 - **App** only needs the small bits: trade math (`Σ price×qty`; `have − want`) and
   price/foil selection, reimplemented in Dart (a few dozen lines).
 
@@ -184,7 +184,7 @@ because search + trade balancing deliver most of the value first.
 ## 8. Phased roadmap
 
 - **Phase 0 — DONE (data backend).** Shared Supabase DB + daily pipeline are built (see
-  `../pipeline`, [`DATABASE.md`](DATABASE.md)). Remaining: run the first production ingest
+  `../services/price-pipeline`, [`DATABASE.md`](DATABASE.md)). Remaining: run the first production ingest
   (needs the service_role key) to populate it.
 - **Phase 1 — Search + price lookup.** `supabase_flutter` query on `cards_with_prices`
   (name/set/rarity), card detail with image + current price; price source/type toggle.
@@ -198,7 +198,7 @@ because search + trade balancing deliver most of the value first.
 ---
 
 ## 9. Open questions / decisions
-- **First ingest:** add the `service_role` key to `pipeline/.env` and run `npm run ingest`
+- **First ingest:** add the `service_role` key to `services/price-pipeline/.env` and run `npm run ingest`
   (or set the CI secrets and trigger the Action) to populate the DB.
 - **Default price display:** TCGplayer US vs CardMarket EU — expose as a setting.
 - **Price history depth:** `price_history` starts accumulating from the first run; charts

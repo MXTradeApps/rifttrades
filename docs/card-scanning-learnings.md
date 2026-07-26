@@ -2,7 +2,7 @@
 
 Ported from shipping and debugging the FAB Trades live scanner on a real
 Pixel 6a, after the pHash + OCR pipeline was already in place. Applied to
-RiftTrades' scanner in `app/lib/features/scan/` and `app/lib/core/scan/`.
+RiftTrades' scanner in `apps/mobile/lib/features/scan/` and `apps/mobile/lib/core/scan/`.
 
 ---
 
@@ -123,7 +123,7 @@ through a texture, not through the event channel. `rx=5` is the signature:
 
 Two-layer fix:
 
-1. `dependency_overrides: camera_avfoundation: 0.9.23+2` in `app/pubspec.yaml`
+1. `dependency_overrides: camera_avfoundation: 0.9.23+2` in `apps/mobile/pubspec.yaml`
    — last release before the streaming rewrite (`camera` 0.12 requires
    `^0.10.0`, hence override). Remove once upstream fixes streaming.
 2. Stall watchdog in `scan_screen.dart`: every 2 s, if `rx` hasn't moved while
@@ -166,7 +166,7 @@ from desktop-only tests.
 
 ## 5. Accuracy harness (keep using it)
 
-From `app/`:
+From `apps/mobile/`:
 
 ```bash
 dart run tool/evaluate_scan.dart --samples=200 --seed=1
@@ -251,15 +251,15 @@ saw an `NNN/TTT`-style number (Riftbound’s primary printed id).
 
 | Path | Role |
 |---|---|
-| `app/lib/features/scan/scan_screen.dart` | Camera stream, fusion, confirm/lock |
-| `app/lib/core/scan/phash.dart` | DCT pHash + shared guide constants |
-| `app/lib/core/scan/frame_hasher.dart` | Camera frame → hash (rectify + fallback) |
-| `app/lib/core/scan/rectify.dart` | Edge/quad detection + quad sampling |
-| `app/lib/core/scan/card_hash_index.dart` | Brute-force Hamming + outlier gate |
-| `app/lib/core/data/card_repository.dart` | `identifyCards`, `fuseScanCandidates`, `parseScanNumbers` |
-| `app/tool/evaluate_scan.dart` | Offline accuracy harness |
-| `app/tool/generate_card_hashes.dart` | Rebuild `assets/scan/card_hashes.json` |
-| `app/assets/scan/card_hashes.json` | Bundled visual index |
+| `apps/mobile/lib/features/scan/scan_screen.dart` | Camera stream, fusion, confirm/lock |
+| `apps/mobile/lib/core/scan/phash.dart` | DCT pHash + shared guide constants |
+| `apps/mobile/lib/core/scan/frame_hasher.dart` | Camera frame → hash (rectify + fallback) |
+| `apps/mobile/lib/core/scan/rectify.dart` | Edge/quad detection + quad sampling |
+| `apps/mobile/lib/core/scan/card_hash_index.dart` | Brute-force Hamming + outlier gate |
+| `apps/mobile/lib/core/data/card_repository.dart` | `identifyCards`, `fuseScanCandidates`, `parseScanNumbers` |
+| `apps/mobile/tool/evaluate_scan.dart` | Offline accuracy harness |
+| `apps/mobile/tool/generate_card_hashes.dart` | Rebuild `assets/scan/card_hashes.json` |
+| `apps/mobile/assets/scan/card_hashes.json` | Bundled visual index |
 
 ---
 

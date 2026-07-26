@@ -1,7 +1,7 @@
 # Shared Riftbound Card & Price Database
 
 A single Supabase Postgres database that any of your apps (mobile, web, tools) can read
-from. Populated daily by [`../pipeline`](../pipeline) from TCGCSV (TCGplayer) + CardMarket.
+from. Populated daily by [`../services/price-pipeline`](../services/price-pipeline) from TCGCSV (TCGplayer) + CardMarket.
 
 ## Connection (for client apps)
 | | |
@@ -89,7 +89,7 @@ GET https://tenrvaghaspwdvnwvgrh.supabase.co/rest/v1/cards_with_prices?name=ilik
 ## Refresh cadence
 The GitHub Action ([`../.github/workflows/update-prices.yml`](../.github/workflows/update-prices.yml))
 runs the pipeline daily at 06:00 UTC, upserting current prices and appending a
-`price_history` row per card. See [`../pipeline/README.md`](../pipeline/README.md) to run it manually.
+`price_history` row per card. See [`../services/price-pipeline/README.md`](../services/price-pipeline/README.md) to run it manually.
 
 ## Migrating the existing web app
 Point the web app at `cards_with_prices` instead of `public/price-guide/consolidated-data.json`.

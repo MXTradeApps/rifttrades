@@ -5,7 +5,7 @@ Riot Games' League of Legends TCG. Look up prices, balance trades, manage your
 collection and want lists, and scan cards. Inspired by *MTG Trades*.
 
 This repo contains two things:
-1. **`pipeline/`** — a daily data pipeline that publishes the Riftbound card + price
+1. **`services/price-pipeline/`** — a daily data pipeline that publishes the Riftbound card + price
    database to a shared **Supabase** project (so multiple apps can use it).
 2. **The Flutter app** (planned) — reads that shared database.
 
@@ -13,7 +13,7 @@ This repo contains two things:
 
 📄 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (stack + build plan) ·
 [`docs/DATABASE.md`](docs/DATABASE.md) (shared DB contract + queries) ·
-[`pipeline/README.md`](pipeline/README.md) (run the pipeline).
+[`services/price-pipeline/README.md`](services/price-pipeline/README.md) (run the pipeline).
 
 ## Planned app stack
 - **Flutter** (Dart) — one codebase, Android + iOS in sync

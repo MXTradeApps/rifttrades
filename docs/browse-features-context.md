@@ -1,6 +1,6 @@
 # Context: Browse grouping, search & price-trust features
 
-Handoff notes for an agent picking up work on the RiftTrades Flutter app (`app/`).
+Handoff notes for an agent picking up work on the RiftTrades Flutter app (`apps/mobile/`).
 Covers the changes made on branch **`feat/browse-grouping-search-trust`** and the
 surrounding architecture you need to be productive.
 
@@ -31,7 +31,7 @@ Four product features plus two refinements, all on branch
 
 `flutter analyze lib` is clean. Verify with:
 ```
-cd app && flutter analyze lib
+cd apps/mobile && flutter analyze lib
 ```
 
 ---
@@ -45,10 +45,10 @@ cd app && flutter analyze lib
   - `feat(browse): group card art variants and hide non-card products`
 - **There is unrelated, uncommitted work in the working tree**: an in-progress
   "scan a card" feature. Do **not** commit it as part of browse work. It lives in:
-  - `app/ios/Runner/Info.plist` (camera permission)
-  - `app/lib/features/scan/scan_screen.dart`
-  - `app/lib/features/trade/trade_screen.dart`
-  - the **scan/OCR half** of `app/lib/core/data/card_repository.dart`
+  - `apps/mobile/ios/Runner/Info.plist` (camera permission)
+  - `apps/mobile/lib/features/scan/scan_screen.dart`
+  - `apps/mobile/lib/features/trade/trade_screen.dart`
+  - the **scan/OCR half** of `apps/mobile/lib/core/data/card_repository.dart`
     (`ScanNumber`, `parseScanNumber`, `identifyCards`, `_rankByName`, `_nameOverlap`,
     `nameTokens`, `_wordSet`, `collectorNumberRegex`, `_nameStopwords`)
 - When committing browse changes to `card_repository.dart`, stage **only** the
@@ -61,21 +61,21 @@ cd app && flutter analyze lib
 ## 3. App architecture (essentials)
 
 - **Flutter + Riverpod** (`flutter_riverpod`). No Bloc/Provider-pkg/GetX.
-- **Cache-first catalog**: `CatalogNotifier` (`app/lib/core/providers.dart`) loads
+- **Cache-first catalog**: `CatalogNotifier` (`apps/mobile/lib/core/providers.dart`) loads
   the full catalog from Supabase once, caches it in `SharedPreferences`
   (`CatalogRepository`), and serves it instantly on later launches while refreshing
   in the background. Browse/search/grouping all run **in-memory** against this list
   — no per-set network calls.
 - **One `CardModel` == one printing.** Normal and Foil are separate rows with
-  distinct `id` (e.g. `"684123-foil"`). Model: `app/lib/core/models/card_model.dart`.
-- **Pricing** resolution/formatting: `app/lib/core/logic/pricing.dart` (`Pricing`),
+  distinct `id` (e.g. `"684123-foil"`). Model: `apps/mobile/lib/core/models/card_model.dart`.
+- **Pricing** resolution/formatting: `apps/mobile/lib/core/logic/pricing.dart` (`Pricing`),
   driven by user settings (`PriceSource` TCGplayer/CardMarket) in
-  `app/lib/core/models/app_settings.dart`. Market/trend is primary (trade math);
+  `apps/mobile/lib/core/models/app_settings.dart`. Market/trend is primary (trade math);
   low is always shown as a secondary line. Appearance uses `AppThemeMode`.
-- **Bottom nav** (`app/lib/app/app.dart`): Browse, Trade, Want List, Lend. The Scan
+- **Bottom nav** (`apps/mobile/lib/app/app.dart`): Browse, Trade, Want List, Lend. The Scan
   tab is hidden; Browse is tab 0 = `BrowseScreen`.
 
-### Key providers (`app/lib/core/providers.dart`)
+### Key providers (`apps/mobile/lib/core/providers.dart`)
 - `catalogProvider` — `AsyncNotifier<List<CardModel>>`, the cached catalog.
 - `searchFiltersProvider` — `CardFilters` (query, setName, foilOnly, sort).
 - `browseResultsProvider` — filtered flat list (`filterCards`).
@@ -92,7 +92,7 @@ Cards share a name with a trailing parenthetical qualifier for variants, e.g.
 `Ahri - Inquisitive`, `Ahri - Inquisitive (Alternate Art)`, `(Overnumbered)`,
 `(Signature)` are all the **same card**. Grouping keys on the **base name**.
 
-Helpers in `app/lib/core/data/card_repository.dart`:
+Helpers in `apps/mobile/lib/core/data/card_repository.dart`:
 - `String baseCardName(String name)` — strips trailing `(...)` qualifiers.
 - `String? nameQualifier(String name)` — returns the trailing qualifier or null.
 - `List<CardGroup> groupCardsByName(List<CardModel> cards, CardSort sort)` — groups
@@ -126,13 +126,13 @@ and must remain visible.
 
 | File | What |
 | --- | --- |
-| `app/lib/core/models/card_model.dart` | Added `priceUpdatedAt` (parses `price_updated_at`; in `toMap` for cache round-trip). |
-| `app/lib/core/data/card_repository.dart` | `CardGroup`, `rarityRank`, `_leadingNumber`, `_baseFirst`, `groupCardsByName`, `baseCardName`, `nameQualifier`, `isNonCardProduct`, `printingsForCard`; product filter in `filterCards`. (File also contains the *unrelated* scan/OCR block — see §2.) |
-| `app/lib/core/providers.dart` | `browseGroupsProvider`, `priceUpdatedAtProvider`. |
-| `app/lib/core/logic/pricing.dart` | `sourceLabel` getter. |
-| `app/lib/app/widgets.dart` | `PriceSourceTag`, `PriceSourceBadge`; optional `priceSource` param on `CardRow`. |
-| `app/lib/features/search/search_screen.dart` | Rewritten: `BrowseScreen` (global search + `_SetList`), `_GlobalSearchResults`, `SetCardsScreen` (grouped), `_GroupList`, `_GroupTile`, `_VersionCountChip`, `refreshPricesWithToast`, `_priceUpdatedLabel`. |
-| `app/lib/features/card_detail/card_detail_screen.dart` | Version selector now uses in-memory `printingsForCard` (was network `printingsForName`); variant-aware chip labels; price-source badge + `_PriceAttribution` footer. |
+| `apps/mobile/lib/core/models/card_model.dart` | Added `priceUpdatedAt` (parses `price_updated_at`; in `toMap` for cache round-trip). |
+| `apps/mobile/lib/core/data/card_repository.dart` | `CardGroup`, `rarityRank`, `_leadingNumber`, `_baseFirst`, `groupCardsByName`, `baseCardName`, `nameQualifier`, `isNonCardProduct`, `printingsForCard`; product filter in `filterCards`. (File also contains the *unrelated* scan/OCR block — see §2.) |
+| `apps/mobile/lib/core/providers.dart` | `browseGroupsProvider`, `priceUpdatedAtProvider`. |
+| `apps/mobile/lib/core/logic/pricing.dart` | `sourceLabel` getter. |
+| `apps/mobile/lib/app/widgets.dart` | `PriceSourceTag`, `PriceSourceBadge`; optional `priceSource` param on `CardRow`. |
+| `apps/mobile/lib/features/search/search_screen.dart` | Rewritten: `BrowseScreen` (global search + `_SetList`), `_GlobalSearchResults`, `SetCardsScreen` (grouped), `_GroupList`, `_GroupTile`, `_VersionCountChip`, `refreshPricesWithToast`, `_priceUpdatedLabel`. |
+| `apps/mobile/lib/features/card_detail/card_detail_screen.dart` | Version selector now uses in-memory `printingsForCard` (was network `printingsForName`); variant-aware chip labels; price-source badge + `_PriceAttribution` footer. |
 
 `CardRepository.printingsForName` (network, exact-name) still exists but is now
 unused — the detail screen uses the in-memory `printingsForCard` instead.
@@ -143,7 +143,7 @@ unused — the detail screen uses the in-memory `printingsForCard` instead.
 
 - Project `RiftTrades` = `tenrvaghaspwdvnwvgrh`,
   URL `https://tenrvaghaspwdvnwvgrh.supabase.co`, publishable key in
-  `app/lib/core/config/supabase_config.dart`. Public read-only via RLS; the daily
+  `apps/mobile/lib/core/config/supabase_config.dart`. Public read-only via RLS; the daily
   pipeline (GitHub Action, 06:00 UTC) writes with the service role.
 - App reads the view **`cards_with_prices`** (filter `is_sealed = false`).
 - Relevant view columns: `id, product_id, set_id, unique_id, name, clean_name,

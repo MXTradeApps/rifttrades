@@ -3,7 +3,7 @@
 All notable changes to the RiftTrades mobile app are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project tracks versions via `app/pubspec.yaml` (`version: name+build`).
+and this project tracks versions via `apps/mobile/pubspec.yaml` (`version: name+build`).
 
 ## [Unreleased]
 

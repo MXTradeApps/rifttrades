@@ -7,7 +7,7 @@ as you finish work. This complements `docs/ARCHITECTURE.md` (the plan) and
 ## What this is
 Cross-platform (Android + iOS) Flutter app for trading **Riftbound** cards, inspired by
 **MTG Trades**: price lookup, trade balancing, binder/want lists, card scanning.
-Reads from a shared **Supabase** DB populated daily by `pipeline/` (Node + GitHub Action).
+Reads from a shared **Supabase** DB populated daily by `services/price-pipeline/` (Node + GitHub Action).
 
 ## Language
 
@@ -45,8 +45,8 @@ the app does not price-adjust by condition.
 See `docs/BINDER-PLAN.md` for Phase 7 Binder (B1–B4).
 
 ## Repo layout
-- `pipeline/` — Node ingest (TCGCSV + CardMarket → Supabase). DONE + running daily.
-- `app/` — the Flutter app (this is the active work).
+- `services/price-pipeline/` — Node ingest (TCGCSV + CardMarket → Supabase). DONE + running daily.
+- `apps/mobile/` — the Flutter app (this is the active work).
 - `docs/ARCHITECTURE.md` — plan/roadmap (source of truth for scope).
 - `docs/DATABASE.md` — Supabase connection + schema.
 
@@ -84,7 +84,7 @@ the scan key), `is_sealed` (filter `= false`), `cardmarket_id`, `cardmarket_name
   $env:Path="C:\Users\maxes\flutter\bin;$sdk\platform-tools;"+$env:Path
   Start-Process "$sdk\emulator\emulator.exe" -ArgumentList '-avd','RiftPixel'
   # wait for boot, then:
-  cd C:\Users\maxes\RiftTrades\app; flutter run -d emulator-5554
+  cd C:\Users\maxes\RiftTrades\apps\mobile; flutter run -d emulator-5554
   ```
 - Screenshot: `adb shell screencap -p /sdcard/s.png; adb pull /sdcard/s.png out.png`
   (don't use PowerShell `>` redirect for binary — it corrupts the PNG).
@@ -117,12 +117,12 @@ the scan key), `is_sealed` (filter `= false`), `cardmarket_id`, `cardmarket_name
   the research behind the approach (this is "Phase 1" of that doc; Phase 2 = CLIP-style
   embeddings if foil/glare robustness demands it). Camera fails on the emulator; needs a
   real device to validate end-to-end.
-  - Hash pipeline: `app/lib/core/scan/phash.dart` (pure Dart, shared by app + tools),
+  - Hash pipeline: `apps/mobile/lib/core/scan/phash.dart` (pure Dart, shared by app + tools),
     `card_hash_index.dart` (asset parse + outlier-test matching), `frame_hasher.dart`
     (camera frame → guide-rect hash; geometry contract with the scan overlay).
-  - Asset: `app/assets/scan/card_hashes.json` (~115 KB, 1169 images / 1598 printings).
+  - Asset: `apps/mobile/assets/scan/card_hashes.json` (~115 KB, 1169 images / 1598 printings).
     Regenerate per set release: `dart run tool/generate_card_hashes.dart` (caches images
-    in `app/tool/.cache/`, gitignored). ~184 promo images 403 on the TCGplayer CDN
+    in `apps/mobile/tool/.cache/`, gitignored). ~184 promo images 403 on the TCGplayer CDN
     (mostly Organized Play promos) — those cards fall back to OCR-only scanning.
   - Robustness check: `dart run tool/verify_hash_robustness.dart` simulates camera noise
     on real card images; last run: 135/150 top-1, 7 in candidates, 8 rejected, 0 wrong.
