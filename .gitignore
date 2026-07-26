@@ -18,6 +18,10 @@ Thumbs.db
 .dart_tool/
 build/
 
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+
 # Card image cache used by apps/mobile/tool/generate_card_hashes.dart
 apps/mobile/tool/.cache/
 .flutter-plugins
