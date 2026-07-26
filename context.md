@@ -84,7 +84,7 @@ the scan key), `is_sealed` (filter `= false`), `cardmarket_id`, `cardmarket_name
   $env:Path="C:\Users\maxes\flutter\bin;$sdk\platform-tools;"+$env:Path
   Start-Process "$sdk\emulator\emulator.exe" -ArgumentList '-avd','RiftPixel'
   # wait for boot, then:
-  cd C:\Users\maxes\RiftTrades\apps\mobile; flutter run -d emulator-5554
+  cd C:\Users\maxes\RiftTrades\apps\mobile; flutter run --dart-define-from-file=env/production.json -d emulator-5554
   ```
 - Screenshot: `adb shell screencap -p /sdcard/s.png; adb pull /sdcard/s.png out.png`
   (don't use PowerShell `>` redirect for binary — it corrupts the PNG).

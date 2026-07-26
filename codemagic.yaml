@@ -21,14 +21,21 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      vars:
+        APP_ENVIRONMENT: production
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
       - name: Install CocoaPods dependencies
         script: |
           find . -name "Podfile" -execdir pod install \;
+      - name: Guard Supabase env file
+        script: |
+          grep -q '"SUPABASE_URL": *"http' "env/${APP_ENVIRONMENT}.json"
       - name: Build iOS debug without code signing
-        script: flutter build ios --debug --no-codesign
+        script: |
+          flutter build ios --debug --no-codesign \
+            --dart-define-from-file="env/${APP_ENVIRONMENT}.json"
     artifacts:
       - build/ios/iphoneos/**/*.app
       - /tmp/xcodebuild_logs/*.log
@@ -54,6 +61,7 @@ workflows:
         # App Store Connect → App Information → Apple ID (numeric).
         # Fill in after creating the RiftTrades app record.
         APP_STORE_APPLE_ID: "6794404610"
+        APP_ENVIRONMENT: production
 
     scripts:
       - name: Get Flutter packages
@@ -75,11 +83,16 @@ workflows:
           echo "Using build number: $NEW_BUILD"
           echo "NEW_BUILD=$NEW_BUILD" >> "$CM_ENV"
 
+      - name: Guard Supabase env file
+        script: |
+          grep -q '"SUPABASE_URL": *"http' "env/${APP_ENVIRONMENT}.json"
+
       - name: Flutter build IPA
         script: |
           flutter build ipa --release \
             --build-number="$NEW_BUILD" \
-            --export-options-plist=/Users/builder/export_options.plist
+            --export-options-plist=/Users/builder/export_options.plist \
+            --dart-define-from-file="env/${APP_ENVIRONMENT}.json"
 
     artifacts:
       - build/ios/ipa/*.ipa

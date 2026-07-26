@@ -29,6 +29,16 @@ on:
           highest versionCode already uploaded to Play (recommended).
         required: false
         type: string
+      environment:
+        description: >
+          Which Supabase project the build talks to (apps/mobile/env/*.json).
+          Use staging for anything exercising sandbox purchases.
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 concurrency:
   group: release-android-closed
@@ -43,6 +53,8 @@ jobs:
     defaults:
       run:
         working-directory: apps/mobile
+    env:
+      APP_ENVIRONMENT: ${{ inputs.environment || 'production' }}
 
     steps:
       - name: Checkout
@@ -171,6 +183,9 @@ jobs:
           print(f"Auto-incremented versionCode from Play: {next_code}")
           PY
 
+      - name: Guard Supabase env file
+        run: grep -q '"SUPABASE_URL": *"http' "env/${APP_ENVIRONMENT}.json"
+
       - name: Build app bundle
         env:
           BUILD_NAME: ${{ inputs.build_name }}
@@ -180,11 +195,15 @@ jobs:
             echo "Resolved versionCode is empty"
             exit 1
           fi
-          args=(build appbundle --release --build-number="$BUILD_NUMBER")
+          args=(
+            build appbundle --release
+            --build-number="$BUILD_NUMBER"
+            --dart-define-from-file="env/${APP_ENVIRONMENT}.json"
+          )
           if [ -n "$BUILD_NAME" ]; then
             args+=(--build-name="$BUILD_NAME")
           fi
-          echo "Building with versionCode=$BUILD_NUMBER${BUILD_NAME:+ versionName=$BUILD_NAME}"
+          echo "Building $APP_ENVIRONMENT with versionCode=$BUILD_NUMBER${BUILD_NAME:+ versionName=$BUILD_NAME}"
           flutter "${args[@]}"
 
       - name: Upload to Google Play
