@@ -70,7 +70,7 @@ is done.
 | Phase | File | What it does | Status |
 | --- | --- | --- | --- |
 | 0 | [PHASE-0.md](PHASE-0.md) | Repo restructure to `apps/mobile` + `services/price-pipeline` | Done |
-| 1 | [PHASE-1.md](PHASE-1.md) | Put the existing schema under version control | Not started |
+| 1 | [PHASE-1.md](PHASE-1.md) | Put the existing schema under version control | Done |
 | 2 | [PHASE-2.md](PHASE-2.md) | Build-time environment config | Not started |
 | 3 | [PHASE-3.md](PHASE-3.md) | Supabase Auth (Apple, Google, Discord) | Not started |
 | 4 | [PHASE-4.md](PHASE-4.md) | Cloud sync | Not started |
