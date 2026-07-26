@@ -19,7 +19,7 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionLabel('Price source'),
+          SettingsSectionLabel('Price source'),
           const SizedBox(height: 8),
           SegmentedButton<PriceSource>(
             segments: const [
@@ -46,7 +46,7 @@ class SettingsScreen extends ConsumerWidget {
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 28),
-          _SectionLabel('Appearance'),
+          SettingsSectionLabel('Appearance'),
           const SizedBox(height: 8),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -108,8 +108,8 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
+class SettingsSectionLabel extends StatelessWidget {
+  const SettingsSectionLabel(this.text, {super.key});
   final String text;
   @override
   Widget build(BuildContext context) {

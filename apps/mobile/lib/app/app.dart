@@ -8,6 +8,7 @@ import '../core/update/app_update_dialog.dart';
 import '../features/binder/binder_screen.dart';
 import '../features/lend/lend_screen.dart';
 import '../features/search/search_screen.dart';
+import '../features/settings/account_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/trade/trade_screen.dart';
 import 'theme.dart';
@@ -121,17 +122,95 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
-/// Shared app bar action to open settings.
-class SettingsAction extends StatelessWidget {
-  const SettingsAction({super.key});
+/// Shared app bar action that opens the account / settings menu.
+class AppMenuAction extends StatelessWidget {
+  const AppMenuAction({super.key});
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.tune),
-      tooltip: 'Price settings',
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      icon: const Icon(Icons.menu),
+      tooltip: 'Menu',
+      onPressed: () => _showAppMenu(context),
+    );
+  }
+}
+
+Future<void> _showAppMenu(BuildContext context) async {
+  // Capture the caller's navigator: the drawer's context is unmounted after pop.
+  final parentContext = context;
+  await showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 250),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) {
+      final width = MediaQuery.sizeOf(dialogContext).width;
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Material(
+          color: Theme.of(dialogContext).colorScheme.surface,
+          elevation: 16,
+          child: SizedBox(
+            width: width < 360 ? width * 0.85 : 304,
+            height: double.infinity,
+            child: _AppMenuDrawer(parentContext: parentContext),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        )),
+        child: child,
+      );
+    },
+  );
+}
+
+class _AppMenuDrawer extends ConsumerWidget {
+  const _AppMenuDrawer({required this.parentContext});
+
+  final BuildContext parentContext;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final signedIn = ref.watch(isSignedInProvider);
+
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: Icon(
+              signedIn ? Icons.person_outline : Icons.person_add_outlined,
+            ),
+            title: Text(signedIn ? 'My Account' : 'Sign up'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(parentContext).push(
+                MaterialPageRoute(builder: (_) => const AccountScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(parentContext).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

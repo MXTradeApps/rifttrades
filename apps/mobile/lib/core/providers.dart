@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'data/auth_repository.dart';
 import 'data/card_repository.dart';
 import 'data/set_logo_cache.dart';
 import 'data/set_logos.dart';
@@ -17,6 +18,7 @@ import 'data/settings_repository.dart';
 import 'data/trade_repository.dart';
 import 'logic/confirm_trade.dart';
 import 'logic/pricing.dart';
+import 'models/account.dart';
 import 'models/app_settings.dart';
 import 'models/binder_entry.dart';
 import 'models/card_model.dart';
@@ -146,6 +148,47 @@ final settingsProvider =
 
 final pricingProvider =
     Provider<Pricing>((ref) => Pricing(ref.watch(settingsProvider)));
+
+// ---------------------------------------------------------------------------
+// Accounts (Supabase Auth)
+// ---------------------------------------------------------------------------
+
+/// Requires `Supabase.initialize` to have run, which main() guarantees. Widget
+/// tests never reach it because [accountProvider] is overridden instead.
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  final auth = AuthRepository(ref.watch(supabaseClientProvider).auth);
+  ref.onDispose(auth.dispose);
+  return auth;
+});
+
+/// The signed-in account, or null when signed out.
+///
+/// Backed by Supabase's auth state stream, so a token refresh, an expiry, or a
+/// browser sign-in landing back on the app all flow through here. Supabase
+/// emits the restored session as soon as this is listened to, so the loading
+/// state is brief rather than a real "unknown" period.
+final accountProvider = StreamProvider<Account?>((ref) {
+  final auth = ref.watch(authRepositoryProvider);
+  return auth.authStateChanges.map((state) {
+    final user = state.session?.user;
+    return user == null ? null : Account.fromUser(user);
+  });
+});
+
+/// Whether someone is signed in right now.
+///
+/// Treats "still loading" as signed out, which is the safe direction: it may
+/// briefly offer sign-in to someone already signed in, whereas the opposite
+/// would show account-only UI to a guest.
+final isSignedInProvider = Provider<bool>(
+  (ref) => ref.watch(accountProvider).value != null,
+);
+
+/// Sign-in options worth showing on this device. Apple only appears on Apple
+/// platforms, where its native sheet exists.
+final authProvidersProvider = FutureProvider<List<AuthProviderKind>>(
+  (ref) => ref.watch(authRepositoryProvider).availableProviders(),
+);
 
 // ---------------------------------------------------------------------------
 // Search

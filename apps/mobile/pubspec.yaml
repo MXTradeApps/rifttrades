@@ -49,6 +49,9 @@ dependencies:
   google_fonts: ^8.1.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.2
+  sign_in_with_apple: ^7.0.1
+  crypto: ^3.0.7
+  flutter_svg: ^2.3.0
 
 dependency_overrides:
   # iOS image streaming silently dies after ~5 frames on camera_avfoundation
@@ -67,6 +70,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   mocktail: ^1.0.4
+  url_launcher_platform_interface: ^2.3.2
   # Used by test/core/scan/frame_hasher_test.dart to build synthetic
   # CameraImage frames without a device.
   camera_platform_interface: ^2.13.0
