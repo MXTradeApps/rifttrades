@@ -52,6 +52,11 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   crypto: ^3.0.7
   flutter_svg: ^2.3.0
+  # RevenueCat: RiftTrades Pro subscriptions. purchases_ui_flutter provides the
+  # remotely-configured Paywall and Customer Center; keep both on the same
+  # version, they ship in lockstep.
+  purchases_flutter: ^10.4.3
+  purchases_ui_flutter: ^10.4.3
 
 dependency_overrides:
   # iOS image streaming silently dies after ~5 frames on camera_avfoundation

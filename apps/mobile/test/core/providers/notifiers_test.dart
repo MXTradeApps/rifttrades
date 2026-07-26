@@ -24,6 +24,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        // Avoid Supabase Auth — reading isPro / caps would otherwise need it.
+        accountProvider.overrideWith((ref) => Stream.value(null)),
         if (cardRepository != null)
           cardRepositoryProvider.overrideWithValue(cardRepository),
       ],
@@ -124,12 +126,14 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final c1 = ProviderContainer(overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        accountProvider.overrideWith((ref) => Stream.value(null)),
       ]);
       c1.read(binderProvider.notifier).add(buildCard(id: 'persist'));
       c1.dispose();
 
       final c2 = ProviderContainer(overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        accountProvider.overrideWith((ref) => Stream.value(null)),
       ]);
       addTearDown(c2.dispose);
       expect(c2.read(binderProvider).single.card.id, 'persist');
@@ -147,7 +151,8 @@ void main() {
     test('addCard merges quantities for the same printing', () async {
       final c = await makeContainer();
       final n = c.read(lendProvider.notifier);
-      final id = n.createGroup();
+      // Borrowing is uncapped — this test is about merge behaviour, not limits.
+      final id = n.createGroup(isBorrowing: true);
       n.addCard(id, buildCard(id: 'card'), quantity: 1);
       n.addCard(id, buildCard(id: 'card'), quantity: 2);
       expect(c.read(lendGroupProvider(id))!.items.single.quantity, 3);
@@ -156,7 +161,7 @@ void main() {
     test('setCardQuantity to zero removes the card', () async {
       final c = await makeContainer();
       final n = c.read(lendProvider.notifier);
-      final id = n.createGroup();
+      final id = n.createGroup(isBorrowing: true);
       n.addCard(id, buildCard(id: 'card'));
       n.setCardQuantity(id, 'card', 0);
       expect(c.read(lendGroupProvider(id))!.items, isEmpty);

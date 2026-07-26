@@ -10,6 +10,7 @@ import '../../core/data/card_repository.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
+import '../paywall/pro_limits.dart';
 
 class CardDetailScreen extends ConsumerStatefulWidget {
   const CardDetailScreen({super.key, required this.card});
@@ -672,9 +673,6 @@ class _ActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -685,10 +683,13 @@ class _ActionBar extends ConsumerWidget {
               foregroundColor: AppTheme.wantAccent),
           icon: const Icon(Icons.favorite_border),
           label: const Text('Want'),
-          onPressed: () {
-            ref.read(binderProvider.notifier).add(card, isWanted: true);
-            snack('Added to Want List');
-          },
+          onPressed: () => addToBinderOrUpsell(
+            context,
+            ref,
+            card,
+            isWanted: true,
+            successMessage: 'Added to Want List',
+          ),
         ),
       ),
     );

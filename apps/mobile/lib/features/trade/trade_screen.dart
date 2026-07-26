@@ -6,6 +6,7 @@ import '../../app/app.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
+import '../../core/logic/free_limits.dart';
 import '../../core/logic/pricing.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
@@ -217,7 +218,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
       wantCash: draft.wantCash,
       currencySymbol: draft.currencySymbol,
     );
-    ref.read(tradeHistoryProvider.notifier).addTrade(saved);
+    final rolledOff = ref.read(tradeHistoryProvider.notifier).addTrade(saved);
     ref.read(binderProvider.notifier).applyTradeConfirm(
           saved,
           removeGivenFromBinder: removeGiven && given > 0,
@@ -227,9 +228,12 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Trade confirmed'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(rolledOff > 0
+            ? 'Trade confirmed. The free plan keeps your last '
+                '${FreeLimits.savedTrades} trades.'
+            : 'Trade confirmed'),
+        duration: const Duration(seconds: 3),
       ),
     );
   }

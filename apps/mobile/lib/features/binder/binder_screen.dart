@@ -8,6 +8,7 @@ import '../../core/logic/pricing.dart';
 import '../../core/models/binder_entry.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
+import '../paywall/pro_limits.dart';
 import '../scan/scan_screen.dart';
 import '../search/card_picker.dart';
 import '../want_list/want_list_screen.dart';
@@ -118,9 +119,8 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
   Future<void> _addBySearch({required bool isWanted}) async {
     final card = await CardPickerScreen.show(context,
         title: isWanted ? 'Add to Want List' : 'Add to Binder');
-    if (card != null) {
-      ref.read(binderProvider.notifier).add(card, isWanted: isWanted);
-    }
+    if (card == null || !mounted) return;
+    await addToBinderOrUpsell(context, ref, card, isWanted: isWanted);
   }
 }
 
@@ -140,9 +140,8 @@ class _BinderList extends ConsumerWidget {
         onSearch: () async {
           final card =
               await CardPickerScreen.show(context, title: 'Add to Binder');
-          if (card != null) {
-            ref.read(binderProvider.notifier).add(card);
-          }
+          if (card == null || !context.mounted) return;
+          await addToBinderOrUpsell(context, ref, card);
         },
       );
     }

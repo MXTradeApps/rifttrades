@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,16 +15,22 @@ import 'data/set_published_on.dart';
 import 'scan/card_hash_index.dart';
 import 'data/catalog_repository.dart';
 import 'data/binder_repository.dart';
+import 'data/entitlement_repository.dart';
 import 'data/lend_repository.dart';
+import 'data/purchases_repository.dart';
 import 'data/settings_repository.dart';
 import 'data/trade_repository.dart';
 import 'logic/confirm_trade.dart';
+import 'logic/free_limits.dart';
 import 'logic/pricing.dart';
 import 'models/account.dart';
 import 'models/app_settings.dart';
 import 'models/binder_entry.dart';
 import 'models/card_model.dart';
+import 'models/entitlement.dart';
 import 'models/lend_group.dart';
+import 'models/purchase_outcome.dart';
+import 'models/subscription_status.dart';
 import 'models/trade.dart';
 import 'sync/sync_journal.dart';
 import 'sync/sync_service.dart';
@@ -281,6 +288,220 @@ final syncProvider =
     NotifierProvider<SyncNotifier, SyncStatus>(SyncNotifier.new);
 
 // ---------------------------------------------------------------------------
+// RiftTrades Pro subscription (RevenueCat)
+// ---------------------------------------------------------------------------
+
+/// Overridden in main() with the instance configured at startup.
+///
+/// The default is a deliberately unconfigured repository: widget tests get a
+/// safe no-op (no plugin channels, no network) that resolves to the free tier.
+final purchasesRepositoryProvider =
+    Provider<PurchasesRepository>((ref) => PurchasesRepository());
+
+/// Live `RiftTrades Pro` entitlement state.
+///
+/// Seeded from RevenueCat's cached customer info, then kept current by the
+/// SDK's customer info listener — so renewals, expirations, cancellations and
+/// deferred payments all land here without polling.
+class SubscriptionNotifier extends AsyncNotifier<SubscriptionStatus> {
+  @override
+  Future<SubscriptionStatus> build() async {
+    final purchases = ref.watch(purchasesRepositoryProvider);
+    if (!purchases.isConfigured) return SubscriptionStatus.free;
+
+    void onCustomerInfo(CustomerInfo info) {
+      state = AsyncData(SubscriptionStatus.fromCustomerInfo(info));
+    }
+
+    // Fetch first, then subscribe: writing to `state` while this build is
+    // still in flight would be discarded by the returned value anyway.
+    final info = await purchases.customerInfo();
+    purchases.addCustomerInfoListener(onCustomerInfo);
+    ref.onDispose(() => purchases.removeCustomerInfoListener(onCustomerInfo));
+
+    return info == null
+        ? SubscriptionStatus.free
+        : SubscriptionStatus.fromCustomerInfo(info);
+  }
+
+  /// Re-reads entitlements. Purchases and restores update this notifier on
+  /// their own; this is for after a RevenueCat Paywall or the Customer Center
+  /// hands control back, where the change happened in native UI.
+  Future<void> refresh() async {
+    final info = await ref.read(purchasesRepositoryProvider).customerInfo();
+    if (info == null) return;
+    adopt(info);
+  }
+
+  /// Takes customer info the caller already has, avoiding a second round trip.
+  /// Used after `logIn`/`logOut`, which both return it.
+  void adopt(CustomerInfo info) {
+    state = AsyncData(SubscriptionStatus.fromCustomerInfo(info));
+  }
+
+  /// Buys [package] directly, for custom paywall UI. The RevenueCat Paywall
+  /// runs its own purchase flow — use [refresh] after that instead.
+  Future<PurchaseOutcome> purchase(Package package) async {
+    final outcome =
+        await ref.read(purchasesRepositoryProvider).purchasePackage(package);
+    if (outcome is PurchaseSuccess) {
+      state = AsyncData(SubscriptionStatus.fromCustomerInfo(
+        outcome.customerInfo,
+      ));
+    }
+    return outcome;
+  }
+
+  Future<RestoreOutcome> restore() async {
+    final outcome =
+        await ref.read(purchasesRepositoryProvider).restorePurchases();
+    if (outcome is RestoreSuccess) {
+      state = AsyncData(SubscriptionStatus.fromCustomerInfo(
+        outcome.customerInfo,
+      ));
+    }
+    return outcome;
+  }
+}
+
+final subscriptionProvider =
+    AsyncNotifierProvider<SubscriptionNotifier, SubscriptionStatus>(
+        SubscriptionNotifier.new);
+
+/// Keeps RevenueCat's `app_user_id` equal to the Supabase user id.
+///
+/// Exposes the id currently bound, which is only useful for tests and debugging —
+/// the value is a side effect of the binding, not the point of it. The point is
+/// that every webhook names an id the server can write an entitlement row for.
+///
+/// Nobody reads this for behaviour, so something has to watch it or it never
+/// builds; `SyncHost` does, above the tabs.
+class PurchasesIdentityNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    final session = ref.watch(accountProvider);
+    final purchases = ref.watch(purchasesRepositoryProvider);
+    if (!purchases.isConfigured) return null;
+
+    // Wait for a real answer. Supabase restores the stored session
+    // asynchronously, so an unresolved stream is not "signed out" — acting on it
+    // would log out of the previous identity on every single launch, and an auth
+    // error would do the same. Both cases leave the existing binding alone.
+    if (!session.hasValue) return null;
+    final account = session.value;
+
+    // Deferred so the notifier finishes building before the entitlement
+    // providers it invalidates start rebuilding.
+    Future.microtask(() async {
+      final info = account == null
+          ? await purchases.logOut()
+          : await purchases.logIn(account.id);
+      // Switching identity can change entitlements outright — signing in to an
+      // account that already has Pro, or signing out of one that did.
+      if (info != null) {
+        ref.read(subscriptionProvider.notifier).adopt(info);
+      }
+    });
+
+    return account?.id;
+  }
+}
+
+final purchasesIdentityProvider =
+    NotifierProvider<PurchasesIdentityNotifier, String?>(
+        PurchasesIdentityNotifier.new);
+
+// ---------------------------------------------------------------------------
+// Entitlements (the server's answer, and the one the app gates on)
+// ---------------------------------------------------------------------------
+
+final entitlementRepositoryProvider = Provider<EntitlementRepository>(
+  (ref) => EntitlementRepository(ref.watch(supabaseClientProvider)),
+);
+
+/// This account's `rift_entitlements` row, or null when signed out or absent.
+///
+/// Errors resolve to null rather than propagating: an unreachable server must
+/// leave the device's own answer standing, not replace it with a failure.
+final serverEntitlementProvider =
+    FutureProvider<ServerEntitlement?>((ref) async {
+  final account = ref.watch(accountProvider).value;
+  if (account == null) return null;
+  try {
+    return await ref.watch(entitlementRepositoryProvider).fetch(account.id);
+  } catch (e) {
+    debugPrint('Entitlement: could not read the server row — $e');
+    return null;
+  }
+});
+
+/// **The** entitlement. Every Pro decision in the app resolves through here.
+///
+/// Merges the device's view with the server's; see [Entitlement] for why both are
+/// needed and why access is granted when either says so.
+final entitlementProvider = Provider<Entitlement>((ref) {
+  // A missing device answer — still loading, or the SDK threw — becomes "this
+  // device knows of no purchase" rather than short-circuiting to free. Otherwise
+  // one failed store lookup would revoke Pro from somebody the server has
+  // confirmed as a subscriber, which is the worst outcome available here.
+  final device =
+      ref.watch(subscriptionProvider).asData?.value ?? SubscriptionStatus.free;
+  return Entitlement.resolve(
+    device: device,
+    server: ref.watch(serverEntitlementProvider).asData?.value,
+  );
+});
+
+/// The single check to gate a Pro feature on. Defaults to locked while the
+/// entitlement is still loading or couldn't be read.
+final isProProvider = Provider<bool>(
+  (ref) => ref.watch(entitlementProvider).isPro,
+);
+
+/// Whether the customer's Pro state is actually known, as opposed to defaulting
+/// to locked while it loads.
+///
+/// [isProProvider] fails closed, which is correct for hiding a feature and wrong
+/// for deleting data. Use this — and only this — to guard destructive trims.
+final entitlementResolvedProvider = Provider<bool>((ref) {
+  final device = ref.watch(subscriptionProvider);
+  final server = ref.watch(serverEntitlementProvider);
+  return device.hasValue || server.hasValue;
+});
+
+/// Whether to show subscription UI at all — false on builds without a
+/// RevenueCat API key, where nothing could be purchased anyway.
+final purchasesAvailableProvider = Provider<bool>(
+    (ref) => ref.watch(purchasesRepositoryProvider).isConfigured);
+
+/// The offering marked **Current** in the dashboard, holding the `yearly` and
+/// `monthly` packages. Prices come from the store, already localized.
+///
+/// The RevenueCat Paywall fetches this itself; this provider is for showing
+/// prices in your own UI (like the Settings upgrade tile).
+final proOfferingProvider = FutureProvider<Offering?>((ref) async {
+  final offerings = await ref.watch(purchasesRepositoryProvider).offerings();
+  return offerings?.current;
+});
+
+/// Free-tier usage for upsell copy, or null for Pro customers (nothing is
+/// capped for them, so there is nothing to report).
+final freeUsageProvider = Provider<FreeUsage?>((ref) {
+  if (ref.watch(isProProvider)) return null;
+  final entries = ref.watch(binderProvider);
+  final loanedCards = ref
+      .watch(lendProvider)
+      .where((g) => !g.isBorrowing)
+      .fold<int>(0, (sum, g) => sum + g.cardCount);
+  return FreeUsage(
+    binderCards: entries.where((e) => !e.isWanted).length,
+    wantListCards: entries.where((e) => e.isWanted).length,
+    loanedCards: loanedCards,
+    savedTrades: ref.watch(tradeHistoryProvider).length,
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------
 final searchFiltersProvider =
@@ -348,7 +569,13 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
 
   void _persist() => ref.read(binderRepositoryProvider).save(state);
 
-  void add(CardModel card,
+  /// Adds [card], returning false when the free-tier cap is reached and
+  /// nothing changed — callers should offer an upgrade rather than appear to
+  /// do nothing. See `addToBinderOrUpsell`.
+  ///
+  /// Only distinct cards count against the cap, so topping up the quantity of
+  /// something already listed always works.
+  bool add(CardModel card,
       {int quantity = 1, String condition = 'NM', bool isWanted = false}) {
     final idx = state.indexWhere(
         (e) => e.card.id == card.id && e.isWanted == isWanted);
@@ -358,6 +585,7 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
       updated[idx] = existing.copyWith(quantity: existing.quantity + quantity);
       state = updated;
     } else {
+      if (!_canAddNewCard(isWanted: isWanted)) return false;
       state = [
         BinderEntry(
           card: card,
@@ -370,6 +598,13 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
       ];
     }
     _persist();
+    return true;
+  }
+
+  bool _canAddNewCard({required bool isWanted}) {
+    if (ref.read(isProProvider)) return true;
+    final listed = state.where((e) => e.isWanted == isWanted).length;
+    return listed < FreeLimits.cardsFor(isWanted: isWanted);
   }
 
   void setQuantity(String cardId, bool isWanted, int quantity) {
@@ -420,6 +655,9 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
 
   /// Applies Confirm Trade binder side-effects (given leave / received enter /
   /// want-list clear). Does not touch trade history or the draft.
+  ///
+  /// Intentionally exempt from the free-tier cap: these cards were just traded
+  /// for, and dropping them to enforce a limit would lose real information.
   void applyTradeConfirm(
     Trade trade, {
     required bool removeGivenFromBinder,
@@ -483,24 +721,44 @@ class LendNotifier extends Notifier<List<LendGroup>> {
             ));
   }
 
-  void addCard(String groupId, CardModel card, {int quantity = 1}) {
+  /// Adds [card] to [groupId], or returns false when a free account is already
+  /// at the loaned-card cap. Borrowing groups are never capped.
+  bool addCard(String groupId, CardModel card, {int quantity = 1}) {
+    if (!_canLendMore(groupId, quantity)) return false;
     _updateGroup(groupId, (g) {
       final items = [...g.items];
       final idx = items.indexWhere((i) => i.card.id == card.id);
       if (idx >= 0) {
-        items[idx] = items[idx].copyWith(quantity: items[idx].quantity + quantity);
+        items[idx] =
+            items[idx].copyWith(quantity: items[idx].quantity + quantity);
       } else {
         items.add(LendItem(card: card, quantity: quantity));
       }
       return g.copyWith(items: items);
     });
+    return true;
   }
 
-  void setCardQuantity(String groupId, String cardId, int quantity) {
+  /// Sets quantity, or returns false when raising it would exceed the free
+  /// loaned-card cap. Decreases and removals always succeed.
+  bool setCardQuantity(String groupId, String cardId, int quantity) {
     if (quantity <= 0) {
       removeCard(groupId, cardId);
-      return;
+      return true;
     }
+    LendGroup? group;
+    for (final g in state) {
+      if (g.id == groupId) {
+        group = g;
+        break;
+      }
+    }
+    if (group == null) return false;
+    final current = group.items
+        .where((i) => i.card.id == cardId)
+        .fold<int>(0, (sum, i) => sum + i.quantity);
+    final delta = quantity - current;
+    if (delta > 0 && !_canLendMore(groupId, delta)) return false;
     _updateGroup(groupId, (g) {
       final items = [
         for (final i in g.items)
@@ -508,6 +766,7 @@ class LendNotifier extends Notifier<List<LendGroup>> {
       ];
       return g.copyWith(items: items);
     });
+    return true;
   }
 
   void removeCard(String groupId, String cardId) {
@@ -515,6 +774,27 @@ class LendNotifier extends Notifier<List<LendGroup>> {
       final items = g.items.where((i) => i.card.id != cardId).toList();
       return g.copyWith(items: items);
     });
+  }
+
+  /// Whether [additional] more cards can be lent out from [groupId].
+  ///
+  /// Borrowing is uncapped. Pro is uncapped. Free accounts count total
+  /// quantity across every lent-out group against [FreeLimits.loanedCards].
+  bool _canLendMore(String groupId, int additional) {
+    if (additional <= 0) return true;
+    if (ref.read(isProProvider)) return true;
+    LendGroup? group;
+    for (final g in state) {
+      if (g.id == groupId) {
+        group = g;
+        break;
+      }
+    }
+    if (group == null || group.isBorrowing) return true;
+    final loaned = state
+        .where((g) => !g.isBorrowing)
+        .fold<int>(0, (sum, g) => sum + g.cardCount);
+    return loaned + additional <= FreeLimits.loanedCards;
   }
 
   void _updateGroup(String groupId, LendGroup Function(LendGroup) update) {
@@ -552,9 +832,26 @@ class TradeHistoryNotifier extends Notifier<List<Trade>> {
 
   void _persist() => ref.read(tradeRepositoryProvider).save(state);
 
-  void addTrade(Trade trade) {
-    state = [trade, ...state];
+  /// Saves [trade], returning how many older trades rolled off to stay inside
+  /// the free-tier window (always 0 for Pro, and while entitlement is unknown).
+  ///
+  /// Never refuses: confirming a trade also reconciles the binder, so blocking
+  /// it would be destructive. The window trims the oldest instead.
+  int addTrade(Trade trade) {
+    final all = [trade, ...state];
+    // Never trim while the entitlement is still unknown. A Pro customer with no
+    // signal would otherwise have their history cut, and _persist() turns those
+    // drops into tombstones that sync outward to every other device.
+    if (ref.read(isProProvider) ||
+        !ref.read(entitlementResolvedProvider) ||
+        all.length <= FreeLimits.savedTrades) {
+      state = all;
+      _persist();
+      return 0;
+    }
+    state = all.take(FreeLimits.savedTrades).toList();
     _persist();
+    return all.length - FreeLimits.savedTrades;
   }
 
   void remove(String id) {

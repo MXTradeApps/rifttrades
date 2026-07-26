@@ -218,7 +218,7 @@ flutter analyze
 flutter test --dart-define-from-file=env/production.json
 ```
 
-**Baseline to protect:** 332 unit tests and 4 integration tests pass today. The
+**Baseline to protect:** 404 unit tests and 4 integration tests pass today. The
 count must only ever go up. If it drops, you broke something — stop and report.
 
 **Edge Functions**, from `C:\Users\maxes\RiftTrades\supabase\functions`:
@@ -229,6 +229,10 @@ deno lint
 deno check "**/*.ts"
 deno test
 ```
+
+**Baseline to protect:** 59 tests pass today, and `fmt --check`, `lint`, and
+`check` are clean. The count must only ever go up. If a command fails or the
+count drops, you broke something — stop and report.
 
 **Migrations** — the CLI is not installed, so use `npx`:
 

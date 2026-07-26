@@ -74,7 +74,7 @@ is done.
 | 2 | [PHASE-2.md](PHASE-2.md) | Build-time environment config | Done |
 | 3 | [PHASE-3.md](PHASE-3.md) | Supabase Auth (Apple, Google, Discord) | Blocked — code landed, see below |
 | 4 | [PHASE-4.md](PHASE-4.md) | Cloud sync | Done — manual sync check outstanding, see below |
-| 5 | [PHASE-5.md](PHASE-5.md) | Pro subscriptions and entitlements | Not started |
+| 5 | [PHASE-5.md](PHASE-5.md) | Pro subscriptions and entitlements | Done — store verification outstanding, see below |
 | 6 | [PHASE-6.md](PHASE-6.md) | CI | Not started |
 | 7 | [PHASE-7.md](PHASE-7.md) | One release tag for both stores | Not started |
 | 8 | [PHASE-8.md](PHASE-8.md) | Remaining UI parity and docs | Not started |
@@ -92,5 +92,5 @@ these and it is not done, stop and report — do not work around it.
 | Phase 3 Verify | Enable Apple, Google, Discord in Supabase; add `rifttrades://login-callback` to the redirect allow-list on **both** projects |
 | Phase 3 step 6 | In Xcode, add the Sign in with Apple capability so `CODE_SIGN_ENTITLEMENTS` is set and `ios/Runner/Runner.entitlements` exists. Step 6 stopped rather than hand-editing `project.pbxproj`, so Apple sign-in cannot work on iOS until this is done. Google and Discord are unaffected. |
 | Phase 4 Verify | Walk PHASE-4.md's manual check on two devices, or across a reinstall. Its automated checks pass, but no test can prove the merge behaves against a real account. Step 4 is the one that matters: if the first account's cards show up in the second account's binder, stop — that is live data corruption. |
-| Phase 5 Verify | Create the RevenueCat project, products, and `RiftTrades Pro` entitlement; set the Supabase function secrets |
+| Phase 5 Verify | Create the RevenueCat project, products, and `RiftTrades Pro` entitlement, then set the function secrets `REVENUECAT_WEBHOOK_SECRET`, `REVENUECAT_API_KEY`, and `RECONCILE_SECRET` on both Supabase projects. Also add the RevenueCat publishable SDK keys to `apps/mobile/env/*.json` — they are deliberately absent, and while absent `isConfigured` is false and subscriptions stay off. Debug builds use the Test Store, so store misconfiguration only surfaces in a release build. |
 | Phase 7 Verify | Confirm the Codemagic webhook fires on tag push |
