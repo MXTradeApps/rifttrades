@@ -138,22 +138,21 @@ own row and reassign `user_id` to someone else.
 
 ### 2. Apply the migration
 
-```powershell
-npx supabase link --project-ref tenrvaghaspwdvnwvgrh
-npx supabase db push
-npx supabase migration list
+`db push` does not work from this repo: the shared project has FAB Trades
+migration versions that will never have files here, so the CLI aborts before
+applying anything. This migration was applied on **both** production
+(`tenrvaghaspwdvnwvgrh`) and staging (`cnmxaccamqshgvesieez`) by running the
+SQL directly against each database (SQL editor or Supabase MCP `execute_sql`),
+then recording the version by hand:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('20260726143000', 'rift_cloud_sync_user_data');
 ```
 
-Then apply to staging as well:
-
-```powershell
-npx supabase link --project-ref cnmxaccamqshgvesieez
-npx supabase db push
-npx supabase link --project-ref tenrvaghaspwdvnwvgrh
-```
-
-Relinking to production at the end matters — leaving the CLI pointed at staging
-makes the next person's `db push` go to the wrong place.
+Confirm with `npx supabase migration list` (after linking each project) that the
+version appears on both remotes. Never run `db pull`, `db diff`, or `db reset`
+against the shared project.
 
 ### 3. Copy the sync core
 

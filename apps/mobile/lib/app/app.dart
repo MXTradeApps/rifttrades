@@ -10,6 +10,7 @@ import '../features/lend/lend_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/account_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/sync/sync_host.dart';
 import '../features/trade/trade_screen.dart';
 import 'theme.dart';
 
@@ -27,7 +28,7 @@ class RiftTradesApp extends ConsumerWidget {
       themeMode: settings.themeMode == AppThemeMode.dark
           ? ThemeMode.dark
           : ThemeMode.light,
-      home: const HomeShell(),
+      home: const SyncHost(child: HomeShell()),
     );
   }
 }

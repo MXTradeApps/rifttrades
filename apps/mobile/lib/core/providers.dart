@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +25,8 @@ import 'models/binder_entry.dart';
 import 'models/card_model.dart';
 import 'models/lend_group.dart';
 import 'models/trade.dart';
+import 'sync/sync_journal.dart';
+import 'sync/sync_service.dart';
 import 'update/app_update_checker.dart';
 
 /// Overridden in main() with the real instance.
@@ -125,8 +128,9 @@ final catalogByIdProvider = Provider<Map<String, CardModel>>((ref) {
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
-final settingsRepositoryProvider = Provider<SettingsRepository>(
-    (ref) => SettingsRepository(ref.watch(sharedPreferencesProvider)));
+final settingsRepositoryProvider = Provider<SettingsRepository>((ref) =>
+    SettingsRepository(
+        ref.watch(sharedPreferencesProvider), ref.watch(syncJournalProvider)));
 
 class SettingsNotifier extends Notifier<AppSettings> {
   @override
@@ -191,6 +195,92 @@ final authProvidersProvider = FutureProvider<List<AuthProviderKind>>(
 );
 
 // ---------------------------------------------------------------------------
+// Cloud sync
+// ---------------------------------------------------------------------------
+
+final syncJournalProvider = Provider<SyncJournal>(
+  (ref) => SyncJournal(ref.watch(sharedPreferencesProvider)),
+);
+
+final syncServiceProvider = Provider<SyncService>(
+  (ref) => SyncService.forSupabase(
+    client: ref.watch(supabaseClientProvider),
+    journal: ref.watch(syncJournalProvider),
+    binder: ref.watch(binderRepositoryProvider),
+    lend: ref.watch(lendRepositoryProvider),
+    trades: ref.watch(tradeRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+  ),
+);
+
+/// What the customer can be told about sync, and nothing more.
+///
+/// Deliberately not an `AsyncValue`: a failed sync is not a failed screen. The
+/// binder still renders from the local cache, so this reports a problem beside the
+/// data rather than in place of it.
+class SyncStatus {
+  const SyncStatus({
+    this.isSyncing = false,
+    this.lastSyncedAt,
+    this.error,
+  });
+
+  final bool isSyncing;
+  final DateTime? lastSyncedAt;
+
+  /// Message safe to show, or null when the last attempt succeeded or none has run.
+  final String? error;
+}
+
+/// Reconciles the local cache with the server whenever an account signs in.
+///
+/// Signed out this does nothing at all, which is the point: the app has always
+/// worked without an account and continues to.
+class SyncNotifier extends Notifier<SyncStatus> {
+  @override
+  SyncStatus build() {
+    final account = ref.watch(accountProvider).value;
+    if (account != null) {
+      // Deferred so the notifier finishes building before anything it might
+      // invalidate starts rebuilding.
+      Future.microtask(() => sync(account.id));
+    }
+    return const SyncStatus();
+  }
+
+  Future<void> sync(String userId) async {
+    if (state.isSyncing) return;
+    state = SyncStatus(isSyncing: true, lastSyncedAt: state.lastSyncedAt);
+
+    try {
+      final outcome = await ref.read(syncServiceProvider).run(userId);
+      _refreshChangedScreens(outcome);
+      state = SyncStatus(lastSyncedAt: DateTime.now());
+    } catch (e) {
+      debugPrint('Sync: giving up this round — $e');
+      state = SyncStatus(
+        lastSyncedAt: state.lastSyncedAt,
+        error: "Couldn't sync with your account. Your data is safe on this "
+            'device and will sync when the connection recovers.',
+      );
+    }
+  }
+
+  /// The notifiers read their state once, at build, from the local cache. A sync
+  /// that rewrote that cache has to tell them, or the screens keep showing what
+  /// they loaded at startup.
+  void _refreshChangedScreens(SyncOutcome outcome) {
+    if (outcome.binderChanged) ref.invalidate(binderProvider);
+    if (outcome.lendChanged) ref.invalidate(lendProvider);
+    if (outcome.tradesChanged) ref.invalidate(tradeHistoryProvider);
+    if (outcome.settingsChanged) ref.invalidate(settingsProvider);
+  }
+}
+
+final syncProvider =
+    NotifierProvider<SyncNotifier, SyncStatus>(SyncNotifier.new);
+
+// ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------
 final searchFiltersProvider =
@@ -248,8 +338,9 @@ final priceUpdatedAtProvider = Provider<DateTime?>((ref) {
 // ---------------------------------------------------------------------------
 // Binder & want lists
 // ---------------------------------------------------------------------------
-final binderRepositoryProvider = Provider<BinderRepository>(
-    (ref) => BinderRepository(ref.watch(sharedPreferencesProvider)));
+final binderRepositoryProvider = Provider<BinderRepository>((ref) =>
+    BinderRepository(
+        ref.watch(sharedPreferencesProvider), ref.watch(syncJournalProvider)));
 
 class BinderNotifier extends Notifier<List<BinderEntry>> {
   @override
@@ -350,8 +441,9 @@ final binderProvider =
 // ---------------------------------------------------------------------------
 // Lend / borrow tracker
 // ---------------------------------------------------------------------------
-final lendRepositoryProvider = Provider<LendRepository>(
-    (ref) => LendRepository(ref.watch(sharedPreferencesProvider)));
+final lendRepositoryProvider = Provider<LendRepository>((ref) =>
+    LendRepository(
+        ref.watch(sharedPreferencesProvider), ref.watch(syncJournalProvider)));
 
 class LendNotifier extends Notifier<List<LendGroup>> {
   @override
@@ -450,8 +542,9 @@ final lendGroupProvider = Provider.family<LendGroup?, String>((ref, id) {
 // ---------------------------------------------------------------------------
 // Trade history (saved trades)
 // ---------------------------------------------------------------------------
-final tradeRepositoryProvider = Provider<TradeRepository>(
-    (ref) => TradeRepository(ref.watch(sharedPreferencesProvider)));
+final tradeRepositoryProvider = Provider<TradeRepository>((ref) =>
+    TradeRepository(
+        ref.watch(sharedPreferencesProvider), ref.watch(syncJournalProvider)));
 
 class TradeHistoryNotifier extends Notifier<List<Trade>> {
   @override
