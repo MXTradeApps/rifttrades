@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Only test what changed. Skipped jobs still report success so branch
+  # protection can require every named job.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+      supabase: ${{ steps.filter.outputs.supabase }}
+      functions: ${{ steps.filter.outputs.functions }}
+      pipeline: ${{ steps.filter.outputs.pipeline }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            mobile:
+              - 'apps/mobile/**'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+            supabase:
+              - 'supabase/**'
+              - '.github/workflows/ci.yml'
+            functions:
+              - 'supabase/functions/**'
+              - '.github/workflows/ci.yml'
+            pipeline:
+              - 'services/price-pipeline/**'
+              - '.github/workflows/ci.yml'
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # Not gating on `dart format`: formatting is not gated in either repo.
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --dart-define-from-file=env/production.json
+
+
+  supabase:
+    needs: changes
+    if: needs.changes.outputs.supabase == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Builds a throwaway Postgres by applying every migration from scratch, so
+      # this step failing is the signal that matters: a migration that works
+      # against today's production schema but cannot rebuild it from nothing.
+      - name: Apply migrations to a clean database
+        run: supabase db start
+
+      - name: Lint schema
+        run: supabase db lint --level warning
+
+  # The Edge Functions are the only writer of `rift_entitlements`, so their
+  # logic is tested in isolation.
+  functions:
+    needs: changes
+    if: needs.changes.outputs.functions == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify formatting
+        run: deno fmt --check
+
+      - name: Lint
+        run: deno lint
+
+      # `deno test` type-checks only what the tests import, which would leave the
+      # entry points unchecked — and those are exactly the files CI never runs.
+      # The glob is quoted so Deno expands it recursively; bash would not.
+      - name: Type check
+        run: deno check "**/*.ts"
+
+      - name: Test
+        run: deno test

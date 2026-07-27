@@ -75,9 +75,9 @@ is done.
 | 3 | [PHASE-3.md](PHASE-3.md) | Supabase Auth (Apple, Google, Discord) | Blocked — code landed, see below |
 | 4 | [PHASE-4.md](PHASE-4.md) | Cloud sync | Done — manual sync check outstanding, see below |
 | 5 | [PHASE-5.md](PHASE-5.md) | Pro subscriptions and entitlements | Done — store verification outstanding, see below |
-| 6 | [PHASE-6.md](PHASE-6.md) | CI | Not started |
+| 6 | [PHASE-6.md](PHASE-6.md) | CI | Done |
 | 7 | [PHASE-7.md](PHASE-7.md) | One release tag for both stores | Not started |
-| 8 | [PHASE-8.md](PHASE-8.md) | Remaining UI parity and docs | Not started |
+| 8 | [PHASE-8.md](PHASE-8.md) | Remaining UI parity and docs | In progress |
 
 Set Status to `In progress` when you start a phase and `Done` when its Verify
 section passes and you have committed.
