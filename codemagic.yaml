@@ -46,6 +46,20 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m2
 
+    # One tag ships both stores from the same commit. The Android workflow in
+    # .github/workflows/release-android-closed.yml listens for the same pattern, so
+    # `git tag mobile-v1.0.0 && git push --tags` is the whole release.
+    #
+    # Requires the Codemagic webhook to be installed on the repository (App settings
+    # → Webhooks); without it Codemagic never hears about the tag. Starting a build
+    # from the UI still works and simply skips the tag check below.
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'mobile-v*'
+          include: true
+
     integrations:
       # Must match the name of the key in Codemagic → Team integrations → Developer Portal
       app_store_connect: codemagickey
@@ -64,6 +78,19 @@ workflows:
         APP_ENVIRONMENT: production
 
     scripts:
+      # First, before an hour of Xcode: App Store Connect takes whatever version it
+      # is handed, so a tag that disagrees with pubspec.yaml ships silently. Same
+      # script the Android workflow runs — a check that lives in only one of the two
+      # pipelines is exactly the one that gets skipped.
+      # working_directory is apps/mobile, so reach the repo-root script with ../..
+      - name: Check the tag matches pubspec
+        script: |
+          if [ -n "${CM_TAG:-}" ]; then
+            bash ../../scripts/check-release-tag.sh "$CM_TAG" pubspec.yaml
+          else
+            echo "Not a tag build — nothing to check."
+          fi
+
       - name: Get Flutter packages
         script: flutter pub get
 
