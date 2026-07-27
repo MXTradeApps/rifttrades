@@ -33,6 +33,9 @@ Future<bool> presentProPaywall(
   Offering? offering,
   bool onlyIfNeeded = true,
 }) async {
+  // TESTING ONLY (`test/no-paywalls`): never present a paywall.
+  if (forceProForTesting) return true;
+
   if (!ref.read(purchasesAvailableProvider)) {
     _showMessage(context, 'Subscriptions are unavailable in this build.');
     return ref.read(isProProvider);

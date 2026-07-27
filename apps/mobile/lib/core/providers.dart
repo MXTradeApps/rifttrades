@@ -437,9 +437,21 @@ final serverEntitlementProvider =
 
 /// **The** entitlement. Every Pro decision in the app resolves through here.
 ///
+/// TESTING ONLY (`test/no-paywalls`): unlock Pro for every user and skip
+/// RevenueCat. Do not merge this into main.
+const forceProForTesting = true;
+
 /// Merges the device's view with the server's; see [Entitlement] for why both are
 /// needed and why access is granted when either says so.
 final entitlementProvider = Provider<Entitlement>((ref) {
+  if (forceProForTesting) {
+    return const Entitlement(
+      isPro: true,
+      purchasedFrom: 'a complimentary grant',
+      isConfirmedByServer: true,
+    );
+  }
+
   // A missing device answer — still loading, or the SDK threw — becomes "this
   // device knows of no purchase" rather than short-circuiting to free. Otherwise
   // one failed store lookup would revoke Pro from somebody the server has
@@ -455,7 +467,7 @@ final entitlementProvider = Provider<Entitlement>((ref) {
 /// The single check to gate a Pro feature on. Defaults to locked while the
 /// entitlement is still loading or couldn't be read.
 final isProProvider = Provider<bool>(
-  (ref) => ref.watch(entitlementProvider).isPro,
+  (ref) => forceProForTesting || ref.watch(entitlementProvider).isPro,
 );
 
 /// Whether the customer's Pro state is actually known, as opposed to defaulting
@@ -464,6 +476,7 @@ final isProProvider = Provider<bool>(
 /// [isProProvider] fails closed, which is correct for hiding a feature and wrong
 /// for deleting data. Use this — and only this — to guard destructive trims.
 final entitlementResolvedProvider = Provider<bool>((ref) {
+  if (forceProForTesting) return true;
   final device = ref.watch(subscriptionProvider);
   final server = ref.watch(serverEntitlementProvider);
   return device.hasValue || server.hasValue;
