@@ -57,6 +57,7 @@ dependencies:
   # version, they ship in lockstep.
   purchases_flutter: ^10.4.3
   purchases_ui_flutter: ^10.4.3
+  showcaseview: 5.1.0
 
 dependency_overrides:
   # iOS image streaming silently dies after ~5 frames on camera_avfoundation
