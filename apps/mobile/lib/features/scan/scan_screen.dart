@@ -18,6 +18,7 @@ import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
 import '../../core/scan/frame_hasher.dart';
+import '../../core/scan/ocr_guide_filter.dart';
 import '../card_detail/card_detail_screen.dart';
 import '../onboarding/onboarding_keys.dart';
 import '../onboarding/onboarding_provider.dart';
@@ -123,6 +124,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
   String? _statusMessage;
   List<CardModel> _matches = const [];
+  /// How many leading entries of [_matches] the recognizer actually matched
+  /// (the "Best matches" section); the rest are other printings of the same
+  /// card filled in by [expandScanMatchesToPrintings].
+  int _rankedCount = 0;
   String? _lastNumber;
 
   /// On-device diagnostics (bug icon in the app bar) so scan failures can be
@@ -453,9 +458,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       // Signal 2: OCR of the printed name + collector number.
       // Isolated from visual so an ML Kit / format failure on Android cannot
       // discard a successful hash match (that used to silently kill scanning).
+      // Name matching is restricted to the tight guide (title band preferred)
+      // so a neighbouring card's title under the guide does not win the fuse.
+      // Numbers use a second, wider guide pass — see below.
       var ocr = const <CardModel>[];
       var ocrNumbers = const <ScanNumber>[];
       var ocrNote = 'skip';
+      var ocrLinesNote = '';
       final ocrSw = Stopwatch()..start();
       final input = _toInputImage(image, rotation);
       if (input == null) {
@@ -469,12 +478,102 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
               .processImage(input)
               .timeout(const Duration(seconds: 3));
           if (!mounted || _locked) return;
-          ocr = identifyCards(catalog, result.text);
-          ocrNumbers = parseScanNumbers(result.text);
-          final snippet = result.text.replaceAll('\n', ' ').trim();
+
+          // Same upright space as the hasher — use hashRotation, not ML Kit's
+          // metadata rotation (iOS buffers are already upright).
+          final swap = hashRotation == 90 || hashRotation == 270;
+          final rotatedW = (swap ? image.height : image.width).toDouble();
+          final rotatedH = (swap ? image.width : image.height).toDouble();
+          final guide = guideRectInRotatedFrame(
+            rotatedWidth: rotatedW,
+            rotatedHeight: rotatedH,
+          );
+
+          final lines = <OcrLine>[
+            for (final block in result.blocks)
+              for (final line in block.lines)
+                (
+                  left: line.boundingBox.left,
+                  top: line.boundingBox.top,
+                  right: line.boundingBox.right,
+                  bottom: line.boundingBox.bottom,
+                  text: line.text,
+                ),
+          ];
+
+          // Tight pass: names. A neighbour title bleeding in would win the
+          // fuse — keep inflateFraction at the default 0.02.
+          final filtered = textInsideGuide(
+            lines: lines,
+            guideLeft: guide.left,
+            guideTop: guide.top,
+            guideWidth: guide.width,
+            guideHeight: guide.height,
+          );
+
+          // Wide pass: collector numbers. The bottom number is the first line
+          // lost to imperfect framing; numbers are exact-match so a wider net
+          // is cheap.
+          final wideFiltered = textInsideGuide(
+            lines: lines,
+            guideLeft: guide.left,
+            guideTop: guide.top,
+            guideWidth: guide.width,
+            guideHeight: guide.height,
+            inflateFraction: kNumberGuideInflateFraction,
+          );
+          final numberText = wideFiltered.linesInGuide > 0
+              ? wideFiltered.guideText
+              : result.text;
+
+          // Prefer title-band text; fall back to all in-guide lines; if
+          // nothing lands in the guide, use full-frame OCR. Append numberText
+          // so RiftTrades' number-first [identifyCards] still sees the
+          // collector number when the title band alone omits it.
+          final String tier;
+          String identifyText;
+          if (filtered.linesInGuide == 0) {
+            tier = 'full';
+            identifyText = result.text;
+          } else if (filtered.titleBandText.trim().isNotEmpty) {
+            final titleWithNumber = numberText.trim().isEmpty ||
+                    numberText.trim() == filtered.titleBandText.trim()
+                ? filtered.titleBandText
+                : '${filtered.titleBandText}\n$numberText';
+            final titleCandidates =
+                identifyCards(catalog, titleWithNumber);
+            if (titleCandidates.isNotEmpty) {
+              tier = 'title';
+              identifyText = titleWithNumber;
+              ocr = titleCandidates;
+            } else {
+              tier = 'guide';
+              identifyText = numberText.trim().isEmpty ||
+                      numberText.trim() == filtered.guideText.trim()
+                  ? filtered.guideText
+                  : '${filtered.guideText}\n$numberText';
+            }
+          } else {
+            tier = 'guide';
+            identifyText = numberText.trim().isEmpty ||
+                    numberText.trim() == filtered.guideText.trim()
+                ? filtered.guideText
+                : '${filtered.guideText}\n$numberText';
+          }
+          if (ocr.isEmpty) {
+            ocr = identifyCards(catalog, identifyText);
+          }
+
+          ocrNumbers = parseScanNumbers(numberText);
+          final snippet = numberText.replaceAll('\n', ' ').trim();
           ocrNote = snippet.isEmpty
               ? 'empty'
               : '"${snippet.length > 40 ? '${snippet.substring(0, 40)}…' : snippet}"';
+          ocrLinesNote =
+              'ocrLines=${lines.length}/${filtered.linesInGuide}/'
+              '${filtered.linesInTitleBand} tier=$tier '
+              'wideLines=${wideFiltered.linesInGuide} '
+              'rotFrame=${rotatedW.toStringAsFixed(0)}x${rotatedH.toStringAsFixed(0)}';
         } catch (e) {
           // Full exception — PlatformException.message is the useful part.
           ocrNote = 'err=$e';
@@ -490,6 +589,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         'hash=${hashOk ? 'ok' : 'null'} '
         'best=$bestDist z=${zScore.toStringAsFixed(1)} '
         'vis=${visual.length} ocr=${ocr.length} ($ocrNote) '
+        '${ocrLinesNote.isEmpty ? '' : '$ocrLinesNote '}'
         '${image.width}x${image.height} '
         'bpr=${image.planes.isEmpty ? 0 : image.planes.first.bytesPerRow} '
         'hashMs=$hashMs ocrMs=$ocrMs totalMs=${frameSw.elapsedMilliseconds}',
@@ -596,17 +696,26 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     );
   }
 
+  /// Locks the scanner on [matches], then expands that short recognizer list
+  /// into every catalog printing of the identified card via
+  /// [expandScanMatchesToPrintings]. Ranking cutoffs in [identifyCards] /
+  /// [fuseScanCandidates] routinely drop alternate-art printings of a
+  /// correctly identified card; expanding after lock is how the user can
+  /// still pick the printing they're holding.
   Future<void> _lockOn(List<CardModel> matches) async {
     _locked = true;
     await _stopStream();
     if (!mounted) return;
-    final number = matches.first.collectorNumber;
+    final catalog = ref.read(catalogProvider).asData?.value ?? const [];
+    final expanded = expandScanMatchesToPrintings(catalog, matches);
     setState(() {
-      _matches = matches;
-      _lastNumber = number;
-      _statusMessage = matches.length == 1
-          ? 'Found ${matches.first.name}.'
-          : 'Found ${matches.length} possible matches — tap the right one.';
+      _matches = expanded.cards;
+      _rankedCount = expanded.rankedCount;
+      _lastNumber = expanded.cards.first.collectorNumber;
+      _statusMessage = expanded.cards.length == 1
+          ? 'Found ${expanded.cards.first.name}.'
+          : 'Found ${baseCardName(expanded.cards.first.name)} — '
+              '${expanded.cards.length} versions, best matches first.';
     });
   }
 
@@ -648,6 +757,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     setState(() {
       _locked = false;
       _matches = const [];
+      _rankedCount = 0;
       _pendingKey = null;
       _pendingHits = 0;
       _pendingMisses = 0;
@@ -702,6 +812,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
   /// Resolves free text (a name or a collector number) against the catalog,
   /// falling back to a network lookup by number if the catalog isn't loaded.
+  /// Applies the same printing expansion as [_lockOn].
   Future<void> _lookup(String text) async {
     _locked = true;
     await _stopStream();
@@ -712,6 +823,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
           : _lastNumber;
       _statusMessage = 'Looking up “$text”…';
       _matches = const [];
+      _rankedCount = 0;
     });
     try {
       final catalog = ref.read(catalogProvider).asData?.value ?? const [];
@@ -721,12 +833,17 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
             .read(cardRepositoryProvider)
             .findByCollectorNumber(_lastNumber!);
       }
+      final expanded = expandScanMatchesToPrintings(catalog, matches);
       if (!mounted) return;
       setState(() {
-        _matches = matches;
-        _statusMessage = matches.isEmpty
+        _matches = expanded.cards;
+        _rankedCount = expanded.rankedCount;
+        _statusMessage = expanded.cards.isEmpty
             ? 'No card found for “$text”.'
-            : 'Found ${matches.length} match(es).';
+            : expanded.cards.length == 1
+                ? 'Found ${expanded.cards.first.name}.'
+                : 'Found ${baseCardName(expanded.cards.first.name)} — '
+                    '${expanded.cards.length} versions, best matches first.';
       });
     } catch (e) {
       if (mounted) setState(() => _statusMessage = 'Lookup failed: $e');
@@ -968,12 +1085,45 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     final pricing = ref.watch(pricingProvider);
     final quickAdd = widget.destination == ScanDestination.trade ||
         widget.destination == ScanDestination.binder;
+    // String = section header; CardModel = card row. Headers only when the
+    // expansion actually appended other printings beyond the ranked prefix.
+    final items = <Object>[];
+    final showHeaders = _rankedCount > 0 && _rankedCount < _matches.length;
+    if (showHeaders) {
+      items.add('Best matches');
+      items.addAll(_matches.take(_rankedCount));
+      items.add('Other versions of this card');
+      items.addAll(_matches.skip(_rankedCount));
+    } else {
+      items.addAll(_matches);
+    }
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 88),
-      itemCount: _matches.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
+      itemCount: items.length,
+      separatorBuilder: (_, i) {
+        if (items[i] is String ||
+            (i + 1 < items.length && items[i + 1] is String)) {
+          return const SizedBox.shrink();
+        }
+        return const Divider(height: 1, indent: 72);
+      },
       itemBuilder: (context, i) {
-        final card = _matches[i];
+        final item = items[i];
+        if (item is String) {
+          final theme = Theme.of(context);
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+            child: Text(
+              item.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          );
+        }
+        final card = item as CardModel;
         if (quickAdd) {
           return CardRow(
             card: card,

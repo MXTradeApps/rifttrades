@@ -59,6 +59,55 @@ void main() {
       expect(hammingDistance(a, b), greaterThan(80));
     });
 
+    test('guideRectInRotatedFrame is centred with card aspect', () {
+      const rotatedW = 720.0, rotatedH = 1280.0;
+      final guide = guideRectInRotatedFrame(
+        rotatedWidth: rotatedW,
+        rotatedHeight: rotatedH,
+      );
+      expect(guide.left + guide.width / 2, closeTo(rotatedW / 2, 0.01));
+      expect(guide.top + guide.height / 2, closeTo(rotatedH / 2, 0.01));
+      expect(guide.width / guide.height, closeTo(kCardAspect, 1e-9));
+    });
+
+    test('guideRectInRotatedFrame width is kGuideWidthFraction of visible', () {
+      // Frame matches viewport aspect, so the whole frame is visible.
+      const rotatedW = 720.0;
+      const rotatedH = rotatedW / kViewportAspect; // 960
+      final guide = guideRectInRotatedFrame(
+        rotatedWidth: rotatedW,
+        rotatedHeight: rotatedH,
+      );
+      expect(guide.width, closeTo(kGuideWidthFraction * rotatedW, 0.01));
+    });
+
+    test(
+      'guideRectInRotatedFrame clamps height by kGuideMaxHeightFraction',
+      () {
+        // Tall/narrow frame → BoxFit.cover is width-limited. The visible crop
+        // always has kViewportAspect, so with current constants the
+        // width-derived guide (~75% of visH) sits under the 92% cap; the clamp
+        // is still applied as min(unclamped, max) and must not be exceeded.
+        const rotatedW = 400.0;
+        const rotatedH = 2000.0;
+        final visW = rotatedW;
+        final visH = rotatedW / kViewportAspect;
+        final unclampedH = (kGuideWidthFraction * visW) / kCardAspect;
+        final maxH = kGuideMaxHeightFraction * visH;
+        final expectedH = unclampedH < maxH ? unclampedH : maxH;
+
+        final guide = guideRectInRotatedFrame(
+          rotatedWidth: rotatedW,
+          rotatedHeight: rotatedH,
+        );
+        expect(guide.height, closeTo(expectedH, 0.01));
+        expect(guide.height, lessThanOrEqualTo(maxH + 1e-9));
+        expect(guide.width, closeTo(expectedH * kCardAspect, 0.01));
+        expect(guide.left + guide.width / 2, closeTo(rotatedW / 2, 0.01));
+        expect(guide.top + guide.height / 2, closeTo(rotatedH / 2, 0.01));
+      },
+    );
+
     test('90°-rotated frame sampling matches the upright hash', () {
       final card = _synthCard(5);
 

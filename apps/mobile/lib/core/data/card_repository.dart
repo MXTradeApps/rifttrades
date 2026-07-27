@@ -473,6 +473,96 @@ List<CardModel> fuseScanCandidates({
   return [for (final e in ranked.take(limit)) byId[e.key]!];
 }
 
+/// The scanner's result list: [cards] is every printing worth offering the
+/// user, best-first, and the leading [rankedCount] entries are the ones the
+/// recognizer actually matched. The remainder are other printings of the same
+/// card, offered because the recognizer's ranking cutoffs routinely drop
+/// alternate-art and foil printings of a correctly identified card.
+class ScanMatches {
+  const ScanMatches({required this.cards, required this.rankedCount});
+  final List<CardModel> cards;
+  final int rankedCount;
+  static const empty = ScanMatches(cards: <CardModel>[], rankedCount: 0);
+}
+
+/// Once the scanner has locked onto a card identity, expand the recognizer's
+/// short candidate list into every catalog printing of that card.
+///
+/// WHY this exists (and why we do NOT make matching "smarter"): [identifyCards]
+/// and [fuseScanCandidates] both cap at `limit: 12`. Name-token matching strips
+/// parentheticals, so every printing of a base name — Normal, Foil, Alternate
+/// Art, … — ties at overlap 1.0 with the same token count. Among many tied
+/// printings, which 12 survive is effectively catalog order, so the printing
+/// the user is holding is routinely truncated away. Expanding AFTER identity
+/// is locked is cheaper and safer: keep the recognizer's ranking as the "best
+/// matches" prefix, then offer every other printing of the same [baseCardName].
+///
+/// [limit] caps the expanded list; truncation is `max(limit, ranked.length)`
+/// so a card the recognizer actually matched is never dropped.
+ScanMatches expandScanMatchesToPrintings(
+  List<CardModel> catalog,
+  List<CardModel> matches, {
+  int limit = 60,
+}) {
+  if (matches.isEmpty) return ScanMatches.empty;
+  if (catalog.isEmpty) {
+    return ScanMatches(cards: matches, rankedCount: matches.length);
+  }
+
+  final matchIds = <String>{for (final c in matches) c.id};
+
+  // Ordered, deduplicated base names from the recognizer's hits — first-seen
+  // order so a multi-card fuse still expands each identity in the order the
+  // user saw it.
+  final baseNames = <String>[];
+  final baseNameSet = <String>{};
+  for (final c in matches) {
+    final base = baseCardName(c.name);
+    if (baseNameSet.add(base)) baseNames.add(base);
+  }
+
+  final extrasByBase = <String, List<CardModel>>{
+    for (final base in baseNames) base: <CardModel>[],
+  };
+  for (final c in catalog) {
+    if (isNonCardProduct(c)) continue;
+    if (matchIds.contains(c.id)) continue;
+    final base = baseCardName(c.name);
+    final bucket = extrasByBase[base];
+    if (bucket == null) continue;
+    bucket.add(c);
+  }
+  for (final bucket in extrasByBase.values) {
+    bucket.sort(_baseFirst);
+  }
+  final extrasOrdered = <CardModel>[
+    for (final base in baseNames) ...extrasByBase[base]!,
+  ];
+
+  // Recognizer hits in their original order form the ranked prefix.
+  final group1 = <CardModel>[];
+  final inGroup1 = <String>{};
+  for (final c in matches) {
+    if (inGroup1.add(c.id)) group1.add(c);
+  }
+
+  // Other catalog printings of the same base name(s), not already ranked.
+  final group2 = <CardModel>[
+    for (final c in extrasOrdered)
+      if (!inGroup1.contains(c.id)) c,
+  ];
+
+  final seen = <String>{};
+  final combined = <CardModel>[];
+  for (final c in [...group1, ...group2]) {
+    if (seen.add(c.id)) combined.add(c);
+  }
+  final cap = limit > group1.length ? limit : group1.length;
+  final cards =
+      combined.length <= cap ? combined : combined.sublist(0, cap);
+  return ScanMatches(cards: cards, rankedCount: group1.length);
+}
+
 /// Keeps the best name-matching group of number [candidates]. When the name
 /// could not be read (all overlaps 0), returns the candidates as-is so the user
 /// can disambiguate manually.

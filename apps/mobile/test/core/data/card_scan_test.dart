@@ -156,4 +156,109 @@ void main() {
       expect(fuseScanCandidates(visual: const [], ocr: const []), isEmpty);
     });
   });
+
+  group('expandScanMatchesToPrintings', () {
+    final ahriNormal = buildCard(
+      id: 'ahri-normal',
+      name: 'Ahri - Inquisitive',
+      setName: 'Origins',
+      collectorNumber: '147/219',
+    );
+    final ahriFoil = buildCard(
+      id: 'ahri-foil',
+      name: 'Ahri - Inquisitive',
+      setName: 'Origins',
+      isFoil: true,
+      collectorNumber: '147/219',
+    );
+    final ahriAlt = buildCard(
+      id: 'ahri-alt',
+      name: 'Ahri - Inquisitive (Alternate Art)',
+      setName: 'Promos',
+      rarity: 'Promo',
+      collectorNumber: '001/010',
+    );
+    final vex = buildCard(
+      id: 'vex',
+      name: 'Vex - Apathetic',
+      collectorNumber: '020/219',
+    );
+    final vexFoil = buildCard(
+      id: 'vex-foil',
+      name: 'Vex - Apathetic',
+      isFoil: true,
+      collectorNumber: '020/219',
+    );
+    final sealedProduct = buildCard(
+      id: 'sealed',
+      name: 'Origins - Champion Deck',
+      rarity: null,
+      collectorNumber: null,
+    );
+
+    final catalog = [
+      ahriNormal,
+      ahriFoil,
+      ahriAlt,
+      vex,
+      vexFoil,
+      sealedProduct,
+    ];
+
+    test('includes alternate-art printings omitted from matches', () {
+      final result = expandScanMatchesToPrintings(
+        catalog,
+        [ahriNormal, ahriFoil],
+      );
+      expect(result.cards.map((c) => c.id), contains('ahri-alt'));
+    });
+
+    test('preserves match order and rankedCount', () {
+      final matches = [ahriFoil, ahriNormal];
+      final result = expandScanMatchesToPrintings(catalog, matches);
+      expect(result.cards.take(matches.length).map((c) => c.id).toList(),
+          ['ahri-foil', 'ahri-normal']);
+      expect(result.rankedCount, matches.length);
+    });
+
+    test('does not pull in other cards', () {
+      final result = expandScanMatchesToPrintings(catalog, [ahriNormal]);
+      final ids = result.cards.map((c) => c.id).toSet();
+      expect(ids, isNot(contains('vex')));
+      expect(ids, isNot(contains('vex-foil')));
+      expect(ids, contains('ahri-normal'));
+      expect(ids, contains('ahri-foil'));
+      expect(ids, contains('ahri-alt'));
+    });
+
+    test('excludes non-card product rows', () {
+      final result = expandScanMatchesToPrintings(
+        catalog,
+        [ahriNormal],
+      );
+      expect(result.cards.map((c) => c.id), isNot(contains('sealed')));
+    });
+
+    test('empty matches / empty catalog edge cases', () {
+      expect(
+        expandScanMatchesToPrintings(catalog, const []),
+        same(ScanMatches.empty),
+      );
+
+      final matches = [ahriNormal, ahriFoil];
+      final noCatalog = expandScanMatchesToPrintings(const [], matches);
+      expect(noCatalog.cards.map((c) => c.id).toList(),
+          ['ahri-normal', 'ahri-foil']);
+      expect(noCatalog.rankedCount, matches.length);
+    });
+
+    test('cards contain no duplicate ids', () {
+      final result = expandScanMatchesToPrintings(
+        catalog,
+        [ahriNormal, ahriAlt],
+      );
+      final ids = result.cards.map((c) => c.id).toList();
+      expect(ids.toSet().length, ids.length);
+    });
+  });
 }
