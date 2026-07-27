@@ -84,7 +84,8 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin so GitHub's API rate limit on "latest" cannot fail the job.
+          version: 2.109.1
 
       # Builds a throwaway Postgres by applying every migration from scratch, so
       # this step failing is the signal that matters: a migration that works
