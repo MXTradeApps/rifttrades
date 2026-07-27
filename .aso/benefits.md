@@ -19,4 +19,5 @@
 - User confirmed 5 screenshots.
 - Lend was dropped from the storefront set in favor of Scan.
 - No named competitors to beat on messaging.
-- Brand colour: TBD at generation (derive from app gold/navy palette).
+- Brand colour: Deep Navy `#0A1626` (AppTheme.navy — gold UI pops; solid canvas for all screenshots).
+- Target display size: iPhone 6.7" (1290×2796).
