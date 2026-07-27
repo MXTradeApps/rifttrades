@@ -87,26 +87,36 @@ class _TradeCard extends ConsumerWidget {
                 ),
               ],
             ),
-            if (trade.haveItems.isNotEmpty || trade.wantItems.isNotEmpty) ...[
+            if (trade.haveItems.isNotEmpty ||
+                trade.wantItems.isNotEmpty ||
+                trade.haveCash > 0 ||
+                trade.wantCash > 0) ...[
               const SizedBox(height: 12),
               const Divider(height: 1),
               const SizedBox(height: 8),
-              if (trade.haveItems.isNotEmpty)
+              if (trade.haveItems.isNotEmpty || trade.haveCash > 0) ...[
                 _ItemList(
                   label: 'Gave',
                   items: trade.haveItems,
                   symbol: symbol,
                   accent: AppTheme.haveAccent,
                 ),
-              if (trade.haveItems.isNotEmpty && trade.wantItems.isNotEmpty)
+                if (trade.haveCash > 0)
+                  _CashRow(amount: trade.haveCash, symbol: symbol),
+              ],
+              if ((trade.haveItems.isNotEmpty || trade.haveCash > 0) &&
+                  (trade.wantItems.isNotEmpty || trade.wantCash > 0))
                 const SizedBox(height: 8),
-              if (trade.wantItems.isNotEmpty)
+              if (trade.wantItems.isNotEmpty || trade.wantCash > 0) ...[
                 _ItemList(
                   label: 'Got',
                   items: trade.wantItems,
                   symbol: symbol,
                   accent: AppTheme.wantAccent,
                 ),
+                if (trade.wantCash > 0)
+                  _CashRow(amount: trade.wantCash, symbol: symbol),
+              ],
             ],
             const SizedBox(height: 10),
             Align(
@@ -221,6 +231,39 @@ class _ItemList extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _CashRow extends StatelessWidget {
+  const _CashRow({required this.amount, required this.symbol});
+  final double amount;
+  final String symbol;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(Icons.payments_outlined,
+              size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Cash',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+          Text(
+            '$symbol${amount.toStringAsFixed(2)}',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 }

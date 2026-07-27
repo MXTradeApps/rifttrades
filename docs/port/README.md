@@ -78,6 +78,7 @@ is done.
 | 6 | [PHASE-6.md](PHASE-6.md) | CI | Done |
 | 7 | [PHASE-7.md](PHASE-7.md) | One release tag for both stores | Done |
 | 8 | [PHASE-8.md](PHASE-8.md) | Remaining UI parity and docs | Done |
+| 9 | [PHASE-9.md](PHASE-9.md) | Recent FAB feature deltas (onboarding, multi-add, scan) | In progress |
 
 Set Status to `In progress` when you start a phase and `Done` when its Verify
 section passes and you have committed.
