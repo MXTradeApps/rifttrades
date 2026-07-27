@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/fallback_network_image.dart';
 import '../../core/models/binder_entry.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
@@ -209,7 +209,7 @@ class _CardImage extends StatelessWidget {
         ),
       );
     }
-    return CachedNetworkImage(
+    return FallbackNetworkImage(
       imageUrl: url,
       fit: BoxFit.cover,
       placeholder: (_, _) => Container(color: scheme.surfaceContainerHighest),

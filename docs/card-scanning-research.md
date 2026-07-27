@@ -31,7 +31,7 @@
 
 ### 1.2 PokeScope — the best primary-source write-up of a Pokémon scanner
 
-The **PokeScope** team published a long developer blog post, ["How I Built a Pokemon Card Scanner App with AI"](https://pokescope.app/blog/how-i-built-pokemon-card-scanner-ai-50000-users/), describing their production pipeline:
+The **PokeScope** team published a long developer blog post, ["How I Built a Pokemon Card Scanner App with AI"](https://pokescope.app), describing their production pipeline:
 
 - **Detection:** YOLOv8 for real-time card detection (locating the card in the camera frame).
 - **Identification:** **CLIP image embeddings** for visual matching against the card database. They report that switching from "basic image comparison" to CLIP embeddings took match accuracy from ~60% to 95%+.
@@ -50,10 +50,10 @@ This is the single most detailed public account of how a commercial Pokémon car
 
 ### 1.4 Delver Lens (the canonical MTG scanner)
 
-Delver Lens was built by **Cassio Santos, a computer scientist with a Master's in AI** whose academic work is in large-scale image retrieval ([delver.app About page](https://delver.app/), [LinkedIn](https://linkedin.com/in/cassiosantosjr)). Verifiable facts:
+Delver Lens was built by **Cassio Santos, a computer scientist with a Master's in AI** whose academic work is in large-scale image retrieval ([delver.app About page](https://delver.app), [LinkedIn](https://linkedin.com/in/cassiosantosjr)). Verifiable facts:
 
 - Recognition **"scans the full card"** — the developer's own scanning guidance says the card border must be visible, and lighting/contrast with the background matter most ([Google Play listing](https://play.google.com/store/apps/details?id=delverlab.delverlens&hl=en_US), [delverlab.com](https://www.delverlab.com/)). This implies whole-card image matching, not text reading.
-- It recognizes all ~37,000+ MTG cards **offline on-device**, and the current generation uses a recognition model the developer calls **"lambda"** ([delver.app FAQ](https://delver.app/)).
+- It recognizes all ~37,000+ MTG cards **offline on-device**, and the current generation uses a recognition model the developer calls **"lambda"** ([delver.app FAQ](https://delver.app)).
 - **Not verifiable:** the exact architecture and training method of Delver Lens. Despite extensive searching (Reddit, blog posts, talks), I found **no public technical write-up by the developer** describing whether it uses embeddings, hashing, or a classifier, or how the model was trained. The common community claim that it was "trained on synthetic images generated from Scryfall scans" could not be traced to a primary source — treat it as **plausible but unverified speculation**.
 
 ---
@@ -67,7 +67,7 @@ Every verifiable implementation — commercial or open source — uses the same 
 Locate the card quadrilateral in the camera frame and perspective-warp it to a canonical flat rectangle. Two families of approach:
 
 1. **Classical CV (no ML):** grayscale → adaptive threshold / CLAHE normalization → contour detection → pick 4-corner quadrilaterals → 4-point perspective transform. Used by [tmikonen's magic_card_detector](https://tmikonen.github.io/quantitatively/2020-01-01-magic-card-detector/) (OpenCV + CLAHE), the [Moss Machine card sorter](https://github.com/KairiCollections/Moss-Machine---Magic-the-Gathering-recognition-and-sorting-machine) ("OpenCV-based card detection with contour finding and perspective correction... 4-point perspective transform"), and [hj3yoo/mtg_card_detector](https://github.com/hj3yoo/mtg_card_detector), which **started with YOLO and deliberately switched back to classical CV** in 2018. Works well when the card sits on a contrasting background; fragile with cluttered backgrounds, overlapping cards, and binder pages.
-2. **Learned detectors:** YOLOv8/YOLO11 or RF-DETR trained to detect/segment cards. Used by [PokeScope](https://pokescope.app/blog/how-i-built-pokemon-card-scanner-ai-50000-users/) (YOLOv8), [qtran1018/TCG](https://github.com/qtran1018/TCG) (on-device YOLO TFLite), [MyPokemonScanner](https://ankush.one/projects/2026.pokemon-scanner/) (YOLO11n), [lo-calvin/Trading-Card-Scanner](https://github.com/lo-calvin/Trading-Card-Scanner/blob/main/README.md) (YOLOv11-seg), and the [Roboflow TCG tutorial](https://blog.roboflow.com/trading-card-inventory-management/) (RF-DETR). Robust to messy scenes; requires training data (which everyone generates synthetically — see §3).
+2. **Learned detectors:** YOLOv8/YOLO11 or RF-DETR trained to detect/segment cards. Used by [PokeScope](https://pokescope.app) (YOLOv8), [qtran1018/TCG](https://github.com/qtran1018/TCG) (on-device YOLO TFLite), [MyPokemonScanner](https://ankush.one/projects/2026.pokemon-scanner/) (YOLO11n), [lo-calvin/Trading-Card-Scanner](https://github.com/lo-calvin/Trading-Card-Scanner/blob/main/README.md) (YOLOv11-seg), and the [Roboflow TCG tutorial](https://blog.roboflow.com/trading-card-inventory-management/) (RF-DETR). Robust to messy scenes; requires training data (which everyone generates synthetically — see §3).
 
 A third, simpler option used by many apps in practice: **a guide rectangle in the UI** — ask the user to fill the frame with the card, and skip detection entirely for v1. (RiftTrades' current OCR scanner effectively does this already.)
 
@@ -75,9 +75,9 @@ A third, simpler option used by many apps in practice: **a guide rectangle in th
 
 Three approaches appear in the wild, in increasing order of robustness:
 
-1. **OCR of name/collector number** — what RiftTrades does today (`apps/mobile/lib/features/scan/scan_screen.dart` matches ML Kit text against the in-memory catalog). Cheap, but fails on stylized fonts, foils, glare over the text line, and can't distinguish art variants with identical text. Every serious scanner keeps OCR only as a **secondary verification signal** ([PokeScope](https://pokescope.app/blog/how-i-built-pokemon-card-scanner-ai-50000-users/), [qtran1018/TCG](https://github.com/qtran1018/TCG)).
+1. **OCR of name/collector number** — what RiftTrades does today (`apps/mobile/lib/features/scan/scan_screen.dart` matches ML Kit text against the in-memory catalog). Cheap, but fails on stylized fonts, foils, glare over the text line, and can't distinguish art variants with identical text. Every serious scanner keeps OCR only as a **secondary verification signal** ([PokeScope](https://pokescope.app), [qtran1018/TCG](https://github.com/qtran1018/TCG)).
 2. **Perceptual hashing (pHash/dHash):** hash the rectified card image into a short binary fingerprint; compare against precomputed hashes of every clean catalog scan by Hamming distance. Verified implementations: [magic_card_detector](https://tmikonen.github.io/quantitatively/2020-01-01-magic-card-detector/) (pHash against all Alpha cards, recognition threshold = 4σ from the mean hash distance), [freeall/mtg-card-detector](https://github.com/freeall/mtg-card-detector) (pHash database of **all ~80,000 MTG printings**, ~1 s lookup), and the [Moss Machine](https://github.com/KairiCollections/Moss-Machine---Magic-the-Gathering-recognition-and-sorting-machine) (256-bit pHash with per-RGB-channel hashes, ~2 s/card in a physical sorting robot). Strengths: zero training, tiny database (a few bytes per card), trivially fast. Weaknesses: pHash is a global, pixel-statistics fingerprint — it degrades under **glare, foil rainbow shift, sleeves, partial occlusion, and imperfect rectification**, which is exactly why PokeScope describes its initial "basic image comparison" approach as failing.
-3. **CNN/CLIP embeddings + nearest-neighbor search:** run the rectified crop through an embedding network; match against precomputed embeddings of the clean catalog images by cosine similarity. Verified implementations: PokeScope (CLIP, [blog](https://pokescope.app/blog/how-i-built-pokemon-card-scanner-ai-50000-users/)), qtran1018/TCG (CLIP, [GitHub](https://github.com/qtran1018/TCG)), MyPokemonScanner (MobileCLIP-S2 off-the-shelf, [project page](https://ankush.one/projects/2026.pokemon-scanner/)), lo-calvin (ResNet50, [GitHub](https://github.com/lo-calvin/Trading-Card-Scanner/blob/main/README.md)), nmichlo/mtg-vision (ConvNeXt V2 trained with metric learning, [GitHub](https://github.com/nmichlo/mtg-vision)), and Zach Brown's write-up using VGG16 features + Redis vector search ([Medium](https://medium.com/@TheZachBrown/using-computer-vision-to-catalogue-trading-cards-c22981191149)). Embeddings are far more tolerant of lighting, glare, angle, and sleeves — PokeScope attributes a ~60% → 95%+ accuracy jump to this switch.
+3. **CNN/CLIP embeddings + nearest-neighbor search:** run the rectified crop through an embedding network; match against precomputed embeddings of the clean catalog images by cosine similarity. Verified implementations: PokeScope (CLIP, [blog](https://pokescope.app)), qtran1018/TCG (CLIP, [GitHub](https://github.com/qtran1018/TCG)), MyPokemonScanner (MobileCLIP-S2 off-the-shelf, [project page](https://ankush.one/projects/2026.pokemon-scanner/)), lo-calvin (ResNet50, [GitHub](https://github.com/lo-calvin/Trading-Card-Scanner/blob/main/README.md)), nmichlo/mtg-vision (ConvNeXt V2 trained with metric learning, [GitHub](https://github.com/nmichlo/mtg-vision)), and Zach Brown's write-up using VGG16 features + Redis vector search ([Medium](https://medium.com/@TheZachBrown/using-computer-vision-to-catalogue-trading-cards-c22981191149)). Embeddings are far more tolerant of lighting, glare, angle, and sleeves — PokeScope attributes a ~60% → 95%+ accuracy jump to this switch.
 
 **Production-grade scanners fuse signals:** visual match candidates + OCR candidates merged (e.g. Reciprocal Rank Fusion in [qtran1018/TCG](https://github.com/qtran1018/TCG)), plus temporal smoothing (same top match on 2+ consecutive frames before locking — used by both qtran1018/TCG and PokeScan AI's "multi-frame confirmation", and already implemented in RiftTrades' OCR scanner).
 
@@ -93,7 +93,7 @@ Nobody hand-labels tens of thousands of real card photos to start. The universal
 - **nmichlo/mtg-vision** ([GitHub](https://github.com/nmichlo/mtg-vision)): explicitly "Real-time and Real-world MTG card recognition **using only synthetic data**." Cards from Scryfall are "placed and warped randomly onto random background images," augmented twice per card to form positive pairs for metric learning; the detection dataset is built the same way with transformed bounding boxes.
 - **diegovazquez/mtg_synthetic_dataset_generator** ([GitHub](https://github.com/diegovazquez/mtg_synthetic_dataset_generator)): goes further with photorealistic Blender/BlenderProc2 renders — randomized camera rotation, HDRI lighting, card pose — publishing a pre-generated dataset on Hugging Face.
 - **lo-calvin/Trading-Card-Scanner** ([GitHub](https://github.com/lo-calvin/Trading-Card-Scanner/blob/main/README.md)): "The YOLOv11 model is finetuned on a pre-trained version **using synthetic data of cards scattered across varied environments**."
-- **PokeScope** ([blog](https://pokescope.app/blog/how-i-built-pokemon-card-scanner-ai-50000-users/)): custom augmentation functions simulating sleeve reflections, flash glare on top loaders, plastic optical distortion, worn-sleeve noise — layered on top of ~10k real photos. Their view is that the sleeve/binder robustness (which required real photos + heavy augmentation) was the hard part and the moat; bare-card recognition is the easy part.
+- **PokeScope** ([blog](https://pokescope.app)): custom augmentation functions simulating sleeve reflections, flash glare on top loaders, plastic optical distortion, worn-sleeve noise — layered on top of ~10k real photos. Their view is that the sleeve/binder robustness (which required real photos + heavy augmentation) was the hard part and the moat; bare-card recognition is the easy part.
 - **Delver Lens:** community lore says it was trained the same way, but as noted in §1.4 this is **unverified** — no primary source found.
 
 Typical augmentations (union of the sources above): random perspective warp, rotation, scale/crop jitter, random backgrounds (desks, playmats, binder pages), motion/defocus blur, brightness/contrast/white-balance shifts, specular glare blobs and streaks, partial occlusion, JPEG noise.
@@ -144,7 +144,7 @@ This alone will likely beat OCR-only scanning for non-foil cards under decent li
 |---|---|---|
 | Latency per frame | Microseconds (1631 × 512-dim dot products) | Network round-trip per frame — unusable for live viewfinder scanning |
 | Offline | Yes (matches current scanner behavior) | No |
-| Ops | Ship a ~3 MB embedding asset with app/set updates | Store embeddings in a `vector(512)` column, match via an RPC function with the `<=>` operator ([Supabase vector columns guide](https://supabase.com/docs/guides/ai/vector-columns), [pgvector guide](https://supabase.com/docs/guides/database/extensions/pgvector)) |
+| Ops | Ship a ~3 MB embedding asset with app or set updates | Store embeddings in a `vector(512)` column, match via an RPC function with the `<=>` operator ([Supabase vector columns guide](https://supabase.com/docs/guides/ai/vector-columns), [pgvector guide](https://supabase.com/docs/guides/database/extensions/pgvector)) |
 | Good use | The live scanner | Optional server-side features: "identify from a photo upload," web version, analytics; embeddings pipeline mirrors Supabase's own [CLIP image-search example](https://supabase.com/docs/guides/ai/examples/image-search-openai-clip) |
 
 Recommendation: **on-device for the scanner; add a pgvector column later only if a server-side lookup feature is wanted.** At 1631 rows even pgvector needs no HNSW/IVFFlat index.
@@ -168,10 +168,10 @@ Recommendation: **on-device for the scanner; add a pgvector column later only if
 - PokeScan QR scanner (Titan Cards, unrelated): https://apps.apple.com/us/app/pokescan/id1462580054
 
 **Commercial scanner engineering write-ups**
-- PokeScope — "How I Built a Pokemon Card Scanner App with AI": https://pokescope.app/blog/how-i-built-pokemon-card-scanner-ai-50000-users/
+- PokeScope — "How I Built a Pokemon Card Scanner App with AI": https://pokescope.app
 - Delver Lens official site (scanning guidance): https://www.delverlab.com/
 - Delver Lens Google Play listing (full-card recognition, developer identity): https://play.google.com/store/apps/details?id=delverlab.delverlens&hl=en_US
-- Delver about/FAQ ("lambda" model, developer background): https://delver.app/
+- Delver about/FAQ ("lambda" model, developer background): https://delver.app
 - Cassio Santos (Delver Lens developer, image-retrieval background): https://linkedin.com/in/cassiosantosjr
 
 **Open-source card recognition projects**

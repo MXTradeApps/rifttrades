@@ -268,7 +268,7 @@ class SyncNotifier extends Notifier<SyncStatus> {
       state = SyncStatus(
         lastSyncedAt: state.lastSyncedAt,
         error: "Couldn't sync with your account. Your data is safe on this "
-            'device and will sync when the connection recovers.',
+            'device and will retry the next time you launch the app.',
       );
     }
   }

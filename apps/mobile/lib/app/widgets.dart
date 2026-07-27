@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/data/set_logo_cache.dart';
 import '../core/models/card_model.dart';
 import '../core/providers.dart';
+import 'fallback_network_image.dart';
 import 'theme.dart';
 
 /// Official Riftbound set key-art / logo for browse lists. Falls back to
@@ -203,7 +203,7 @@ class CardThumbnail extends StatelessWidget {
             size: width * 0.4, color: scheme.outline),
       );
     } else {
-      child = CachedNetworkImage(
+      child = FallbackNetworkImage(
         imageUrl: url!,
         width: width,
         height: height,

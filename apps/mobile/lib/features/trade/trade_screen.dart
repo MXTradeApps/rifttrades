@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app.dart';
+import '../../app/printing_picker.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
@@ -313,8 +314,8 @@ class _TradeSideList extends ConsumerWidget {
               onDec: () =>
                   notifier.setQuantity(side, item.card.id, item.quantity - 1),
               onRemove: () => notifier.removeCard(side, item.card.id),
-              onTap: () => _editFinish(
-                  context, ref, side, item, oppositeFinish(catalog, item.card)),
+              onTap: () => _editVersion(
+                  context, ref, side, item, printingsForCard(catalog, item.card)),
             ),
           AddListRow(
             label: addLabel,
@@ -634,85 +635,26 @@ class _TradeItemRow extends StatelessWidget {
   }
 }
 
-/// Bottom sheet to switch a trade line between its Normal and Foil printing.
-/// The Foil switch is disabled when the card has no alternate finish.
-void _editFinish(
+/// Bottom sheet to pick among available versions for a trade line
+/// (finishes, alt arts, …).
+Future<void> _editVersion(
   BuildContext context,
   WidgetRef ref,
   TradeSide side,
   TradeItem item,
-  CardModel? counterpart,
-) {
+  List<CardModel> printings,
+) async {
   final pricing = ref.read(pricingProvider);
-  final card = item.card;
-  final normal = card.isFoil ? counterpart : card;
-  final foil = card.isFoil ? card : counterpart;
-
-  showModalBottomSheet<void>(
+  final picked = await showPrintingPicker(
     context: context,
-    showDragHandle: true,
-    builder: (ctx) {
-      final theme = Theme.of(ctx);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CardThumbnail(
-                      url: card.imageUrl,
-                      foil: card.isFoil,
-                      width: 40,
-                      height: 56),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(card.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        CardMetaLine(card: card),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                secondary: Icon(Icons.auto_awesome,
-                    color: card.isFoil
-                        ? const Color(0xFF9B5DE5)
-                        : theme.colorScheme.onSurfaceVariant),
-                title: const Text('Foil'),
-                subtitle: Text(
-                  counterpart == null
-                      ? 'No foil version of this card'
-                      : 'Foil ${pricing.priceLabel(foil!)}  ·  Normal ${pricing.priceLabel(normal!)}',
-                  style: theme.textTheme.bodySmall,
-                ),
-                value: card.isFoil,
-                onChanged: counterpart == null
-                    ? null
-                    : (_) {
-                        ref
-                            .read(tradeDraftProvider.notifier)
-                            .replaceCard(side, card.id, counterpart);
-                        Navigator.pop(ctx);
-                      },
-              ),
-            ],
-          ),
-        ),
-      );
-    },
+    current: item.card,
+    printings: printings,
+    priceLabel: pricing.priceLabel,
   );
+  if (picked == null) return;
+  ref
+      .read(tradeDraftProvider.notifier)
+      .replaceCard(side, item.card.id, picked);
 }
 
 class _QtyStepper extends StatelessWidget {

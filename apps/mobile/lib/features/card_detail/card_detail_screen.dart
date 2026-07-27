@@ -1,9 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/fallback_network_image.dart';
+import '../../app/printing_picker.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
@@ -71,7 +72,7 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
                   tag: 'card_${_selected.id}',
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: CachedNetworkImage(
+                    child: FallbackNetworkImage(
                       imageUrl: _selected.imageUrl ?? '',
                       height: 176,
                       width: 126,
@@ -134,8 +135,9 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
                       const SizedBox(height: 12),
                       _PrintingSelector(
                         printings: printings,
-                        selectedId: _selected.id,
+                        selected: _selected,
                         onSelect: _select,
+                        priceLabel: pricing.priceLabel,
                       ),
                     ],
                   ],
@@ -218,7 +220,7 @@ void _showCardImageViewer(BuildContext context, CardModel card) {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: CachedNetworkImage(
+                    child: FallbackNetworkImage(
                       imageUrl: url,
                       fit: BoxFit.contain,
                       placeholder: (_, _) => const SizedBox(
@@ -254,27 +256,14 @@ void _showCardImageViewer(BuildContext context, CardModel card) {
 class _PrintingSelector extends StatelessWidget {
   const _PrintingSelector({
     required this.printings,
-    required this.selectedId,
+    required this.selected,
     required this.onSelect,
+    required this.priceLabel,
   });
   final List<CardModel> printings;
-  final String selectedId;
+  final CardModel selected;
   final ValueChanged<CardModel> onSelect;
-
-  /// Short abbreviations for the verbose DB qualifier values.
-  static const _shortQualifiers = <String, String>{
-    'Alternate Art': 'Alt Art',
-    'Overnumbered': 'Overnumber',
-  };
-
-  /// Concise label for a printing: just its art variant ("Alt Art",
-  /// "Overnumber", "Signature") or "Foil"/"Normal" for the base card. The foil
-  /// icon avatar already conveys the finish, so no collector number is shown.
-  static String _label(CardModel c) {
-    final qualifier = nameQualifier(c.name);
-    if (qualifier != null) return _shortQualifiers[qualifier] ?? qualifier;
-    return c.isFoil ? 'Foil' : 'Normal';
-  }
+  final String Function(CardModel) priceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -283,35 +272,34 @@ class _PrintingSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text('Versions',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(width: 6),
-            Text('(${printings.length})',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ],
-        ),
+        Text('Versions',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final c in printings)
-              ChoiceChip(
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                side: BorderSide(color: theme.colorScheme.outline),
-                avatar: c.isFoil
-                    ? const Icon(Icons.auto_awesome, size: 14)
-                    : null,
-                label: Text(_label(c)),
-                selected: c.id == selectedId,
-                onSelected: (_) => onSelect(c),
-              ),
-          ],
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          leading: selected.isFoil
+              ? const Icon(Icons.auto_awesome, color: Color(0xFF9B5DE5))
+              : Icon(Icons.style_outlined,
+                  color: theme.colorScheme.onSurfaceVariant),
+          title: Text(printingLabel(selected)),
+          subtitle: Text(
+            '${printings.length} versions · tap to change',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          trailing: Icon(Icons.unfold_more,
+              color: theme.colorScheme.onSurfaceVariant),
+          onTap: () async {
+            final picked = await showPrintingPicker(
+              context: context,
+              current: selected,
+              printings: printings,
+              priceLabel: priceLabel,
+            );
+            if (picked != null) onSelect(picked);
+          },
         ),
       ],
     );

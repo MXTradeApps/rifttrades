@@ -1,211 +1,159 @@
-# RiftTrades — Architecture & Build Plan
+# RiftTrades — Architecture
 
-A cross-platform (Android + iOS) mobile companion app for trading **Riftbound**
-(Riot Games' League of Legends TCG). Inspired by *MTG Trades*: look up prices,
-balance trades, manage want lists/collection, and scan cards.
+A cross-platform (Android + iOS) mobile companion for trading **Riftbound**
+(Riot Games' League of Legends TCG). Look up prices, balance trades, manage binder
+and want lists, lend cards, and scan.
 
-**This app reads from a shared Supabase database** populated daily by the pipeline in
-[`../services/price-pipeline`](../services/price-pipeline). The same DB backs any other app (incl. the existing web
-app). See §3 and [`DATABASE.md`](DATABASE.md).
-
-> Status: Phases 0–5 built (search, card detail, trade balancer + history, collection &
-> want lists, card scanning). See [`../context.md`](../context.md) for the current app
-> code map and handoff notes. This document remains the source of truth for stack, data
-> model, and roadmap.
+**Status:** Auth, sync, Pro entitlements, and shared UI widgets are in place.
+This document describes what shipped, not the original build plan.
 
 ---
 
 ## 1. Goals & non-goals
 
 ### Goals
-- **Price lookup** for any Riftbound card/printing (normal/foil), TCGplayer (USD) or
-  CardMarket (EUR), market or low.
-- **Trade balancer** — add cards + cash to "Have" / "Want" sides, see live delta.
-- **Trade history** — store completed trades with *at-the-time* prices.
-- **Want lists & collection** — track owned/wanted cards + total value.
-- **Card scanning** — camera → OCR the collector number → identify → add to trade/collection.
-- **Offline-first** — full card DB cached locally; usable at a game store with no signal.
-- **Android + iOS in sync** — one codebase, features ship to both simultaneously.
+- Price lookup for any Riftbound printing (normal/foil), TCGplayer (USD) or
+  CardMarket (EUR).
+- Trade balancer with Confirm Trade → history + binder reconcile.
+- Binder and want list, lend/borrow tracker, camera scan (visual hash + OCR).
+- Offline-first user data; signed-in cloud sync; RiftTrades Pro via RevenueCat.
 
-### Non-goals (for now)
-- Gameplay simulation / deck legality (Riot's terms restrict this).
-- A marketplace / buying & selling. We show prices; we don't broker sales.
-- Re-implementing the data pipeline — the web app already owns it (§3).
+### Non-goals
+- Gameplay simulation / deck legality.
+- A marketplace.
+- A web app (mobile-only product).
 
 ---
 
-## 2. Stack decision: Flutter
+## 2. Stack
 
-**Chosen: Flutter (Dart)** — one codebase compiles to Android + iOS, features land on
-both at once, strong support for lists/images/charts/camera+OCR. (Full comparison vs.
-Kotlin Multiplatform and React Native is in git history; Flutter won on sync + speed.)
+- **Flutter** (`apps/mobile`), package name `rifttrades`, root widget `RiftTradesApp`
+- **Riverpod** state (no codegen)
+- **supabase_flutter** for catalog reads, Auth, and sync
+- **SharedPreferences** for local user data (not drift)
+- **cached_network_image**, **fl_chart**, **camera** + **google_mlkit_text_recognition**
+- **purchases_flutter** / RevenueCat for subscriptions
 
-### Core packages (planned)
-- **State/DI:** `riverpod` (+ `flutter_riverpod`)
-- **Backend/data:** `supabase_flutter` (reads the shared Supabase DB)
-- **Local DB / cache:** `drift` (typed SQLite) for offline mirror of fetched rows (§5)
-- **Images:** `cached_network_image`
-- **Charts:** `fl_chart` (price history, once history is tracked)
-- **Scanning (Phase 5):** `camera` + `google_mlkit_text_recognition`
-- **Models/serialization:** `freezed` + `json_serializable`
-- **Routing:** `go_router`
+Build/run always needs `--dart-define-from-file=env/production.json` (or
+`env/staging.json`). See [ENVIRONMENTS.md](ENVIRONMENTS.md).
 
 ---
 
-## 3. Reuse strategy — the web app is the backend
+## 3. Data backend
 
-Rather than each app scraping/parsing data, a **single Supabase database is the shared
-backend**. A Node pipeline (this repo's [`../services/price-pipeline`](../services/price-pipeline)) ingests the sources
-and upserts them daily; every app just reads Supabase.
-
-### The pipeline (in `services/price-pipeline/`, runs daily via GitHub Actions)
-Sources — both free, no API key (TCGCSV needs a `User-Agent` header):
-- **TCGCSV** (`tcgcsv.com/tcgplayer/89/...`), Riftbound = **Game ID 89**: sets via `/groups`,
-  cards + USD prices + art via each set's `ProductsAndPrices.csv`.
-- **CardMarket** EU prices from public S3 (game 22), matched to cards by normalized name.
-
-The pipeline (`fetchGroups` → `fetchGroupProducts` → `fetchCardMarketByName` →
-`buildRows` → chunked `upsert`) writes to Supabase and appends a daily `price_history`
-row per card. This *replaces* the web app's old `consolidated-data.json` output.
-
-### The shared database (Supabase project `RiftTrades`)
-See [`DATABASE.md`](DATABASE.md) for connection info and example queries.
+A Node ingest under `services/price-pipeline` runs daily (GitHub Actions) and
+upserts into Supabase: TCGCSV (Riftbound game id 89) + CardMarket. Clients only
+read. See [DATABASE.md](DATABASE.md).
 
 ```
 [TCGCSV + CardMarket]
-        │  services/price-pipeline/ (Node) — daily GitHub Action
+        │  services/price-pipeline (Node) — daily Action
         ▼
-Supabase Postgres:  sets · cards · card_prices · price_history
-        │  (RLS: public read-only; pipeline writes with service_role)
-        ├───────────────► Flutter mobile app  (supabase_flutter)
-        └───────────────► web app / other tools (supabase-js)
-```
-
-Benefits: one source of truth for all apps, prices + daily history maintained centrally,
-server-side search/filter/sort, and no per-app data parsing.
-
-### How the mobile app consumes it
-Query the `cards_with_prices` view via `supabase_flutter` (search/filter server-side),
-then mirror fetched rows into a local `drift` cache for offline use (§5). Card art loads
-from the `image_url` (TCGplayer CDN).
-
-### Logic reused from the web app
-- **Pipeline** ports the web app's ingest logic (sealed-product filter, safe numeric
-  parsing, CardMarket name-matching, foil detection) into `services/price-pipeline/src/` — already done.
-- **App** only needs the small bits: trade math (`Σ price×qty`; `have − want`) and
-  price/foil selection, reimplemented in Dart (a few dozen lines).
-
----
-
-## 4. Card identity & the real data schema
-
-The app reads clean, typed rows from the `cards_with_prices` view (full column list in
-[`DATABASE.md`](DATABASE.md)). The pipeline has already handled the messy parts (string
-prices → `numeric`, sealed-product flag, foil detection, CardMarket matching), so the
-Dart model maps 1:1 to typed columns:
-
-| Column | Meaning | Notes |
-| --- | --- | --- |
-| `id` | **primary key per printing**, `"<product_id>-<subtype>"` | e.g. `684123-foil` |
-| `product_id` | TCGplayer product id | NOT unique (Normal+Foil share it) |
-| `unique_id` | `SSSNNNN` convenience id | mirrors fabtrades/web-app convention |
-| `set_id`, `set_name` | set | e.g. `24560`, `"Unleashed"` |
-| `name`, `clean_name` | card name | |
-| `image_url` | card art (TCGplayer CDN) | |
-| `is_foil`, `sub_type_name` | foil flag / variant | precomputed |
-| `is_sealed` | sealed product? | filter `= false` for real cards |
-| `rarity` | `Common/…/Champion` | |
-| `collector_number` | e.g. `"147/219"` | **the OCR scan key** (§7) |
-| `tcg_low/mid/high/market/direct_low` | TCGplayer USD | `numeric`, `null` if unpriced |
-| `cardmarket_id` | EU id or `null` | `null` ⇒ no EU price |
-| `cm_avg/low/trend` (+ `…_foil`) | CardMarket EUR | `numeric`, `null` if unmatched |
-
-**Notes for the Dart model:**
-- Distinct printings (normal vs foil, alt-art) are separate rows keyed by `id`
-  (`product_id` alone is not unique); group by `name` for display.
-- Filter sealed products with `is_sealed = false` server-side.
-- `price_history(card_id, captured_on, tcg_market, tcg_low, cm_trend, cm_low)` backs charts.
-
----
-
-## 5. Local storage
-
-- **Card/price data:** query Supabase (`cards_with_prices`) directly for search; mirror
-  fetched rows into a local **drift** (SQLite) cache so the last-seen data works offline.
-  ~1.6k rows is tiny — an initial full sync + periodic refresh is fine.
-- **User data (local, optionally cloud-synced later):**
-
-```
-collection(card_id, quantity, condition, is_wanted)   -- card_id = cards.id
-trades(id, created_at, notes)
-trade_items(trade_id, side, card_id?, quantity, cash_amount?, price_at_time)
-settings(price_source, price_type)   -- tcgplayer|cardmarket, market|low
-```
-
-Card/price data lives in the shared Supabase DB (refreshed daily by the pipeline); user
-data starts device-local and can sync via Supabase Auth + RLS later (§8, Phase 6).
-
----
-
-## 6. App structure (feature-first)
-
-```
-lib/
-  main.dart
-  app/                 # theme, router, root widget
-  core/
-    data/              # supabase client + queries, drift offline cache
-    models/            # freezed Card/Printing/Trade (mirrors §4 schema)
-    logic/             # price/foil selection, trade math
-  features/
-    search/            # card search + filters (set/rarity/faction)
-    card_detail/       # printings, current price, image
-    trade/             # trade balancer + history
-    collection/        # owned + want lists
-    scan/              # camera + OCR (Phase 5)
+Supabase:  sets · cards · card_prices · price_history
+        │  + rift_* user-data tables
+        └───────────────► Flutter app
 ```
 
 ---
 
-## 7. Scanning approach (Phase 5) — OCR the collector number
+## 4. Auth
 
-Confirmed viable: real cards expose `collector_number` like `"147/219"`.
+Supabase Auth with Apple, Google, and Discord. Deep-link scheme `rifttrades`,
+redirect `rifttrades://login-callback`. Session restore gates sync and Pro
+identity binding (`Purchases.logIn` with the Supabase user id).
 
-1. Camera frame → **ML Kit text recognition** (on-device, offline, free).
-2. Parse the printed **collector number** (+ name) from the OCR text.
-3. Match against `collector_number` in Supabase / the local cache.
-4. Confirm with the user (show matched card), then add to trade/collection.
-
-Far more reliable than image matching and correctly distinguishes printings. Ships last
-because search + trade balancing deliver most of the value first.
+Signed-out use remains fully supported: binder, trades, and settings stay on
+device. Sync is an addition, never a precondition for drawing a screen.
 
 ---
 
-## 8. Phased roadmap
+## 5. Cloud sync
 
-- **Phase 0 — DONE (data backend).** Shared Supabase DB + daily pipeline are built (see
-  `../services/price-pipeline`, [`DATABASE.md`](DATABASE.md)). Remaining: run the first production ingest
-  (needs the service_role key) to populate it.
-- **Phase 1 — Search + price lookup.** `supabase_flutter` query on `cards_with_prices`
-  (name/set/rarity), card detail with image + current price; price source/type toggle.
-- **Phase 2 — Offline cache.** Mirror fetched rows into drift, background refresh.
-- **Phase 3 — Trade balancer.** Have/Want + cash, live delta, save trade with at-the-time
-  prices; trade history.
-- **Phase 4 — Collection & want lists.** Owned + wanted, totals, sorting.
-- **Phase 5 — Card scanning.** ML Kit OCR of `collector_number` → identify → add.
-- **Phase 6 — Cloud sync (optional).** Supabase Auth + RLS for multi-device user data.
+Local SharedPreferences remain the read source of truth. After sign-in,
+`SyncNotifier` runs **once per launch** (see Known gaps), reconciles each domain
+against the `rift_*` tables, and refreshes providers whose cache changed.
+
+### Merge rule
+
+Per-record **last-write-wins** on client-supplied `updated_at`, with deletes as
+tombstones (`deleted_at`). Implemented in `mergeRecords` (`lib/core/sync/sync_record.dart`):
+
+- Newer `updated_at` wins.
+- Equal timestamps with a delete on one side prefer the delete.
+- Otherwise a tie keeps the local copy so the device in hand does not appear to
+  discard an edit you just made.
+
+`SyncJournal` (prefs key `sync_journal_v1`) stores per-record timestamps,
+tombstones, high-water marks, and which account the cache belongs to — without
+changing the on-disk shape of binder/trade/settings JSON that existing installs
+already have.
 
 ---
 
-## 9. Open questions / decisions
-- **First ingest:** add the `service_role` key to `services/price-pipeline/.env` and run `npm run ingest`
-  (or set the CI secrets and trigger the Action) to populate the DB.
-- **Default price display:** TCGplayer US vs CardMarket EU — expose as a setting.
-- **Price history depth:** `price_history` starts accumulating from the first run; charts
-  get more useful over time. Consider a retention/rollup policy later.
-- **Riot compliance:** card art comes from the TCGplayer CDN. Riot's developer program
-  prefers official assets via the Riot API for published apps; track as a pre-launch legal
-  item, especially for store submission.
-- **Web app migration:** repoint it from `consolidated-data.json` to the Supabase view
-  (field mapping in [`DATABASE.md`](DATABASE.md)); you mentioned doing this later.
+## 6. Entitlements (RiftTrades Pro)
+
+Access is a row in `rift_entitlements`, written only by Edge Functions
+(RevenueCat webhook + nightly reconcile). Clients may `select` their own row.
+
+### Single-accessor rule
+
+Every Pro decision goes through:
+
+`entitlementProvider` → `isProProvider`
+
+Nothing else reads `CustomerInfo` or the server row to decide access. Mobile
+merges device SDK state with the server row and grants Pro when **either** says
+so (device is instant after purchase; server covers cross-platform). Destructive
+trims (trade-history window) also consult `entitlementResolvedProvider` so an
+unknown entitlement cannot delete history.
+
+Details: [ENTITLEMENTS.md](ENTITLEMENTS.md). Caps: [../context.md](../context.md).
+
+---
+
+## 7. App structure
+
 ```
+apps/mobile/lib/main.dart
+apps/mobile/lib/app/           # theme, shell, shared widgets
+apps/mobile/lib/core/config/   # Supabase, Auth, RevenueCat
+apps/mobile/lib/core/data/     # repositories
+apps/mobile/lib/core/logic/    # pricing, free limits, set sort
+apps/mobile/lib/core/models/
+apps/mobile/lib/core/sync/     # journal, merge, adapters
+apps/mobile/lib/core/scan/     # pHash + frame hashing
+apps/mobile/lib/features/      # search, card_detail, trade, binder,
+                               # want_list, lend, scan, settings, auth, paywall, sync
+```
+
+---
+
+## 8. Scanning
+
+Each camera frame fuses a 256-bit perceptual hash of the guide rectangle against
+bundled catalog hashes with ML Kit name / collector-number OCR (Reciprocal Rank
+Fusion). See `docs/card-scanning-research.md` and `docs/card-scanning-learnings.md`.
+
+---
+
+## Known gaps
+
+Inherited from the shared mobile design; not introduced by this port, but both
+will generate support questions.
+
+### Sync runs once per launch
+
+There is no timer, no resume-on-connectivity hook, and no push-on-write. If a
+sync fails, the UI now says data will retry on the **next launch**. Softening
+that copy was preferred over claiming automatic recovery that the code does not
+do. A proper fix is a connectivity resume hook (or periodic retry) that calls
+`SyncNotifier.sync` again.
+
+### Trade-history trim is retroactive
+
+Free tier keeps three saved trades (`FreeLimits.savedTrades`). A free user who
+already had more than three from before the cap shipped loses the excess the
+first time they save a trade. Guarding on `entitlementResolvedProvider` stops
+trimming while Pro state is *unknown*, but a genuinely free user still loses
+history. Prefer a one-time grandfather, or trim only rows created after the cap
+shipped.

@@ -1,40 +1,64 @@
 # RiftTrades
 
-A cross-platform (Android + iOS) mobile companion app for trading **Riftbound**,
-Riot Games' League of Legends TCG. Look up prices, balance trades, manage your
-collection and want lists, and scan cards. Inspired by *MTG Trades*.
+Cross-platform (Android + iOS) Flutter companion for trading **Riftbound**
+(Riot Games' League of Legends TCG). Look up prices, balance trades, manage a
+binder and want list, lend cards, and scan with the camera.
 
-This repo contains two things:
-1. **`services/price-pipeline/`** — a daily data pipeline that publishes the Riftbound card + price
-   database to a shared **Supabase** project (so multiple apps can use it).
-2. **The Flutter app** (planned) — reads that shared database.
+## Repo layout
 
-**Status:** Data backend built & verified. Flutter app not started yet.
+| Path | What it is |
+| --- | --- |
+| `apps/mobile/` | Flutter app (the product) |
+| `services/price-pipeline` | Daily Node ingest: TCGCSV + CardMarket → Supabase |
+| `supabase/` | Migrations and Edge Functions for auth, sync, entitlements |
+| `docs/` | Architecture, database, environments, entitlements, releasing |
 
-📄 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (stack + build plan) ·
-[`docs/DATABASE.md`](docs/DATABASE.md) (shared DB contract + queries) ·
-[`services/price-pipeline/README.md`](services/price-pipeline/README.md) (run the pipeline).
+## Run the app
 
-## Planned app stack
-- **Flutter** (Dart) — one codebase, Android + iOS in sync
-- **supabase_flutter** for data, **Riverpod** state, **drift** offline cache
-- **ML Kit** on-device OCR for card scanning (reads the collector number)
+From `apps/mobile`, every build and run needs an env file (no default — missing
+flag fails at startup):
 
-## Data: shared Supabase database
-A Node pipeline ingests **TCGCSV** (Riftbound = Game ID 89, card data + art + USD prices)
-and **CardMarket** (EU prices), then upserts into Supabase daily via GitHub Actions.
-Every app reads one source of truth.
-- Project `RiftTrades` · `https://tenrvaghaspwdvnwvgrh.supabase.co`
-- Tables: `sets`, `cards`, `card_prices`, `price_history` (+ `cards_with_prices` view)
-- Public read-only via RLS; only the pipeline (service role) writes
-- Card art: TCGplayer CDN · Prices: USD + EUR · Scan key: `collector_number` (e.g. `147/219`)
-
-## Roadmap (short)
-0. **Done** — shared Supabase DB + daily pipeline (run first ingest to populate)
-1. Card search + price lookup (source/type toggle)
-2. Offline cache + background refresh
-3. Trade balancer + history
-4. Collection & want lists
-5. Card scanning (OCR the collector number)
-6. Optional cloud sync (Supabase Auth + RLS)
+```powershell
+flutter run --dart-define-from-file=env/production.json
+flutter build appbundle --release --dart-define-from-file=env/production.json
+flutter test --dart-define-from-file=env/production.json
 ```
+
+Staging (sandbox purchases → fabloodle):
+
+```powershell
+flutter run --dart-define-from-file=env/staging.json
+```
+
+See [apps/mobile/env/README.md](apps/mobile/env/README.md) and
+[docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md).
+
+## Shared database
+
+Supabase project `RiftTrades` (`tenrvaghaspwdvnwvgrh`) holds:
+
+- **Catalog** (unprefixed, shared): `sets`, `cards`, `card_prices`, `price_history`,
+  `pipeline_runs`, `app_config`, view `cards_with_prices`
+- **User data** (`rift_`-prefixed): binder, lend groups, trades, settings,
+  entitlements, billing events
+
+Catalog tables are public read-only via RLS. User-data tables are scoped to
+`auth.uid()`. Details: [docs/DATABASE.md](docs/DATABASE.md).
+
+## Docs
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — stack, auth, sync, Pro access
+- [docs/DATABASE.md](docs/DATABASE.md) — schema and ownership split
+- [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md) — production vs staging
+- [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) — purchase → Pro path
+- [docs/RELEASING.md](docs/RELEASING.md) — `mobile-v*` tag flow
+- [context.md](context.md) — agent handoff / code map
+
+## Free-tier caps
+
+| Cap | Limit | At the cap |
+| --- | --- | --- |
+| Binder cards | 5 | refuse the add |
+| Want-list cards | 4 | refuse the add |
+| Loaned cards | 1 | refuse (borrowing uncapped) |
+| Saved trades | 3 | trim oldest; never refuse the save |

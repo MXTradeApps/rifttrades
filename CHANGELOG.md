@@ -9,6 +9,14 @@ and this project tracks versions via `apps/mobile/pubspec.yaml` (`version: name+
 
 ### Added
 
+- **Auth, cloud sync, and RiftTrades Pro.** Supabase Auth (Apple / Google /
+  Discord), `rift_*` user-data sync (last-write-wins), RevenueCat →
+  `rift_entitlements` via webhook + nightly reconcile. Free-tier caps: binder 5,
+  want list 4, loaned 1, saved trades 3. Build/run requires
+  `--dart-define-from-file=env/production.json` (or staging). Docs:
+  `docs/ENVIRONMENTS.md`, `docs/ENTITLEMENTS.md`, `docs/RELEASING.md`.
+- Shared card UI: `CardFilterBar`, `FallbackNetworkImage`, and
+  `showPrintingPicker` under `apps/mobile/lib/`.
 - **Visual + OCR live scanner (Phase 1).** Each camera frame fuses two offline
   signals: a 256-bit perceptual hash (pHash) of the card inside the guide
   rectangle, matched against bundled catalog hashes, and ML Kit name /

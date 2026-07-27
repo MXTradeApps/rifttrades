@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/app.dart';
+import '../../app/card_filter_bar.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/data/set_logo_cache.dart';
@@ -535,79 +536,11 @@ class _FilterBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(searchFiltersProvider.notifier);
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          FilterChip(
-            label: const Text('Foil'),
-            avatar: const Icon(Icons.auto_awesome, size: 16),
-            selected: filters.foilOnly,
-            onSelected: notifier.setFoilOnly,
-          ),
-          const SizedBox(width: 8),
-          _DropChip<CardSort>(
-            label: 'Sort',
-            selected: filters.sort != CardSort.nameAsc,
-            value: filters.sort,
-            icon: Icons.sort,
-            items: CardSort.values
-                .map((s) =>
-                    PopupMenuItem(value: s, child: Text(s.label)))
-                .toList(),
-            onSelected: notifier.setSort,
-          ),
-          if (filters.hasActiveFilters) ...[
-            const SizedBox(width: 8),
-            ActionChip(
-              label: const Text('Clear'),
-              avatar: const Icon(Icons.close, size: 16),
-              onPressed: notifier.clear,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _DropChip<T> extends StatelessWidget {
-  const _DropChip({
-    required this.label,
-    required this.selected,
-    required this.value,
-    required this.items,
-    required this.onSelected,
-    this.icon,
-  });
-
-  final String label;
-  final bool selected;
-  final T value;
-  final List<PopupMenuEntry<T>> items;
-  final ValueChanged<T> onSelected;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return PopupMenuButton<T>(
-      initialValue: value,
-      onSelected: onSelected,
-      itemBuilder: (_) => items,
-      child: Chip(
-        backgroundColor: selected ? scheme.primaryContainer : null,
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[Icon(icon, size: 16), const SizedBox(width: 4)],
-            Text(label),
-            const Icon(Icons.arrow_drop_down, size: 18),
-          ],
-        ),
-      ),
+    return CardFilterBar(
+      filters: filters,
+      onFoilOnly: notifier.setFoilOnly,
+      onSort: notifier.setSort,
+      onClear: notifier.clear,
     );
   }
 }

@@ -45,7 +45,7 @@ moves inside it. No new data model — the existing store already splits on
     (existing `pricing.value` per entry × qty).
   - **Want List tab**: move the existing show-mode grid from
     `features/want_list/` in unchanged.
-- `app/app.dart` HomeShell: replace the Want List destination with Binder.
+- `apps/mobile/lib/app/app.dart` HomeShell: replace the Want List destination with Binder.
   Delete the dead Collection wiring.
 - Empty state: two prominent actions — "Scan cards" and "Add by search" —
   not a bare list + FAB.
