@@ -1,9 +1,8 @@
 # Supabase CLI configuration.
 #
-# This project is shared with FAB Trades: RiftTrades owns the unprefixed catalog
-# tables and the rift_* user-data tables. See README.md in this directory before
-# adding migrations.
-project_id = "tenrvaghaspwdvnwvgrh"
+# Production is the fabloodle project. Staging is intended to be fabtools once
+# that paused project can be restored (free-tier org limit). See README.md.
+project_id = "cnmxaccamqshgvesieez"
 
 [api]
 enabled = true
@@ -69,16 +68,11 @@ verify_jwt = false
 [functions.reconcile-entitlements]
 verify_jwt = false
 
-# Staging points at the free fabloodle project so sandbox purchases never touch
-# production entitlements and we do not pay for a persistent branch. Schema is
-# applied by running each migration's SQL against the database (SQL editor or
-# MCP execute_sql), then inserting the version into
-# supabase_migrations.schema_migrations by hand — `db push` cannot run from this
-# repo because the shared project has FAB Trades versions with no local files.
-# Auth overrides only what differs; provider secrets still come from that
-# project's environment.
+# Intended staging project (currently paused). Free orgs are limited to two active
+# projects; until fabtools can be restored, staging builds use the interim project
+# documented in docs/ENVIRONMENTS.md.
 [remotes.staging]
-project_id = "cnmxaccamqshgvesieez"
+project_id = "akpgocviouxipfckqomv"
 
 [remotes.staging.auth]
 site_url = "http://localhost:3000"

@@ -8,18 +8,20 @@ from TCGCSV (TCGplayer) + CardMarket.
 
 | | |
 | --- | --- |
-| Project | `RiftTrades` (`tenrvaghaspwdvnwvgrh`) |
-| URL | `https://tenrvaghaspwdvnwvgrh.supabase.co` |
-| Publishable key | `sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr` |
+| Project | `fabloodle` (`cnmxaccamqshgvesieez`) |
+| URL | `https://cnmxaccamqshgvesieez.supabase.co` |
+| Publishable key | `sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom` |
 
 The publishable key is safe to ship in client apps. Catalog tables are **public
 read-only** via RLS; only the ingest `service_role` key can write them. Never put
 the `service_role` key in a client app.
 
-## Shared-project ownership
+## Ownership
 
-This Supabase project is shared with another mobile product. **Do not** recreate
-or alter unprefixed user-data tables that belong to that product. RiftTrades owns:
+RiftTrades production owns fabloodle's unprefixed catalog and the `rift_*`
+user-data tables. The project still contains leftover `fab_*` / game tables from
+earlier use — do not alter those. Always use the `rift_*` names for RiftTrades
+user data in app code and migrations.
 
 | Purpose | RiftTrades table |
 | --- | --- |
@@ -30,10 +32,6 @@ or alter unprefixed user-data tables that belong to that product. RiftTrades own
 | Settings | `rift_user_settings` |
 | Pro access | `rift_entitlements` |
 | Billing event log | `rift_billing_events` |
-
-Writing Riftbound user data into the unprefixed binder/trades tables would mix
-it with the other product's customers. Always use the `rift_*` names in app code
-and migrations.
 
 ## Catalog tables
 
@@ -81,8 +79,8 @@ Migrations: `20260726143000_rift_cloud_sync_user_data.sql`,
 
 ```dart
 final supabase = SupabaseClient(
-  'https://tenrvaghaspwdvnwvgrh.supabase.co',
-  'sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr',
+  'https://cnmxaccamqshgvesieez.supabase.co',
+  'sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom',
 );
 
 final rows = await supabase

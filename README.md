@@ -33,11 +33,11 @@ flutter run --dart-define-from-file=env/staging.json
 See [apps/mobile/env/README.md](apps/mobile/env/README.md) and
 [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md).
 
-## Shared database
+## Database
 
-Supabase project `RiftTrades` (`tenrvaghaspwdvnwvgrh`) holds:
+Production Supabase project **fabloodle** (`cnmxaccamqshgvesieez`) holds:
 
-- **Catalog** (unprefixed, shared): `sets`, `cards`, `card_prices`, `price_history`,
+- **Catalog** (unprefixed): `sets`, `cards`, `card_prices`, `price_history`,
   `pipeline_runs`, `app_config`, view `cards_with_prices`
 - **User data** (`rift_`-prefixed): binder, lend groups, trades, settings,
   entitlements, billing events

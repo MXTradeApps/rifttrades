@@ -34,12 +34,12 @@ The Android id and iOS bundle id genuinely differ. That is not a typo to fix.
 
 | Thing | Value |
 | --- | --- |
-| Production project ref | `tenrvaghaspwdvnwvgrh` |
-| Production URL | `https://tenrvaghaspwdvnwvgrh.supabase.co` |
-| Production publishable key | `sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr` |
-| Staging project ref (`fabloodle`) | `cnmxaccamqshgvesieez` |
-| Staging URL | `https://cnmxaccamqshgvesieez.supabase.co` |
-| Staging publishable key | **Not in this file — ask for it** |
+| Production project ref (`fabloodle`) | `cnmxaccamqshgvesieez` |
+| Production URL | `https://cnmxaccamqshgvesieez.supabase.co` |
+| Production publishable key | `sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom` |
+| Staging (interim) project ref | `tenrvaghaspwdvnwvgrh` |
+| Staging (interim) URL | `https://tenrvaghaspwdvnwvgrh.supabase.co` |
+| Staging (intended) project ref (`fabtools`, paused) | `akpgocviouxipfckqomv` |
 
 ### RevenueCat
 
@@ -250,24 +250,24 @@ insert into supabase_migrations.schema_migrations (version, name)
 values ('<version>', '<name>');
 ```
 
-Never run `npx supabase db pull`, `db diff`, or `db reset` against
-`tenrvaghaspwdvnwvgrh`. That project is shared with FAB Trades, and those
-commands will pull in or try to drop its tables. Write migrations by hand.
+Never run `npx supabase db pull`, `db diff`, or `db reset` against the interim
+staging project `tenrvaghaspwdvnwvgrh` — that database still hosts FAB Trades
+tables. Prefer linking and working against fabloodle (`cnmxaccamqshgvesieez`).
+Write migrations by hand when `db push` is blocked by foreign migration history.
 
 ## Migration filenames
 
 Format: `<UTC timestamp>_<snake_case_description>.sql`, e.g.
 `20260726143000_rift_cloud_sync_user_data.sql`.
 
-The `supabase_migrations.schema_migrations` table on the shared project holds
-versions from **both** repos, so this repo's history will have gaps that belong to
-FAB Trades. That is expected. Because of that shared history, `db push` refuses
-to run at all — apply migrations by executing their SQL against the database,
-then inserting the version row into `supabase_migrations.schema_migrations` by
-hand.
+fabloodle may still carry migration versions from earlier tenants. If `db push`
+refuses, apply migrations by executing their SQL, then inserting the version row
+into `supabase_migrations.schema_migrations` by hand.
 
 No RiftTrades migration may reference a `fab_*` object. A clean local stack only
-has this repo's migrations, so such a reference would fail in CI.
+has this repo's migrations, so such a reference would fail in CI. Keep new
+user-data tables `rift_`-prefixed — fabloodle still has leftover unprefixed /
+`fab_*` tables.
 
 ## Commit style
 

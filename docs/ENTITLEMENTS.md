@@ -93,8 +93,9 @@ npx supabase functions deploy reconcile-entitlements
 Both functions use `verify_jwt = false` in `supabase/config.toml` — RevenueCat
 sends the shared secret, not a Supabase JWT.
 
-Staging uses a **separate sandbox-only webhook** on fabloodle
-(`cnmxaccamqshgvesieez`). Production webhook stays on `tenrvaghaspwdvnwvgrh`.
+Production webhook targets fabloodle
+(`cnmxaccamqshgvesieez`). Staging uses a **separate sandbox-only webhook** on
+the interim staging project (`tenrvaghaspwdvnwvgrh`) until fabtools is restored.
 See [ENVIRONMENTS.md](ENVIRONMENTS.md).
 
 | CI secret | Value |
@@ -125,6 +126,6 @@ saved trades 3 (trim oldest). See [../context.md](../context.md).
 3. `rift_entitlements` row for that `user_id`: `is_active`, `tier`, `expires_at`,
    `is_sandbox`, `source`.
 4. `rift_billing_events` for the purchase event id — did the webhook 200?
-5. Staging vs production: a sandbox buy against fabloodle will never light up
-   production Pro.
+5. Staging vs production: a sandbox buy against the staging project will never
+   light up production Pro on fabloodle.
 6. Force-close and relaunch (sync + entitlement refresh run on launch).

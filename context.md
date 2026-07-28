@@ -68,9 +68,9 @@ RevenueCat entitlement id `RiftTrades Pro` — see `docs/ENTITLEMENTS.md`.
 
 ## Supabase (client, safe to ship)
 
-- URL: `https://tenrvaghaspwdvnwvgrh.supabase.co`
-- Publishable key: `sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr`
-- Project id: `tenrvaghaspwdvnwvgrh`
+- URL: `https://cnmxaccamqshgvesieez.supabase.co`
+- Publishable key: `sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom`
+- Project id: `cnmxaccamqshgvesieez` (fabloodle)
 - Catalog tables are public read-only (RLS). User data uses `rift_*` tables
   scoped to `auth.uid()`.
 - Query the **`cards_with_prices`** view for catalog search.

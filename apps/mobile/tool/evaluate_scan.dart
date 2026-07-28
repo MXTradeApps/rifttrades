@@ -34,8 +34,8 @@ import 'package:rifttrades/core/scan/card_hash_index.dart';
 import 'package:rifttrades/core/scan/phash.dart';
 import 'package:rifttrades/core/scan/rectify.dart';
 
-const _supabaseUrl = 'https://tenrvaghaspwdvnwvgrh.supabase.co';
-const _supabaseKey = 'sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr';
+const _supabaseUrl = 'https://cnmxaccamqshgvesieez.supabase.co';
+const _supabaseKey = 'sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom';
 const _hashAssetPath = 'assets/scan/card_hashes.json';
 const _cacheDir = 'tool/.cache/images';
 

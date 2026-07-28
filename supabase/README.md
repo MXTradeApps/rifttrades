@@ -2,44 +2,38 @@
 
 Database schema for RiftTrades.
 
-## This project is shared
+## Projects
 
-The Supabase project `tenrvaghaspwdvnwvgrh` backs two products:
+| Role | Project | Ref |
+| --- | --- | --- |
+| Production | **fabloodle** | `cnmxaccamqshgvesieez` |
+| Staging (intended) | **fabtools** (paused) | `akpgocviouxipfckqomv` |
+| Staging (interim) | former `RiftTrades` project | `tenrvaghaspwdvnwvgrh` |
 
-- **RiftTrades** owns the unprefixed catalog tables (`sets`, `cards`,
-  `card_prices`, `price_history`, `pipeline_runs`, `app_config`, and the
-  `cards_with_prices` view) and the `rift_`-prefixed user-data tables. Those are
-  the migrations in this directory.
-- **FAB Trades** owns the `fab_*` catalog tables and the unprefixed user-data
-  tables (`trades`, `binder_entries`, `lend_groups`, `user_settings`,
-  `entitlements`, `billing_events`). Its migrations live in that product's
-  repository.
+Production lives on **fabloodle**. That project still has leftover `fab_*` /
+game tables from earlier use; RiftTrades owns the unprefixed catalog and the
+`rift_*` user-data tables. Keep the `rift_` prefix on new user-data tables so
+they never collide with those leftovers.
 
-So the version numbers here have gaps, and that is deliberate — the missing
-versions belong to FAB Trades. Two consequences worth knowing:
+The former `RiftTrades` project (`tenrvaghaspwdvnwvgrh`) is left for **FAB Trades**
+auth and data. RiftTrades production no longer points at it.
 
-- `supabase db push` from this repo refuses to run: the remote has FAB Trades
-  versions with no matching files here, so the CLI aborts before applying
-  anything. Apply migrations by executing their SQL (SQL editor or MCP
-  `execute_sql`), then inserting the version into
-  `supabase_migrations.schema_migrations` by hand.
-- A clean local stack from this repo alone has the Riftbound catalog and, once
-  later phases land them, the `rift_*` user-data tables. It will not have FAB's
-  tables.
+### Why staging is interim
 
-Before adding a user-data table, prefix it `rift_`. New catalog objects stay
-unprefixed only when they are genuinely part of the shared Riftbound catalog
-surface this app already owns.
+The org is on the free plan (two active projects). Restoring paused **fabtools**
+fails while fabloodle and the FAB Trades project are both active. Until a free
+slot opens or the org upgrades, staging builds use `tenrvaghaspwdvnwvgrh` so
+sandbox traffic stays off fabloodle production. When fabtools can be restored,
+apply the migrations there, deploy Edge Functions, and retarget
+`apps/mobile/env/staging.json`.
 
 ## Layout
 
 ```
 migrations/    Schema changes, applied in filename order
 config.toml    Local stack + CLI configuration
+functions/     Edge Functions (RevenueCat webhook + reconcile)
 ```
-
-Edge Functions will live under `functions/` once Phase 5 adds them. Until then
-this directory holds schema only.
 
 Migration filenames must match the versions you insert into
 `supabase_migrations.schema_migrations` on the remote. When you apply SQL by
@@ -52,21 +46,17 @@ The CLI is not committed as a dependency; use `npx supabase` (or install it per 
 [Supabase docs](https://supabase.com/docs/guides/local-development)).
 
 ```bash
-npx supabase link --project-ref tenrvaghaspwdvnwvgrh
-npx supabase migration list                    # compare local and remote history
+npx supabase link --project-ref cnmxaccamqshgvesieez
+npx supabase migration list
 ```
 
-To apply a migration: run its SQL against the database, then:
+fabloodle may still carry migration history from its previous tenants. If
+`db push` refuses because of foreign versions, apply SQL by hand then:
 
 ```sql
 insert into supabase_migrations.schema_migrations (version, name)
 values ('<version>', '<name>');
 ```
-
-**Never** run `db pull`, `db diff`, or `db reset` against the shared project
-`tenrvaghaspwdvnwvgrh`. Those commands will pull in or try to drop FAB Trades'
-tables. Write migrations by hand. `db push` is also unusable here for the
-shared-history reason above.
 
 Never edit an already-applied migration. The remote records a checksum per
 version, so amending one makes local and remote disagree in a way that is
@@ -74,15 +64,13 @@ tedious to unpick. Add a new migration instead.
 
 ## Authentication
 
-Three providers, enabled for both clients: Apple, Google, and Discord.
-`config.toml` declares them, but a linked project reads its provider settings
-from the dashboard rather than from this file, so changes there must be made in
-both places.
+Three providers: Apple, Google, and Discord. `config.toml` declares them, but a
+linked project reads provider settings from the dashboard, so changes there must
+be made in both places.
 
-The one setting that silently breaks mobile sign-in if missed:
 `rifttrades://login-callback` must appear in **Authentication → URL Configuration →
-Redirect URLs**. Without it Google and Discord sign-in completes in the browser and
-never returns to the app.
+Redirect URLs** on fabloodle (and on staging). Without it Google and Discord
+sign-in completes in the browser and never returns to the app.
 
 ## Row Level Security
 
@@ -93,9 +81,9 @@ Every table has RLS enabled. The rules for objects this repo owns are:
   and the client reads them without signing in.
 - **`pipeline_runs`** — RLS enabled with no policy at all, so only the service
   role can see them. Ingest logs are operational data.
-- **User data** (`rift_*` tables, once added) — `select`/`insert`/`update`/`delete`
+- **User data** (`rift_*` tables) — `select`/`insert`/`update`/`delete`
   restricted to `auth.uid() = user_id`.
-- **`rift_entitlements`** (once added) — `select` only, restricted to
+- **`rift_entitlements`** — `select` only, restricted to
   `auth.uid() = user_id`. Read-only to clients by design; Edge Functions write it
   with the service role.
 

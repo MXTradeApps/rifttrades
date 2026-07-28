@@ -10,16 +10,46 @@ is for the test build to be physically unable to reach the production database.
 
 ## Which project is which
 
-| | Production | Staging |
+| | Production | Staging (interim) |
 | --- | --- | --- |
-| Supabase | `tenrvaghaspwdvnwvgrh` (RiftTrades) | `cnmxaccamqshgvesieez` (**fabloodle**) |
+| Supabase | `cnmxaccamqshgvesieez` (**fabloodle**) | `tenrvaghaspwdvnwvgrh` (former RiftTrades / FAB host) |
 | Mobile env file | `apps/mobile/env/production.json` | `apps/mobile/env/staging.json` |
 
-Staging reuses the existing **fabloodle** Supabase project rather than a paid
-persistent branch of production. Apply the same RiftTrades migrations and Edge
-Functions there so sandbox purchases write entitlement rows without another
-billable database. Schema drift between the two projects is possible — apply
-migrations to both when they change.
+**Intended staging** is the paused **fabtools** project (`akpgocviouxipfckqomv`).
+Restoring it is blocked on the free plan while two other projects are already
+active. Until fabtools is restored, staging uses the former production project
+so sandbox purchases never hit fabloodle. That interim project is also FAB
+Trades' production auth host — keep sandbox webhooks on `rift_*` tables only.
+
+### Cutover checklist (fabloodle production)
+
+Done in the July 2026 migration:
+
+- [x] Catalog ingested into fabloodle; `app_config` seeded
+- [x] `apps/mobile/env/production.json` → fabloodle
+- [x] GitHub secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+      `SUPABASE_FUNCTIONS_URL` → fabloodle
+- [x] RevenueCat production webhook → fabloodle; sandbox → interim staging
+- [x] `rifttrades://login-callback` on fabloodle auth redirect allow-list
+      (Apple / Google / Discord already enabled)
+
+Still manual / follow-up:
+
+- [ ] Confirm OAuth client redirect URIs (Google / Discord / Apple) include
+      fabloodle's callback host if providers were configured only for the old project
+- [ ] Restore **fabtools** for dedicated staging (below)
+- [ ] Optional: remove leftover Riftbound catalog / `rift_*` tables from
+      `tenrvaghaspwdvnwvgrh` once nothing RiftTrades-related points there
+
+### Restoring fabtools (target staging)
+
+1. Free an active project slot (pause/delete something unused) **or** upgrade the org.
+2. Restore `akpgocviouxipfckqomv` in the Supabase dashboard / MCP.
+3. Apply this repo's three migrations (SQL + `schema_migrations` rows).
+4. Set secrets and deploy `revenuecat-webhook` + `reconcile-entitlements`.
+5. Point `apps/mobile/env/staging.json` at fabtools' URL + publishable key.
+6. Move the RevenueCat **sandbox** webhook to
+   `https://akpgocviouxipfckqomv.supabase.co/functions/v1/revenuecat-webhook`.
 
 ## How the mobile app is told
 
@@ -40,14 +70,12 @@ Publishable keys in those files are committed deliberately: they are public by
 design, gated by RLS. RevenueCat API keys come from CI secrets; a build without
 one runs with subscriptions switched off.
 
-## Applying schema and functions to staging
-
-Point the CLI at fabloodle, apply migrations, set secrets, deploy functions:
+## Applying schema and functions to a non-production project
 
 ```powershell
 npx supabase login
-npx supabase link --project-ref cnmxaccamqshgvesieez
-# Apply this repo's migration SQL by hand (db push is unreliable on the shared project)
+npx supabase link --project-ref <staging-ref>
+# Apply this repo's migration SQL by hand if db push is unreliable
 npx supabase secrets set `
   REVENUECAT_WEBHOOK_SECRET=<any long random string> `
   RECONCILE_SECRET=<a different long random string> `
@@ -57,26 +85,25 @@ npx supabase functions deploy revenuecat-webhook
 npx supabase functions deploy reconcile-entitlements
 ```
 
-In RevenueCat → **Integrations → Webhooks**, add a sandbox webhook pointing at:
+### RevenueCat webhooks
 
-`https://cnmxaccamqshgvesieez.supabase.co/functions/v1/revenuecat-webhook`
+| Traffic | Target |
+| --- | --- |
+| Production (live) | `https://cnmxaccamqshgvesieez.supabase.co/functions/v1/revenuecat-webhook` |
+| Sandbox (interim staging) | `https://tenrvaghaspwdvnwvgrh.supabase.co/functions/v1/revenuecat-webhook` |
 
-Keep the production webhook on `tenrvaghaspwdvnwvgrh` so live purchases never
-hit fabloodle.
+After fabtools is restored, move the sandbox webhook to that project.
 
-Card catalog data is not shared automatically. Run the price ingest once against
-fabloodle if a staging build needs a usable binder; purchase-flow testing only
-needs auth + the entitlements tables.
-
-Auth providers on fabloodle need the same Apple / Google / Discord setup as
-production, plus `rifttrades://login-callback` in the redirect allow-list.
+Auth providers on fabloodle need Apple / Google / Discord, plus
+`rifttrades://login-callback` in the redirect allow-list. Same for whatever
+project staging uses.
 
 ## Price ingest
 
 Already environment-driven: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, from
-GitHub secrets in CI or a local `.env` under `services/price-pipeline`. That
-file holds a real secret — never appear in a client build or this repository's
-tracked files.
+GitHub secrets in CI or a local `.env` under `services/price-pipeline`. Those
+secrets must point at **fabloodle** (production). That file holds a real secret —
+never appear in a client build or this repository's tracked files.
 
 ## Release builds
 

@@ -141,8 +141,8 @@ unused — the detail screen uses the in-memory `printingsForCard` instead.
 
 ## 6. Supabase database (read-only for the app)
 
-- Project `RiftTrades` = `tenrvaghaspwdvnwvgrh`,
-  URL `https://tenrvaghaspwdvnwvgrh.supabase.co`, publishable key in
+- Project `fabloodle` = `cnmxaccamqshgvesieez`,
+  URL `https://cnmxaccamqshgvesieez.supabase.co`, publishable key in
   `apps/mobile/lib/core/config/supabase_config.dart`. Public read-only via RLS; the daily
   pipeline (GitHub Action, 06:00 UTC) writes with the service role.
 - App reads the view **`cards_with_prices`** (filter `is_sealed = false`).
