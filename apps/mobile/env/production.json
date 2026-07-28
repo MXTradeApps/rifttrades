@@ -1,5 +1,8 @@
 {
   "APP_ENV": "production",
   "SUPABASE_URL": "https://tenrvaghaspwdvnwvgrh.supabase.co",
-  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr"
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_ohMvMDesyA2rr4Y4nfALpg_i0N-swkr",
+  "REVENUECAT_TEST_STORE_API_KEY": "test_pNkvvcIvNtBUREaHEEEVPprwgYD",
+  "REVENUECAT_APPLE_API_KEY": "appl_lMyAuFdaohlrsxljVEIUqTZUmcn",
+  "REVENUECAT_GOOGLE_API_KEY": "goog_FuVWBuJCNJDQryRAJrsnSlJmkSk"
 }

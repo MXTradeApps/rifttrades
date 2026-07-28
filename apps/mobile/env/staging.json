@@ -1,5 +1,8 @@
 {
   "APP_ENV": "staging",
   "SUPABASE_URL": "https://cnmxaccamqshgvesieez.supabase.co",
-  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom"
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_4hW7qDSTmCljfKl-dB43kQ_xSk0JFom",
+  "REVENUECAT_TEST_STORE_API_KEY": "test_pNkvvcIvNtBUREaHEEEVPprwgYD",
+  "REVENUECAT_APPLE_API_KEY": "appl_lMyAuFdaohlrsxljVEIUqTZUmcn",
+  "REVENUECAT_GOOGLE_API_KEY": "goog_FuVWBuJCNJDQryRAJrsnSlJmkSk"
 }
