@@ -9,6 +9,7 @@ binder and want list, lend cards, and scan with the camera.
 | Path | What it is |
 | --- | --- |
 | `apps/mobile/` | Flutter app (the product) |
+| `apps/legal/` | Static Privacy / Terms pages for store review (deploy to Netlify) |
 | `services/price-pipeline` | Daily Node ingest: TCGCSV + CardMarket → Supabase |
 | `supabase/` | Migrations and Edge Functions for auth, sync, entitlements |
 | `docs/` | Architecture, database, environments, entitlements, releasing |
@@ -52,6 +53,7 @@ Catalog tables are public read-only via RLS. User-data tables are scoped to
 - [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md) — production vs staging
 - [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) — purchase → Pro path
 - [docs/RELEASING.md](docs/RELEASING.md) — `mobile-v*` tag flow
+- [docs/APP_STORE_REVIEW.md](docs/APP_STORE_REVIEW.md) — ASC legal URLs + demo account
 - [context.md](context.md) — agent handoff / code map
 
 ## Free-tier caps

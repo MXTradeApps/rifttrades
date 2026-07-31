@@ -67,6 +67,10 @@ void main() {
         Account.fromUser(_user(provider: 'discord')).provider,
         AuthProviderKind.discord,
       );
+      expect(
+        Account.fromUser(_user(provider: 'email')).provider,
+        AuthProviderKind.email,
+      );
       // An unrecognised provider is not an error; the UI just omits it.
       expect(Account.fromUser(_user(provider: 'twitter')).provider, isNull);
       expect(Account.fromUser(_user()).provider, isNull);

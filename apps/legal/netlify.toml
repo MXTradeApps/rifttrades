@@ -1,0 +1,22 @@
+# Static legal pages for App Store / Play review (Terms + Privacy).
+# Deploy this directory as a Netlify site and point the domain at it.
+#
+#   netlify deploy --prod --dir=apps/legal
+#   (or drag-drop apps/legal in the Netlify UI)
+#
+# Canonical URLs expected by the mobile app (LegalUrls):
+#   https://rifttrades.net/privacy
+#   https://rifttrades.net/terms
+
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/terms/index.html"
+  status = 200

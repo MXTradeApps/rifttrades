@@ -21,7 +21,8 @@ This document describes what shipped, not the original build plan.
 ### Non-goals
 - Gameplay simulation / deck legality.
 - A marketplace.
-- A web app (mobile-only product).
+- A product web app (mobile-only). Static Privacy / Terms pages for store
+  review live in `apps/legal/` and are not part of the product UI.
 
 ---
 
@@ -58,7 +59,8 @@ Supabase:  sets · cards · card_prices · price_history
 
 ## 4. Auth
 
-Supabase Auth with Apple, Google, and Discord. Deep-link scheme `rifttrades`,
+Supabase Auth with Apple, Google, Discord, and email/password (App Review demo
+path). Deep-link scheme `rifttrades`,
 redirect `rifttrades://login-callback`. Session restore gates sync and Pro
 identity binding (`Purchases.logIn` with the Supabase user id).
 

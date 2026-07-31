@@ -9,8 +9,12 @@ and this project tracks versions via `apps/mobile/pubspec.yaml` (`version: name+
 
 ### Added
 
+- **App Store review readiness.** Hosted Terms of Use + Privacy Policy
+  (`apps/legal/`, `https://rifttrades.net/terms` / `/privacy`), Settings → Legal
+  and My Account subscription Privacy/Terms links, email/password sign-in for
+  App Review demo accounts. Checklist: `docs/APP_STORE_REVIEW.md`.
 - **Auth, cloud sync, and RiftTrades Pro.** Supabase Auth (Apple / Google /
-  Discord), `rift_*` user-data sync (last-write-wins), RevenueCat →
+  Discord / email), `rift_*` user-data sync (last-write-wins), RevenueCat →
   `rift_entitlements` via webhook + nightly reconcile. Free-tier caps: binder 5,
   want list 4, loaned 1, saved trades 3. Build/run requires
   `--dart-define-from-file=env/production.json` (or staging). Docs:
