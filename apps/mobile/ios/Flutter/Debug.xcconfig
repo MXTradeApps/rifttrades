@@ -1,2 +1,6 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+// Flutter sets EXCLUDED_ARCHS=arm64 for simulator when Google ML Kit pods declare
+// it; iOS 26+ Apple Silicon sims are arm64-only. Cleared after Generated.xcconfig.
+// Paired with Podfile mlkit_apple_silicon_simulator_patch.
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386

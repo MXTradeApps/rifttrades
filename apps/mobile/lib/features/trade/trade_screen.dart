@@ -16,6 +16,7 @@ import '../../core/providers.dart';
 import '../onboarding/onboarding_keys.dart';
 import '../onboarding/showcase_theme.dart';
 import '../onboarding/tour_copy.dart';
+import '../paywall/pro_gate.dart';
 import '../scan/scan_screen.dart';
 import '../search/card_picker.dart';
 import 'trade_filler_sheet.dart';
@@ -550,13 +551,17 @@ class _DragBar extends StatelessWidget {
 
 /// Compact "Find Trade Filler" pill shown in the drag bar's empty middle space
 /// whenever the two sides are not of equal value.
-class _FindFillerButton extends StatelessWidget {
+///
+/// Stays visible for free users (with a PRO badge) so the feature is
+/// discoverable; the sheet itself is gated by [showTradeFillerSheet].
+class _FindFillerButton extends ConsumerWidget {
   const _FindFillerButton({required this.onTap});
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final isPro = ref.watch(isProProvider);
     return Material(
       color: scheme.primaryContainer,
       borderRadius: BorderRadius.circular(20),
@@ -579,6 +584,10 @@ class _FindFillerButton extends StatelessWidget {
                   color: scheme.onPrimaryContainer,
                 ),
               ),
+              if (!isPro) ...[
+                const SizedBox(width: 6),
+                const ProBadge(),
+              ],
             ],
           ),
         ),

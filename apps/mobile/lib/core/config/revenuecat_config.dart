@@ -48,7 +48,8 @@ class RevenueCatConfig {
   /// Only a fallback: packages normally resolve by [PackageType], which is what
   /// attaching them to the `$rc_annual` / `$rc_monthly` slots gives you.
   static const yearlyProductIds = {
-    'com.rifttrades.rifttrades.pro.yearly', // App Store
+    'com.rifttrades.app.pro.yearly', // App Store (active)
+    'com.rifttrades.rifttrades.pro.yearly', // App Store (legacy / inactive)
     'pro_yearly', // Play Store, base plan appended
     'yearly', // Test Store
   };
@@ -56,7 +57,8 @@ class RevenueCatConfig {
   /// Every store identifier that means "the monthly plan". See
   /// [yearlyProductIds] for why there is more than one.
   static const monthlyProductIds = {
-    'com.rifttrades.rifttrades.pro.monthly', // App Store
+    'com.rifttrades.app.pro.monthly', // App Store (active)
+    'com.rifttrades.rifttrades.pro.monthly', // App Store (legacy / inactive)
     'pro_monthly', // Play Store, base plan appended
     'monthly', // Test Store
   };

@@ -45,7 +45,7 @@ dependencies:
   # Prefer Camera2 (NV21) over CameraX so ML Kit OCR gets correctly labeled
   # buffers on Android. CameraX has mis-labeled YUV → release OCR NPEs.
   camera_android: ^0.10.11
-  google_mlkit_text_recognition: ^0.15.1
+  google_mlkit_text_recognition: ^0.16.0
   google_fonts: ^8.1.0
   package_info_plus: ^10.2.1
   url_launcher: ^6.3.2

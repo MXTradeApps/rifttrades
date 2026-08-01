@@ -61,6 +61,12 @@ The Android id and iOS bundle id genuinely differ. That is not a typo to fix.
 | `loanedCards` | 1 | refuse; borrowing is uncapped |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
 
+### Pro-only features
+
+| Feature | Behaviour |
+| --- | --- |
+| Find Trade Filler | Hard gate via `ensurePro` before the sheet opens |
+
 ## Database table names
 
 RiftTrades owns the **unprefixed catalog** tables and **`rift_`-prefixed user

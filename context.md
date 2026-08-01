@@ -27,7 +27,7 @@ so they can check their binder against it.
 **Trade Filler**:
 A suggested card whose price closes the value gap of a live trade. The side
 that owes value determines whose cards are relevant: my side needs value → my
-Binder; their side needs value → my Want List.
+Binder; their side needs value → my Want List. RiftTrades Pro only.
 
 **Confirm Trade**:
 The single action that executes a live trade: it is recorded to history and

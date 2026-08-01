@@ -118,6 +118,12 @@ an unknown state cannot delete data.
 Defined in `lib/core/logic/free_limits.dart`: binder 5, want list 4, loaned 1,
 saved trades 3 (trim oldest). See [../context.md](../context.md).
 
+### Pro-only features
+
+| Feature | Gate |
+| --- | --- |
+| Find Trade Filler | `ensurePro` in `showTradeFillerSheet` |
+
 ## Debugging "I paid but I don't have Pro"
 
 1. Confirm they are signed in with the same Supabase account used at purchase
