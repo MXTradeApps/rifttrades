@@ -67,49 +67,91 @@ bool _matchesQuery(CardModel c, List<String> tokens) {
   return true;
 }
 
-/// Applies [filters] to an in-memory catalog (used for instant, offline
-/// browsing). Mirrors the ordering the database previously produced.
-List<CardModel> filterCards(List<CardModel> all, CardFilters filters) {
-  final tokens = filters.query
-      .toLowerCase()
-      .split(RegExp(r'\s+'))
-      .where((t) => t.isNotEmpty)
-      .toList();
-  final list = all.where((c) {
-    if (isNonCardProduct(c)) return false;
-    if (!_matchesQuery(c, tokens)) return false;
-    if (filters.setName != null && c.setName != filters.setName) return false;
-    if (filters.foilOnly && !c.isFoil) return false;
-    return true;
-  }).toList();
+/// Tokenizes a search query the same way Browse and Binder do (whitespace-
+/// split, lowercased, empty tokens dropped).
+List<String> queryTokens(String query) => query
+    .toLowerCase()
+    .split(RegExp(r'\s+'))
+    .where((t) => t.isNotEmpty)
+    .toList();
 
-  int byPrice(double? a, double? b, {required bool asc}) {
-    if (a == null && b == null) return 0;
-    if (a == null) return 1; // nulls last
-    if (b == null) return -1;
-    return asc ? a.compareTo(b) : b.compareTo(a);
-  }
+/// Whether [card] passes the non-sort parts of [filters] (query / set / foil).
+/// When [excludeNonCards] is true, sealed-style products are dropped (Browse).
+bool cardPassesFilters(
+  CardModel card,
+  CardFilters filters, {
+  List<String>? tokens,
+  bool excludeNonCards = true,
+}) {
+  if (excludeNonCards && isNonCardProduct(card)) return false;
+  if (!_matchesQuery(card, tokens ?? queryTokens(filters.query))) return false;
+  if (filters.setName != null && card.setName != filters.setName) return false;
+  if (filters.foilOnly && !card.isFoil) return false;
+  return true;
+}
 
-  switch (filters.sort) {
+int _compareNullablePrice(double? a, double? b, {required bool asc}) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1; // nulls last
+  if (b == null) return -1;
+  return asc ? a.compareTo(b) : b.compareTo(a);
+}
+
+/// Shared card ordering for Browse, Binder, and grouped browse views.
+int compareCards(CardModel a, CardModel b, CardSort sort) {
+  switch (sort) {
     case CardSort.nameAsc:
-      list.sort((a, b) =>
-          a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final byName = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      if (byName != 0) return byName;
+      final bySet = (a.setName ?? '')
+          .toLowerCase()
+          .compareTo((b.setName ?? '').toLowerCase());
+      if (bySet != 0) return bySet;
+      final an = a.collectorNumber ?? '';
+      final bn = b.collectorNumber ?? '';
+      final byNumber = an.compareTo(bn);
+      if (byNumber != 0) return byNumber;
+      if (a.isFoil != b.isFoil) return a.isFoil ? 1 : -1;
+      return a.id.compareTo(b.id);
     case CardSort.priceDesc:
-      list.sort((a, b) => byPrice(a.tcgMarket, b.tcgMarket, asc: false));
+      return _compareNullablePrice(a.tcgMarket, b.tcgMarket, asc: false);
     case CardSort.priceAsc:
-      list.sort((a, b) => byPrice(a.tcgMarket, b.tcgMarket, asc: true));
+      return _compareNullablePrice(a.tcgMarket, b.tcgMarket, asc: true);
     case CardSort.numberAsc:
-      list.sort((a, b) {
-        final an = a.collectorNumber;
-        final bn = b.collectorNumber;
-        if (an == null && bn == null) return 0;
-        if (an == null) return 1;
-        if (bn == null) return -1;
-        return an.compareTo(bn);
-      });
+      final an = a.collectorNumber;
+      final bn = b.collectorNumber;
+      if (an == null && bn == null) return 0;
+      if (an == null) return 1;
+      if (bn == null) return -1;
+      return an.compareTo(bn);
   }
+}
+
+/// Filters and sorts any list by its associated [CardModel], reusing the same
+/// query / foil / set / sort rules as Browse.
+List<T> filterByCardFilters<T>(
+  Iterable<T> items,
+  CardModel Function(T) toCard,
+  CardFilters filters, {
+  bool excludeNonCards = true,
+}) {
+  final tokens = queryTokens(filters.query);
+  final list = items
+      .where((item) => cardPassesFilters(
+            toCard(item),
+            filters,
+            tokens: tokens,
+            excludeNonCards: excludeNonCards,
+          ))
+      .toList();
+  list.sort((a, b) => compareCards(toCard(a), toCard(b), filters.sort));
   return list;
 }
+
+/// Applies [filters] to an in-memory catalog (used for instant, offline
+/// browsing). Mirrors the ordering the database previously produced.
+List<CardModel> filterCards(List<CardModel> all, CardFilters filters) =>
+    filterByCardFilters(all, (c) => c, filters);
 
 // ---------------------------------------------------------------------------
 // Grouping printings by card name (for the grouped Browse view)

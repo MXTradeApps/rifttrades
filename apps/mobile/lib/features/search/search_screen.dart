@@ -12,13 +12,14 @@ import '../../core/data/set_logo_cache.dart';
 import '../../core/data/set_logos.dart';
 import '../../core/data/set_published_on.dart';
 import '../../core/logic/set_sort.dart';
+import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
 import '../scan/scan_screen.dart';
 
 /// Top-level Browse tab: a global search bar over every set, then a list of
-/// sets to drill into. Searching short-circuits the set list and shows grouped
-/// results across the whole catalog.
+/// sets to drill into. Searching short-circuits the set list and shows every
+/// printing (finish / art / set variant) as its own row across the catalog.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
 
@@ -289,7 +290,8 @@ class _SetTileState extends ConsumerState<_SetTile>
   }
 }
 
-/// Grouped results for a global (all-sets) query typed in the Browse search bar.
+/// Flat printing results for a global (all-sets) query typed in the Browse
+/// search bar — each finish / art / set variant is its own selectable row.
 class _GlobalSearchResults extends ConsumerWidget {
   const _GlobalSearchResults({required this.query});
   final String query;
@@ -306,19 +308,18 @@ class _GlobalSearchResults extends ConsumerWidget {
         ),
       ),
       data: (all) {
-        final filtered = filterCards(all, CardFilters(query: query));
-        final groups = groupCardsByName(filtered, CardSort.nameAsc);
-        if (groups.isEmpty) {
+        final cards = filterCards(all, CardFilters(query: query));
+        if (cards.isEmpty) {
           return const _ScrollableCenter(child: _EmptyView());
         }
-        return _GroupList(groups: groups);
+        return _CardList(cards: cards);
       },
     );
   }
 }
 
-/// Cards within a single set, grouped by name, with search / foil / sort and
-/// pull-to-refresh.
+/// Cards within a single set — one row per printing — with search / foil /
+/// sort and pull-to-refresh.
 class SetCardsScreen extends ConsumerStatefulWidget {
   const SetCardsScreen({super.key, required this.setName});
 
@@ -353,7 +354,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final groups = ref.watch(browseGroupsProvider);
+    final results = ref.watch(browseResultsProvider);
     final filters = ref.watch(searchFiltersProvider);
 
     return Scaffold(
@@ -392,7 +393,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              child: groups.when(
+              child: results.when(
                 loading: () =>
                     const Center(child: CircularProgressIndicator.adaptive()),
                 error: (e, _) => _ScrollableCenter(
@@ -405,7 +406,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
                   if (list.isEmpty) {
                     return const _ScrollableCenter(child: _EmptyView());
                   }
-                  return _GroupList(groups: list);
+                  return _CardList(cards: list);
                 },
               ),
             ),
@@ -476,10 +477,11 @@ String _priceUpdatedLabel(DateTime? updatedAt) {
   return 'Prices updated $when';
 }
 
-/// A scrollable list of grouped cards, shared by the set view and global search.
-class _GroupList extends StatelessWidget {
-  const _GroupList({required this.groups});
-  final List<CardGroup> groups;
+/// A scrollable list of individual printings, shared by the set view and
+/// global search. Each row opens detail on that exact version.
+class _CardList extends StatelessWidget {
+  const _CardList({required this.cards});
+  final List<CardModel> cards;
 
   @override
   Widget build(BuildContext context) {
@@ -492,33 +494,31 @@ class _GroupList extends StatelessWidget {
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.only(bottom: bottomPad),
-      itemCount: groups.length,
+      itemCount: cards.length,
       separatorBuilder: (_, _) => const Divider(height: 1, indent: 14),
-      itemBuilder: (context, i) => _GroupTile(group: groups[i]),
+      itemBuilder: (context, i) => _CardTile(card: cards[i]),
     );
   }
 }
 
-/// One card name in the grouped browse list. Tapping opens the card detail
-/// screen, where the printings selector lets the user switch between every
-/// version.
-class _GroupTile extends ConsumerWidget {
-  const _GroupTile({required this.group});
-  final CardGroup group;
+/// One printing in the browse list. Tapping opens the card detail screen on
+/// that exact version (finish / art / set variant).
+class _CardTile extends ConsumerWidget {
+  const _CardTile({required this.card});
+  final CardModel card;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pricing = ref.watch(pricingProvider);
-    final rep = group.representative;
 
     void openDetail() => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => CardDetailScreen(card: rep)),
+          MaterialPageRoute(builder: (_) => CardDetailScreen(card: card)),
         );
 
     return CardRow(
-      card: rep,
-      priceLabel: pricing.priceLabel(rep),
-      secondaryLabel: pricing.lowPriceLabel(rep),
+      card: card,
+      priceLabel: pricing.priceLabel(card),
+      secondaryLabel: pricing.lowPriceLabel(card),
       priceSource: pricing.sourceLabel,
       showThumbnail: false,
       inlineBadges: true,

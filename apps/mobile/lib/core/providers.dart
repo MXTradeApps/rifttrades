@@ -530,8 +530,9 @@ final browseResultsProvider = Provider<AsyncValue<List<CardModel>>>((ref) {
   return catalog.whenData((cards) => filterCards(cards, filters));
 });
 
-/// Browse results collapsed into one entry per card name (all printings of a
-/// card grouped together), for the grouped Browse view.
+/// Browse results collapsed into one entry per card name. Kept for callers
+/// that still want grouping; the Browse UI lists each printing individually
+/// via [browseResultsProvider].
 final browseGroupsProvider = Provider<AsyncValue<List<CardGroup>>>((ref) {
   final results = ref.watch(browseResultsProvider);
   final sort = ref.watch(searchFiltersProvider).sort;
@@ -559,6 +560,35 @@ final priceUpdatedAtProvider = Provider<DateTime?>((ref) {
 // ---------------------------------------------------------------------------
 // Binder & want lists
 // ---------------------------------------------------------------------------
+
+/// Search / foil / sort for the Binder tab (independent of Browse filters).
+final binderFiltersProvider =
+    NotifierProvider<BinderFiltersNotifier, CardFilters>(
+        BinderFiltersNotifier.new);
+
+class BinderFiltersNotifier extends Notifier<CardFilters> {
+  @override
+  CardFilters build() => const CardFilters();
+
+  void setQuery(String q) => state = state.copyWith(query: q);
+  void setFoilOnly(bool v) => state = state.copyWith(foilOnly: v);
+  void setSort(CardSort s) => state = state.copyWith(sort: s);
+  void clear() => state = const CardFilters();
+}
+
+/// Binder-tab entries (`!isWanted`) after the same query / foil / sort rules
+/// as Browse. Non-card products are kept if the user already added them.
+final filteredBinderProvider = Provider<List<BinderEntry>>((ref) {
+  final entries = ref.watch(binderProvider).where((e) => !e.isWanted);
+  final filters = ref.watch(binderFiltersProvider);
+  return filterByCardFilters(
+    entries,
+    (e) => e.card,
+    filters,
+    excludeNonCards: false,
+  );
+});
+
 final binderRepositoryProvider = Provider<BinderRepository>((ref) =>
     BinderRepository(
         ref.watch(sharedPreferencesProvider), ref.watch(syncJournalProvider)));

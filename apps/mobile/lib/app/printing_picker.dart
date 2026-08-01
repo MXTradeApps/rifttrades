@@ -1,12 +1,32 @@
 import 'package:flutter/material.dart';
 
+import '../core/data/card_repository.dart';
 import '../core/models/card_model.dart';
 import 'widgets.dart';
 
 typedef PricingLabel = String Function(CardModel card);
 
-/// Concise label for a printing in a version picker.
-String printingLabel(CardModel card) => card.finishLabel;
+/// Distinguishing label for a printing in a version picker.
+///
+/// Finish alone ("Foil") is not enough — alternate arts, overnumbered /
+/// signature variants, and cross-set reprints all share the same finish. This
+/// builds a label from the parts that actually differ between printings:
+/// name qualifier, set, rarity, collector number, then finish.
+String printingLabel(CardModel card) {
+  final parts = <String>[];
+  final qualifier = nameQualifier(card.name);
+  if (qualifier != null && qualifier.isNotEmpty) parts.add(qualifier);
+  final setName = card.setName?.trim();
+  if (setName != null && setName.isNotEmpty) parts.add(setName);
+  final rarity = card.rarity?.trim();
+  if (rarity != null && rarity.isNotEmpty && rarity != 'None') {
+    parts.add(rarity);
+  }
+  final number = card.collectorNumber?.trim();
+  if (number != null && number.isNotEmpty) parts.add('#$number');
+  parts.add(card.finishLabel);
+  return parts.join(' · ');
+}
 
 /// Bottom sheet to pick among available printings/versions of a card
 /// (finishes, alt arts, …). Returns the chosen printing, or
@@ -76,12 +96,17 @@ Future<CardModel?> showPrintingPicker({
                       for (final printing in printings)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: !printing.isFoil
-                              ? Icon(Icons.style_outlined,
-                                  color: theme.colorScheme.onSurfaceVariant)
-                              : const Icon(Icons.auto_awesome,
-                                  color: Color(0xFF9B5DE5)),
-                          title: Text(printingLabel(printing)),
+                          leading: CardThumbnail(
+                            url: printing.imageUrl,
+                            foil: printing.isFoil,
+                            width: 36,
+                            height: 50,
+                          ),
+                          title: Text(
+                            printingLabel(printing),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           subtitle: priceLabel == null
                               ? null
                               : Text(priceLabel(printing),

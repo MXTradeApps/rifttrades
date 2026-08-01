@@ -342,7 +342,7 @@ void main() {
   });
 
   group('derived providers', () {
-    test('browseResults and browseGroups derive from catalog + filters',
+    test('browseResults lists every printing (not collapsed by name)',
         () async {
       final mockRepo = MockCardRepository();
       when(() => mockRepo.fetchAll()).thenAnswer((_) async => [
@@ -355,10 +355,7 @@ void main() {
       await c.read(catalogProvider.future);
 
       final results = c.read(browseResultsProvider).value!;
-      expect(results.length, 3);
-
-      final groups = c.read(browseGroupsProvider).value!;
-      expect(groups.map((g) => g.name), ['Ahri', 'Vex']);
+      expect(results.map((e) => e.id), ['a', 'n', 'f']);
     });
 
     test('priceUpdatedAtProvider returns the latest timestamp', () async {

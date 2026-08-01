@@ -47,8 +47,8 @@ abstract final class TourCopy {
 
   static const binderTotalTitle = 'Binder value';
   static const binderTotalBody =
-      'A running total of what\'s in your binder, using the price source from '
-      'Settings.';
+      'The chip shows a running total of what\'s in your binder, using the '
+      'price source from Settings.';
 
   static const binderFabTitle = 'Add cards';
   static const binderFabBody =

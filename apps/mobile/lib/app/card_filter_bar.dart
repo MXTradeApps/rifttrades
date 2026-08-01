@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/data/card_repository.dart';
 
-/// Horizontal foil + sort chips shared by Browse (set view) and Binder.
+/// Horizontal foil + sort chips for Browse (set view).
 class CardFilterBar extends StatelessWidget {
   const CardFilterBar({
     super.key,
