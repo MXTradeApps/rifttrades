@@ -206,7 +206,8 @@ jobs:
           PY
 
       - name: Guard Supabase env file
-        run: grep -q '"SUPABASE_URL": *"http' "env/${APP_ENVIRONMENT}.json"
+        run: |
+          grep -q '"SUPABASE_URL": *"http' "env/${APP_ENVIRONMENT}.json"
 
       - name: Build app bundle
         env:
