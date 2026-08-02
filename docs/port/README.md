@@ -10,8 +10,10 @@ execute. Read it only if a step here seems wrong, or if you are about to deviate
 ## How to work
 
 1. Read [`CONVENTIONS.md`](CONVENTIONS.md) **once, fully**, before your first
-   phase. It holds every constant, rename rule, and trap. Do not invent values
-   that are not in it.
+   mobile phase. It holds every constant, rename rule, and trap. Do not invent
+   values that are not in it. For Phases 10–12 (web), also read
+   [`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md) — the web app lives in a separate
+   repo and uses different paths and table names.
 2. Open the **one** phase file for the phase you are on. Do not read ahead to
    later phases — their file paths assume earlier phases already landed, and
    acting on them early will break things.
@@ -65,7 +67,9 @@ is. Do not skip the step and continue.
 
 Phases 0 through 4 are strictly sequential — each depends on the one before.
 Phase 5 depends on 3 and 4. Phases 6, 7, and 8 can be done in any order once 5
-is done.
+is done. Phase 9 follows 8. Phases 10 → 11 → 12 are sequential web work (separate
+repo; see [`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)). Phase 13 is mobile-only
+and may run in parallel with 10–12.
 
 | Phase | File | What it does | Status |
 | --- | --- | --- | --- |
@@ -79,6 +83,10 @@ is done.
 | 7 | [PHASE-7.md](PHASE-7.md) | One release tag for both stores | Done |
 | 8 | [PHASE-8.md](PHASE-8.md) | Remaining UI parity and docs | Done |
 | 9 | [PHASE-9.md](PHASE-9.md) | Recent FAB feature deltas (onboarding, multi-add, scan) | Done |
+| 10 | [PHASE-10.md](PHASE-10.md) | Web foundations: test infra, fabloodle client, sign-in, entitlements | Done |
+| 11 | [PHASE-11.md](PHASE-11.md) | Web binder, want list, shareable binders, draft persistence | Done |
+| 12 | [PHASE-12.md](PHASE-12.md) | Web trade history, Confirm Trade, denser calculator layout | Not started |
+| 13 | [PHASE-13.md](PHASE-13.md) | Mobile free binder/want caps → 50/50 (parity with web) | Not started |
 
 Set Status to `In progress` when you start a phase and `Done` when its Verify
 section passes and you have committed.
@@ -95,3 +103,5 @@ these and it is not done, stop and report — do not work around it.
 | Phase 4 Verify | Walk PHASE-4.md's manual check on two devices, or across a reinstall. Its automated checks pass, but no test can prove the merge behaves against a real account. Step 4 is the one that matters: if the first account's cards show up in the second account's binder, stop — that is live data corruption. |
 | Phase 5 Verify | Create the RevenueCat project, products, and `RiftTrades Pro` entitlement, then set the function secrets `REVENUECAT_WEBHOOK_SECRET`, `REVENUECAT_API_KEY`, and `RECONCILE_SECRET` on both Supabase projects. Also add the RevenueCat publishable SDK keys to `apps/mobile/env/*.json` — they are deliberately absent, and while absent `isConfigured` is false and subscriptions stay off. Debug builds use the Test Store, so store misconfiguration only surfaces in a release build. |
 | Phase 7 Verify | Confirm the Codemagic webhook fires on tag push |
+| Phase 10 Verify | On fabloodle: enable Google, Discord, Apple, and email Auth providers; add `http://localhost:5173`, `http://localhost:5173/**`, and the production Netlify origin (+ `/**`) to the redirect allow-list. Point Netlify `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` at fabloodle (or clear them so the Phase 10 code defaults apply). |
+| Phase 11 Verify | Supply the production web origin if share-link copy or redirect allow-list work still needs it. Apply `rift_binder_shares` SQL on fabloodle if the implementer cannot. |)
