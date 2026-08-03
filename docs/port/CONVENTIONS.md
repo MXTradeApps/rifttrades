@@ -56,9 +56,9 @@ The Android id and iOS bundle id genuinely differ. That is not a typo to fix.
 
 | Cap | Value | Behaviour at the cap |
 | --- | --- | --- |
-| `binderCards` | 5 | refuse the add |
-| `wantListCards` | 4 | refuse the add |
-| `loanedCards` | 1 | refuse; borrowing is uncapped |
+| `binderCards` | 50 | refuse the add |
+| `wantListCards` | 25 | refuse the add |
+| `loanedCards` | 25 | refuse; borrowing is uncapped |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
 
 ### Pro-only features

@@ -115,7 +115,7 @@ an unknown state cannot delete data.
 
 ### Free-tier caps
 
-Defined in `lib/core/logic/free_limits.dart`: binder 5, want list 4, loaned 1,
+Defined in `lib/core/logic/free_limits.dart`: binder 50, want list 25, loaned 25,
 saved trades 3 (trim oldest). See [../context.md](../context.md).
 
 ### Pro-only features

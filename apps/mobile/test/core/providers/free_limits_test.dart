@@ -53,9 +53,9 @@ void main() {
         const reason =
             'Documented free-tier limit in docs/port/CONVENTIONS.md; '
             'changing it is a product decision, not a refactor.';
-        expect(FreeLimits.binderCards, 5, reason: reason);
-        expect(FreeLimits.wantListCards, 4, reason: reason);
-        expect(FreeLimits.loanedCards, 1, reason: reason);
+        expect(FreeLimits.binderCards, 50, reason: reason);
+        expect(FreeLimits.wantListCards, 25, reason: reason);
+        expect(FreeLimits.loanedCards, 25, reason: reason);
         expect(FreeLimits.savedTrades, 3, reason: reason);
       },
     );
@@ -239,8 +239,10 @@ void main() {
       for (var i = 0; i < FreeLimits.loanedCards + 3; i++) {
         expect(lend.addCard(borrowed, buildCard(id: 'borrowed-$i')), isTrue);
       }
-      expect(lend.addCard(lent, buildCard(id: 'lent-0')), isTrue);
-      expect(lend.addCard(lent, buildCard(id: 'lent-1')), isFalse);
+      for (var i = 0; i < FreeLimits.loanedCards; i++) {
+        expect(lend.addCard(lent, buildCard(id: 'lent-$i')), isTrue);
+      }
+      expect(lend.addCard(lent, buildCard(id: 'one-too-many')), isFalse);
     });
 
     test('refuses raising quantity past the cap', () async {
@@ -249,7 +251,10 @@ void main() {
       final groupId = lend.createGroup(isBorrowing: false);
       lend.addCard(groupId, buildCard(id: 'only'));
 
-      expect(lend.setCardQuantity(groupId, 'only', 2), isFalse);
+      expect(
+        lend.setCardQuantity(groupId, 'only', FreeLimits.loanedCards + 1),
+        isFalse,
+      );
       expect(c.read(lendGroupProvider(groupId))!.items.single.quantity, 1);
     });
 
