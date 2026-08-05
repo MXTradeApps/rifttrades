@@ -61,9 +61,8 @@ The Android id and iOS bundle id genuinely differ. That is not a typo to fix.
 
 ### Free-tier limits
 
-Must stay in lockstep with the web app once Phase 11 lands (see
-[`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)). Phase 13 raises binder/want from
-the values below to **50 / 50** — until then, mobile still uses:
+Must stay in lockstep with the web app (see
+[`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)). Mobile currently ships:
 
 | Cap | Value | Behaviour at the cap |
 | --- | --- | --- |
@@ -71,6 +70,11 @@ the values below to **50 / 50** — until then, mobile still uses:
 | `wantListCards` | 25 | refuse the add |
 | `loanedCards` | 25 | refuse; borrowing is uncapped |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
+
+Note: [`PHASE-13.md`](PHASE-13.md) and the web conventions table still describe
+a planned **50 / 50** binder/want parity (with `loanedCards` at 1). Mobile's
+live numbers above came from a separate mainline change — reconcile web and
+Phase 13 against these before treating Phase 13 as done.
 
 ### Pro-only features
 
