@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/logic/free_limits.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
+import '../sync/sync_actions.dart';
 import 'pro_paywall.dart';
 
 /// Adds [card] to the binder or want list, turning a free-tier cap into an
@@ -28,6 +29,7 @@ Future<bool> addToBinderOrUpsell(
   final binder = ref.read(binderProvider.notifier);
 
   if (binder.add(card, quantity: quantity, isWanted: isWanted)) {
+    queueSyncAfterBinderChange(ref);
     if (successMessage != null) _showMessage(context, successMessage);
     return true;
   }
@@ -39,7 +41,9 @@ Future<bool> addToBinderOrUpsell(
     ref,
     message: '$listName hold $limit cards on the free plan.',
     onUpgraded: () {
-      binder.add(card, quantity: quantity, isWanted: isWanted);
+      if (binder.add(card, quantity: quantity, isWanted: isWanted)) {
+        queueSyncAfterBinderChange(ref);
+      }
       if (context.mounted) {
         _showMessage(
           context,

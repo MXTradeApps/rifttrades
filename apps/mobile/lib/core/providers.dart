@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -243,9 +244,33 @@ class SyncStatus {
 ///
 /// Signed out this does nothing at all, which is the point: the app has always
 /// worked without an account and continues to.
+///
+/// Two rate-limited entry points sit beside the unrestricted [sync] used on
+/// sign-in and from Settings:
+/// - [requestSyncAfterLocalChange] — after a binder add; debounced so a
+///   multi-add burst becomes one round-trip, with a floor between rounds.
+/// - [requestSyncFromUserRefresh] — pull-to-refresh; floor between pulls.
 class SyncNotifier extends Notifier<SyncStatus> {
+  /// Settles a burst of binder adds into one sync.
+  static const localChangeDebounce = Duration(seconds: 2);
+
+  /// Floor between add-triggered syncs.
+  static const localChangeMinInterval = Duration(seconds: 5);
+
+  /// Floor between pull-to-refresh syncs.
+  static const userRefreshMinInterval = Duration(seconds: 15);
+
+  Timer? _localChangeDebounce;
+  DateTime? _lastLocalChangeSyncAt;
+  DateTime? _lastUserRefreshAt;
+  bool _localChangePending = false;
+  String? _pendingLocalChangeUserId;
+  Future<void>? _inFlight;
+
   @override
   SyncStatus build() {
+    ref.onDispose(() => _localChangeDebounce?.cancel());
+
     final account = ref.watch(accountProvider).value;
     if (account != null) {
       // Deferred so the notifier finishes building before anything it might
@@ -255,8 +280,62 @@ class SyncNotifier extends Notifier<SyncStatus> {
     return const SyncStatus();
   }
 
-  Future<void> sync(String userId) async {
-    if (state.isSyncing) return;
+  /// Unrestricted sync (sign-in, Settings "Sync now"). Concurrent callers share
+  /// the in-flight future instead of stacking round-trips.
+  Future<void> sync(String userId) => _inFlight ??= _run(userId);
+
+  /// After a local binder write. Debounced and interval-limited.
+  void requestSyncAfterLocalChange(String userId) {
+    _pendingLocalChangeUserId = userId;
+    _localChangeDebounce?.cancel();
+    _localChangeDebounce = Timer(localChangeDebounce, () {
+      unawaited(_flushLocalChangeSync());
+    });
+  }
+
+  /// Pull-to-refresh. No-ops (aside from awaiting any in-flight sync) when the
+  /// refresh floor has not elapsed.
+  Future<void> requestSyncFromUserRefresh(String userId) async {
+    final last = _lastUserRefreshAt;
+    final now = clock.now();
+    if (last != null && now.difference(last) < userRefreshMinInterval) {
+      if (_inFlight != null) await _inFlight;
+      return;
+    }
+    _lastUserRefreshAt = now;
+    await sync(userId);
+  }
+
+  Future<void> _flushLocalChangeSync() async {
+    final userId = _pendingLocalChangeUserId;
+    if (userId == null) return;
+
+    if (_inFlight != null) {
+      // Journal keeps edits made mid-sync; schedule a follow-up when this
+      // round finishes so the newest write still reaches the server.
+      _localChangePending = true;
+      return;
+    }
+
+    final last = _lastLocalChangeSyncAt;
+    final now = clock.now();
+    if (last != null) {
+      final elapsed = now.difference(last);
+      if (elapsed < localChangeMinInterval) {
+        _localChangeDebounce?.cancel();
+        _localChangeDebounce = Timer(
+          localChangeMinInterval - elapsed,
+          () => unawaited(_flushLocalChangeSync()),
+        );
+        return;
+      }
+    }
+
+    _lastLocalChangeSyncAt = now;
+    await sync(userId);
+  }
+
+  Future<void> _run(String userId) async {
     state = SyncStatus(isSyncing: true, lastSyncedAt: state.lastSyncedAt);
 
     try {
@@ -270,6 +349,15 @@ class SyncNotifier extends Notifier<SyncStatus> {
         error: "Couldn't sync with your account. Your data is safe on this "
             'device and will retry the next time you launch the app.',
       );
+    } finally {
+      _inFlight = null;
+      if (_localChangePending) {
+        _localChangePending = false;
+        final pendingUser = _pendingLocalChangeUserId;
+        if (pendingUser != null) {
+          requestSyncAfterLocalChange(pendingUser);
+        }
+      }
     }
   }
 

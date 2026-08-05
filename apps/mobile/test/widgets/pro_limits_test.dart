@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:rifttrades/core/data/card_repository.dart';
 import 'package:rifttrades/core/logic/free_limits.dart';
+import 'package:rifttrades/core/models/account.dart';
 import 'package:rifttrades/core/models/card_model.dart';
 import 'package:rifttrades/core/models/subscription_status.dart';
 import 'package:rifttrades/core/providers.dart';
@@ -43,21 +44,23 @@ class _AddButton extends ConsumerWidget {
   }
 }
 
-Future<ProviderContainer> _pumpAddButton(
+Future<({ProviderContainer container, StubSyncNotifier sync})> _pumpAddButton(
   WidgetTester tester, {
   required bool isPro,
+  Account? account,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   final mockRepo = MockCardRepository();
   when(() => mockRepo.fetchAll()).thenAnswer((_) async => []);
+  final sync = StubSyncNotifier();
 
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       cardRepositoryProvider.overrideWithValue(mockRepo),
-      accountProvider.overrideWith((ref) => Stream.value(null)),
-      syncProvider.overrideWith(StubSyncNotifier.new),
+      accountProvider.overrideWithValue(AsyncValue.data(account)),
+      syncProvider.overrideWith(() => sync),
       subscriptionProvider.overrideWith(() => _FakeSubscription(isPro: isPro)),
       serverEntitlementProvider.overrideWith((ref) async => null),
     ],
@@ -74,14 +77,14 @@ Future<ProviderContainer> _pumpAddButton(
     ),
   );
   await tester.pumpAndSettle();
-  return container;
+  return (container: container, sync: sync);
 }
 
 void main() {
   testWidgets(
     'free user at binder cap sees Upgrade snackbar and no card is added',
     (tester) async {
-      final container = await _pumpAddButton(tester, isPro: false);
+      final (:container, sync: _) = await _pumpAddButton(tester, isPro: false);
       final binder = container.read(binderProvider.notifier);
 
       for (var i = 0; i < FreeLimits.binderCards; i++) {
@@ -110,7 +113,7 @@ void main() {
   testWidgets(
     'Pro user at the same count adds successfully with no snackbar',
     (tester) async {
-      final container = await _pumpAddButton(tester, isPro: true);
+      final (:container, sync: _) = await _pumpAddButton(tester, isPro: true);
       final binder = container.read(binderProvider.notifier);
 
       for (var i = 0; i < FreeLimits.binderCards; i++) {
@@ -136,6 +139,42 @@ void main() {
         container.read(binderProvider).any((e) => e.card.id == 'new-card'),
         isTrue,
       );
+    },
+  );
+
+  testWidgets(
+    'signed-in add queues a binder sync',
+    (tester) async {
+      final (:container, :sync) = await _pumpAddButton(
+        tester,
+        isPro: true,
+        account: const Account(id: 'user-1'),
+      );
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(binderProvider).any((e) => e.card.id == 'new-card'),
+        isTrue,
+      );
+      expect(sync.requested, ['user-1']);
+    },
+  );
+
+  testWidgets(
+    'signed-out add does not queue a sync',
+    (tester) async {
+      final (:container, :sync) = await _pumpAddButton(tester, isPro: true);
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(binderProvider).any((e) => e.card.id == 'new-card'),
+        isTrue,
+      );
+      expect(sync.requested, isEmpty);
     },
   );
 }

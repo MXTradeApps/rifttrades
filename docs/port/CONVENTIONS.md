@@ -13,6 +13,13 @@ project ref, key, product id, or secret.
 | Source repo (**read only — never write**) | `e:\Downlaods\Downloads\fabtrades` |
 | Source Flutter app | `e:\Downlaods\Downloads\fabtrades\apps\mobile` |
 
+On the Mac used for Phases 10–13 the same repos live at
+`/Users/joseescaler/Documents/rifttrades` (this monorepo),
+`/Users/joseescaler/Documents/fabtrades` (source), and
+`/Users/joseescaler/Documents/riftrades` (web app). Web paths, table renames, and
+copy rules are in [`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md) — do not invent a
+web tree under `apps/web/` here.
+
 ## Constants
 
 | Thing | Value |
@@ -53,6 +60,10 @@ The Android id and iOS bundle id genuinely differ. That is not a typo to fix.
 | API keys | **Not in this file — ask for them** |
 
 ### Free-tier limits
+
+Must stay in lockstep with the web app once Phase 11 lands (see
+[`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)). Phase 13 raises binder/want from
+the values below to **50 / 50** — until then, mobile still uses:
 
 | Cap | Value | Behaviour at the cap |
 | --- | --- | --- |
@@ -195,11 +206,16 @@ The two apps' shared files differ by about 3,564 lines because Riftbound is not
 Flesh and Blood. Copying any file in this last list over the RiftTrades version
 will destroy working behaviour.
 
-## Do not port these at all
+## Do not port these at all (into the mobile monorepo)
 
-- `packages/contracts/` — golden fixtures pinning web against mobile. RiftTrades
-  has no web app.
-- `apps/web/`, `netlify.toml` — no web app.
+- `packages/contracts/` — golden fixtures pinning FAB web against FAB mobile.
+  Do not add this package under the mobile monorepo. Web free-limit numbers are
+  defined inline in the web repo (see [`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)).
+- `apps/web/`, `netlify.toml` from FAB Trades — do **not** create `apps/web`
+  here. The RiftTrades web app is a separate repository
+  (`/Users/joseescaler/Documents/riftrades`). Port web work via Phases 10–12 and
+  [`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md), not by copying FAB's monorepo layout
+  into this repo.
 - `lib/core/data/app_update_repository.dart`, `lib/core/models/app_update_config.dart`,
   `lib/core/logic/version_compare.dart`, `lib/features/update/update_prompt.dart` —
   RiftTrades already has a working equivalent in `lib/core/update/`,

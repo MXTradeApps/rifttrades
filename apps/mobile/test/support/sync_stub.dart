@@ -22,4 +22,13 @@ class StubSyncNotifier extends SyncNotifier {
   Future<void> sync(String userId) async {
     requested.add(userId);
   }
+
+  /// Widget tests skip the real debounce / floors — record the request immediately.
+  @override
+  void requestSyncAfterLocalChange(String userId) {
+    requested.add(userId);
+  }
+
+  @override
+  Future<void> requestSyncFromUserRefresh(String userId) => sync(userId);
 }

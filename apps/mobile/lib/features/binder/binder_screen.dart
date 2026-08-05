@@ -21,6 +21,7 @@ import '../onboarding/tour_copy.dart';
 import '../paywall/pro_limits.dart';
 import '../scan/scan_screen.dart';
 import '../search/card_picker.dart';
+import '../sync/sync_actions.dart';
 import '../want_list/want_list_screen.dart';
 
 class BinderScreen extends ConsumerStatefulWidget {
@@ -266,28 +267,33 @@ class _BinderListState extends ConsumerState<_BinderList> {
     setState(() {});
   }
 
+  Future<void> _onRefresh() => pullToRefreshAccountSync(ref);
+
   @override
   Widget build(BuildContext context) {
     final all = widget.allEntries;
     final pricing = widget.pricing;
 
     if (all.isEmpty) {
-      return _BinderEmptyState(
-        onScan: () {
-          if (context.mounted) ScanScreen.forBinder(context);
-        },
-        onSearch: () async {
-          await CardPickerScreen.showMulti(
-            context,
-            title: 'Add to Binder',
-            onPick: (card) => addToBinderOrUpsell(
+      return RefreshIndicator(
+        onRefresh: _onRefresh,
+        child: _BinderEmptyState(
+          onScan: () {
+            if (context.mounted) ScanScreen.forBinder(context);
+          },
+          onSearch: () async {
+            await CardPickerScreen.showMulti(
               context,
-              ref,
-              card,
-              successMessage: 'Added ${card.name} to Binder',
-            ),
-          );
-        },
+              title: 'Add to Binder',
+              onPick: (card) => addToBinderOrUpsell(
+                context,
+                ref,
+                card,
+                successMessage: 'Added ${card.name} to Binder',
+              ),
+            );
+          },
+        ),
       );
     }
 
@@ -342,19 +348,23 @@ class _BinderListState extends ConsumerState<_BinderList> {
           ),
         ),
         Expanded(
-          child: visible.isEmpty
-              ? _BinderNoMatches(
-                  hasQuery: hasQuery || filters.hasActiveFilters,
-                  onClear: _clearFilters,
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 96),
-                  itemCount: visible.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, indent: 72),
-                  itemBuilder: (context, i) =>
-                      _EntryRow(entry: visible[i], pricing: pricing),
-                ),
+          child: RefreshIndicator(
+            onRefresh: _onRefresh,
+            child: visible.isEmpty
+                ? _BinderNoMatches(
+                    hasQuery: hasQuery || filters.hasActiveFilters,
+                    onClear: _clearFilters,
+                  )
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 96),
+                    itemCount: visible.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, indent: 72),
+                    itemBuilder: (context, i) =>
+                        _EntryRow(entry: visible[i], pricing: pricing),
+                  ),
+          ),
         ),
       ],
     );
@@ -369,25 +379,34 @@ class _BinderNoMatches extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off, size: 48, color: scheme.outline),
-            const SizedBox(height: 12),
-            Text(
-              hasQuery
-                  ? 'No cards match your filters.'
-                  : 'No cards in binder.',
-              textAlign: TextAlign.center,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.search_off, size: 48, color: scheme.outline),
+                  const SizedBox(height: 12),
+                  Text(
+                    hasQuery
+                        ? 'No cards match your filters.'
+                        : 'No cards in binder.',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (hasQuery) ...[
+                    const SizedBox(height: 16),
+                    TextButton(
+                        onPressed: onClear, child: const Text('Clear filters')),
+                  ],
+                ],
+              ),
             ),
-            if (hasQuery) ...[
-              const SizedBox(height: 16),
-              TextButton(onPressed: onClear, child: const Text('Clear filters')),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -402,36 +421,45 @@ class _BinderEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.menu_book_outlined, size: 56, color: scheme.outline),
-            const SizedBox(height: 16),
-            Text('Your Binder is empty',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Add the cards you\'re willing to trade. Scan a stack or search '
-              'by name — no separate chore.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.menu_book_outlined,
+                      size: 56, color: scheme.outline),
+                  const SizedBox(height: 16),
+                  Text('Your Binder is empty',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add the cards you\'re willing to trade. Scan a stack or '
+                    'search by name — no separate chore.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: onScan,
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('Scan cards'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: onSearch,
+                    icon: const Icon(Icons.search),
+                    label: const Text('Add by search'),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onScan,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Scan cards'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onSearch,
-              icon: const Icon(Icons.search),
-              label: const Text('Add by search'),
-            ),
-          ],
+          ),
         ),
       ),
     );

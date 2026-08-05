@@ -11,6 +11,7 @@ import '../onboarding/showcase_theme.dart';
 import '../onboarding/tour_copy.dart';
 import '../paywall/pro_limits.dart';
 import '../search/card_picker.dart';
+import '../sync/sync_actions.dart';
 
 /// Show-mode collage of Want List cards — embedded as the Want List tab inside
 /// [BinderScreen], or usable standalone with its own scaffold.
@@ -31,6 +32,8 @@ class WantListPane extends ConsumerStatefulWidget {
 class _WantListPaneState extends ConsumerState<WantListPane> {
   bool _editing = false;
 
+  Future<void> _onRefresh() => pullToRefreshAccountSync(ref);
+
   @override
   Widget build(BuildContext context) {
     final wanted =
@@ -41,7 +44,11 @@ class _WantListPaneState extends ConsumerState<WantListPane> {
             key: OnboardingKeys.wantListPane,
             title: TourCopy.wantListTitle,
             description: TourCopy.wantListBody,
-            child: _EmptyState(onAdd: widget.onAdd ?? () => _defaultAdd(context)),
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              child: _EmptyState(
+                  onAdd: widget.onAdd ?? () => _defaultAdd(context)),
+            ),
           )
         : ShowcaseTheme.mark(
             key: OnboardingKeys.wantListPane,
@@ -63,7 +70,10 @@ class _WantListPaneState extends ConsumerState<WantListPane> {
                   ),
                 ),
                 Expanded(
-                  child: _WantGrid(entries: wanted, editing: _editing),
+                  child: RefreshIndicator(
+                    onRefresh: _onRefresh,
+                    child: _WantGrid(entries: wanted, editing: _editing),
+                  ),
                 ),
               ],
             ),
@@ -107,6 +117,7 @@ class _WantGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GridView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -286,30 +297,39 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.favorite_border, size: 56, color: scheme.outline),
-            const SizedBox(height: 16),
-            Text('Your want list is empty',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Add the cards you\'re hunting for, then hand your phone to '
-              'another player so they can scroll through and check their binder.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.favorite_border, size: 56, color: scheme.outline),
+                  const SizedBox(height: 16),
+                  Text('Your want list is empty',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add the cards you\'re hunting for, then hand your phone to '
+                    'another player so they can scroll through and check their '
+                    'binder.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: onAdd,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add a card'),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add),
-              label: const Text('Add a card'),
-            ),
-          ],
+          ),
         ),
       ),
     );
