@@ -7,6 +7,11 @@ and this project tracks versions via `apps/mobile/pubspec.yaml` (`version: name+
 
 ## [Unreleased]
 
+### Changed
+
+- Free-tier caps raised to binder 50, want list 25, loaned 25 (saved trades
+  still 3).
+
 ### Added
 
 - **App Store review readiness.** Hosted Terms of Use + Privacy Policy
@@ -15,8 +20,8 @@ and this project tracks versions via `apps/mobile/pubspec.yaml` (`version: name+
   App Review demo accounts. Checklist: `docs/APP_STORE_REVIEW.md`.
 - **Auth, cloud sync, and RiftTrades Pro.** Supabase Auth (Apple / Google /
   Discord / email), `rift_*` user-data sync (last-write-wins), RevenueCat →
-  `rift_entitlements` via webhook + nightly reconcile. Free-tier caps: binder 5,
-  want list 4, loaned 1, saved trades 3. Build/run requires
+  `rift_entitlements` via webhook + nightly reconcile. Free-tier caps: binder 50,
+  want list 25, loaned 25, saved trades 3. Build/run requires
   `--dart-define-from-file=env/production.json` (or staging). Docs:
   `docs/ENVIRONMENTS.md`, `docs/ENTITLEMENTS.md`, `docs/RELEASING.md`.
 - Shared card UI: `CardFilterBar`, `FallbackNetworkImage`, and

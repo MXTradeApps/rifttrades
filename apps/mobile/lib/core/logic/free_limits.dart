@@ -8,16 +8,16 @@ class FreeLimits {
 
   /// Distinct cards a free binder holds. Raising the quantity of a card that's
   /// already there is never capped, so no existing entry can be stranded.
-  static const binderCards = 5;
+  static const binderCards = 50;
 
   /// Distinct cards a free want list holds.
-  static const wantListCards = 4;
+  static const wantListCards = 25;
 
   /// Cards currently lent out across all lend groups.
   ///
   /// Counted by quantity, not distinct titles — lending two copies is two
   /// loaned cards. Borrowing is uncapped: the limit is on what you have out.
-  static const loanedCards = 1;
+  static const loanedCards = 25;
 
   /// Trades a free account keeps.
   ///

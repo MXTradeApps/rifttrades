@@ -60,7 +60,7 @@ Catalog tables are public read-only via RLS. User-data tables are scoped to
 
 | Cap | Limit | At the cap |
 | --- | --- | --- |
-| Binder cards | 5 | refuse the add |
-| Want-list cards | 4 | refuse the add |
-| Loaned cards | 1 | refuse (borrowing uncapped) |
+| Binder cards | 50 | refuse the add |
+| Want-list cards | 25 | refuse the add |
+| Loaned cards | 25 | refuse (borrowing uncapped) |
 | Saved trades | 3 | trim oldest; never refuse the save |
