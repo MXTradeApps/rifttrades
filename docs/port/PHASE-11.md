@@ -70,8 +70,8 @@ Copy source → target:
 
 Edits after copy:
 
-- `freeLimits.js`: caps must be `binderCards: 50`, `wantListCards: 50`,
-  `savedTrades: 3`, `loanedCards: 1`. Rename FABTrades → RiftTrades in comments.
+- `freeLimits.js`: caps must be `binderCards: 50`, `wantListCards: 25`,
+  `savedTrades: 3`, `loanedCards: 25`. Rename FABTrades → RiftTrades in comments.
   **Do not** import `packages/contracts/free_limits.json` — keep numbers inline.
 - `tradeDraft.js`: set `TRADE_DRAFT_KEY = 'rifttrades-trade-draft'`. Keep the
   `{ v: 1, have, want }` shape and `loadTradeDraft` / `saveTradeDraft` /

@@ -170,8 +170,8 @@ index.html
 | Cap | Value | Behaviour at the cap |
 | --- | --- | --- |
 | `binderCards` | 50 | refuse new distinct cards |
-| `wantListCards` | 50 | refuse new distinct cards |
-| `loanedCards` | 1 | refuse; borrowing uncapped (mobile only) |
+| `wantListCards` | 25 | refuse new distinct cards |
+| `loanedCards` | 25 | refuse; borrowing uncapped (mobile only) |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
 
 Quantity bumps on an existing binder/want card are never capped.

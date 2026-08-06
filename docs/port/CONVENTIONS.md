@@ -53,16 +53,16 @@ The Android id and iOS bundle id genuinely differ. That is not a typo to fix.
 | Thing | Value |
 | --- | --- |
 | Entitlement id | `RiftTrades Pro` |
-| App Store product ids | `com.rifttrades.rifttrades.pro.yearly`, `com.rifttrades.rifttrades.pro.monthly` |
+| App Store product ids | `com.rifttrades.app.pro.yearly`, `com.rifttrades.app.pro.monthly` (legacy inactive: `com.rifttrades.rifttrades.pro.*`) |
 | Play product ids | `pro_yearly`, `pro_monthly` |
 | Play base plans | `annual-autorenewing`, `monthly-autorenewing` |
-| Test Store product ids | `yearly`, `monthly` |
+| Test Store product ids | `pro.yearly` ($19.99), `pro.monthly` ($1.99) |
 | API keys | **Not in this file — ask for them** |
 
 ### Free-tier limits
 
 Must stay in lockstep with the web app (see
-[`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)). Mobile currently ships:
+[`WEB-CONVENTIONS.md`](WEB-CONVENTIONS.md)):
 
 | Cap | Value | Behaviour at the cap |
 | --- | --- | --- |
@@ -70,11 +70,6 @@ Must stay in lockstep with the web app (see
 | `wantListCards` | 25 | refuse the add |
 | `loanedCards` | 25 | refuse; borrowing is uncapped |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
-
-Note: [`PHASE-13.md`](PHASE-13.md) and the web conventions table still describe
-a planned **50 / 50** binder/want parity (with `loanedCards` at 1). Mobile's
-live numbers above came from a separate mainline change — reconcile web and
-Phase 13 against these before treating Phase 13 as done.
 
 ### Pro-only features
 
