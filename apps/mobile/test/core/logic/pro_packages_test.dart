@@ -134,10 +134,18 @@ void main() {
       // — they live in two dashboards. What can be checked is that the sets do
       // not silently lose a platform, which would resolve as "no plans" and show
       // an empty paywall.
-      expect(RevenueCatConfig.yearlyProductIds, contains(_yearly));
-      expect(RevenueCatConfig.monthlyProductIds, contains(_monthly));
-      expect(RevenueCatConfig.yearlyProductIds, hasLength(3));
-      expect(RevenueCatConfig.monthlyProductIds, hasLength(3));
+      expect(RevenueCatConfig.yearlyProductIds, contains('pro.yearly'));
+      expect(RevenueCatConfig.monthlyProductIds, contains('pro.monthly'));
+      expect(RevenueCatConfig.yearlyProductIds, contains('pro_yearly'));
+      expect(RevenueCatConfig.monthlyProductIds, contains('pro_monthly'));
+      expect(
+        RevenueCatConfig.yearlyProductIds,
+        contains('com.rifttrades.app.pro.yearly'),
+      );
+      expect(
+        RevenueCatConfig.monthlyProductIds,
+        contains('com.rifttrades.app.pro.monthly'),
+      );
     });
 
     test('never overlap, so a plan cannot resolve to the wrong one', () {

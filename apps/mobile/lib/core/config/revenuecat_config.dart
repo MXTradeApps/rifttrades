@@ -51,7 +51,8 @@ class RevenueCatConfig {
     'com.rifttrades.app.pro.yearly', // App Store (active)
     'com.rifttrades.rifttrades.pro.yearly', // App Store (legacy / inactive)
     'pro_yearly', // Play Store, base plan appended
-    'yearly', // Test Store
+    'pro.yearly', // Test Store ($19.99)
+    'yearly', // Test Store (legacy / archived, was $79.99)
   };
 
   /// Every store identifier that means "the monthly plan". See
@@ -60,8 +61,26 @@ class RevenueCatConfig {
     'com.rifttrades.app.pro.monthly', // App Store (active)
     'com.rifttrades.rifttrades.pro.monthly', // App Store (legacy / inactive)
     'pro_monthly', // Play Store, base plan appended
-    'monthly', // Test Store
+    'pro.monthly', // Test Store ($1.99)
+    'monthly', // Test Store (legacy / archived, was $9.99)
   };
+
+  /// Whether [productId] is one of the monthly plans (including Play's
+  /// `subscription:base_plan` form).
+  static bool isMonthlyProduct(String? productId) =>
+      _matchesProduct(productId, monthlyProductIds);
+
+  /// Whether [productId] is one of the yearly plans.
+  static bool isYearlyProduct(String? productId) =>
+      _matchesProduct(productId, yearlyProductIds);
+
+  static bool _matchesProduct(String? productId, Set<String> ids) {
+    if (productId == null || productId.isEmpty) return false;
+    for (final id in ids) {
+      if (productId == id || productId.startsWith('$id:')) return true;
+    }
+    return false;
+  }
 
   /// Test Store key from `--dart-define=REVENUECAT_TEST_STORE_API_KEY`. Empty
   /// when the define is absent; [apiKey] then returns null so subscriptions

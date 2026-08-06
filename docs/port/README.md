@@ -86,7 +86,8 @@ and may run in parallel with 10–12.
 | 10 | [PHASE-10.md](PHASE-10.md) | Web foundations: test infra, fabloodle client, sign-in, entitlements | Done |
 | 11 | [PHASE-11.md](PHASE-11.md) | Web binder, want list, shareable binders, draft persistence | Done |
 | 12 | [PHASE-12.md](PHASE-12.md) | Web trade history, Confirm Trade, denser calculator layout | Done |
-| 13 | [PHASE-13.md](PHASE-13.md) | Mobile free binder/want caps → 50/50 (parity with web) | Not started |
+| 13 | [PHASE-13.md](PHASE-13.md) | Mobile free caps → binder 50, want 25, loaned 25 | Done |
+| 14 | [PHASE-14.md](PHASE-14.md) | Account deletion and subscription management | Done |
 
 Set Status to `In progress` when you start a phase and `Done` when its Verify
 section passes and you have committed.
