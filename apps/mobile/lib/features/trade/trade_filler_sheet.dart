@@ -9,17 +9,12 @@ import '../../core/models/binder_entry.dart';
 import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
 import '../../core/providers.dart';
-import '../paywall/pro_gate.dart';
 
 /// Opens the "Find Trade Filler" popup. It looks at the current value gap
 /// between the two sides of the live trade and suggests catalog cards whose
 /// price most closely matches that gap, boosting binder / want-list cards
 /// to the top without filtering the rest of the catalog.
-///
-/// RiftTrades Pro only — free customers get the paywall instead of the sheet.
 Future<void> showTradeFillerSheet(BuildContext context, WidgetRef ref) async {
-  if (!await ensurePro(context, ref)) return;
-  if (!context.mounted) return;
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,

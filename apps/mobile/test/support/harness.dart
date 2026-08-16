@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:rifttrades/core/data/card_repository.dart';
 import 'package:rifttrades/core/models/account.dart';
 import 'package:rifttrades/core/models/card_model.dart';
+import 'package:rifttrades/core/models/subscription_status.dart';
 import 'package:rifttrades/core/providers.dart';
 import 'package:rifttrades/features/onboarding/onboarding_keys.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,12 @@ import 'package:showcaseview/showcaseview.dart';
 import 'sync_stub.dart';
 
 class MockCardRepository extends Mock implements CardRepository {}
+
+class _ProSubscription extends SubscriptionNotifier {
+  @override
+  Future<SubscriptionStatus> build() async =>
+      const SubscriptionStatus(isPro: true);
+}
 
 /// Pumps [child] inside a [MaterialApp] with a real (mock-backed) provider
 /// scope so widgets that read providers work without touching Supabase.
@@ -32,12 +39,22 @@ Future<ProviderContainer> pumpApp(
   List<CardModel> catalog = const [],
   Map<String, Object> seed = const {},
   Account? account,
+  Map<String, List<PricePoint>> priceHistory = const {},
+  Object? priceHistoryError,
+  Future<List<PricePoint>> Function(String cardId)? onPriceHistory,
+  bool isPro = false,
 }) async {
   SharedPreferences.setMockInitialValues(seed);
   final prefs = await SharedPreferences.getInstance();
 
   final mockRepo = MockCardRepository();
   when(() => mockRepo.fetchAll()).thenAnswer((_) async => catalog);
+  when(() => mockRepo.priceHistory(any())).thenAnswer((inv) async {
+    final id = inv.positionalArguments[0] as String;
+    if (onPriceHistory != null) return onPriceHistory(id);
+    if (priceHistoryError != null) throw priceHistoryError;
+    return priceHistory[id] ?? const <PricePoint>[];
+  });
 
   final container = ProviderContainer(
     overrides: [
@@ -45,6 +62,7 @@ Future<ProviderContainer> pumpApp(
       cardRepositoryProvider.overrideWithValue(mockRepo),
       accountProvider.overrideWith((ref) => Stream.value(account)),
       syncProvider.overrideWith(StubSyncNotifier.new),
+      if (isPro) subscriptionProvider.overrideWith(_ProSubscription.new),
     ],
   );
   addTearDown(container.dispose);

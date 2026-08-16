@@ -48,6 +48,13 @@ final supabaseClientProvider =
 final cardRepositoryProvider = Provider<CardRepository>(
     (ref) => CardRepository(ref.watch(supabaseClientProvider)));
 
+/// Daily catalog snapshots for one printing (`price_history`). Empty list
+/// is success (no history yet), not an error. Window clipping is client-side.
+final priceHistoryProvider =
+    FutureProvider.family<List<PricePoint>, String>((ref, cardId) {
+  return ref.watch(cardRepositoryProvider).priceHistory(cardId);
+});
+
 /// Lazily resolves Supabase so widget tests without [Supabase.initialize]
 /// can still construct the checker (failures surface inside [AppUpdateChecker.check]).
 final appUpdateCheckerProvider = Provider<AppUpdateChecker>(

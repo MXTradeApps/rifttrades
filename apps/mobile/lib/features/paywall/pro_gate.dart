@@ -25,13 +25,16 @@ Future<bool> ensurePro(BuildContext context, WidgetRef ref) async {
 
 /// Renders [child] for Pro customers and an unlock prompt for everyone else.
 ///
-/// For gating whole widgets rather than actions:
+/// For gating whole widgets rather than actions. Do **not** wrap the card
+/// details price-history chart: free players still see the last 30 days, and
+/// a [ProGate] would hide that glance (use a quiet text control under the
+/// chart that calls [presentProPaywall] instead).
 ///
 /// ```dart
 /// ProGate(
-///   feature: 'Price history',
-///   description: 'See how a card has moved over the last 90 days.',
-///   child: PriceHistoryChart(card: card),
+///   feature: 'Full price history',
+///   description: 'See every recorded Low, not just the last 30 days.',
+///   child: PriceHistorySpanControl(),
 /// )
 /// ```
 class ProGate extends ConsumerWidget {

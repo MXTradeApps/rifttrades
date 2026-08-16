@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +11,7 @@ import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
 import '../paywall/pro_limits.dart';
+import 'price_history_section.dart';
 
 class CardDetailScreen extends ConsumerStatefulWidget {
   const CardDetailScreen({super.key, required this.card});
@@ -23,23 +23,9 @@ class CardDetailScreen extends ConsumerStatefulWidget {
 
 class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
   late CardModel _selected = widget.card;
-  late Future<List<PricePoint>> _history;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
-
-  void _loadHistory() {
-    _history = ref.read(cardRepositoryProvider).priceHistory(_selected.id);
-  }
 
   void _select(CardModel c) {
-    setState(() {
-      _selected = c;
-      _loadHistory();
-    });
+    setState(() => _selected = c);
   }
 
   @override
@@ -148,7 +134,7 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
           const SizedBox(height: 14),
           _PriceCard(card: _selected, settings: settings, pricing: pricing),
           const SizedBox(height: 14),
-          _HistorySection(history: _history, settings: settings),
+          PriceHistorySection(cardId: _selected.id),
         ],
       ),
       bottomNavigationBar: _ActionBar(card: _selected),
@@ -443,214 +429,6 @@ class _PriceGroup extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _HistorySection extends StatelessWidget {
-  const _HistorySection({required this.history, required this.settings});
-  final Future<List<PricePoint>> history;
-  final AppSettings settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return FutureBuilder<List<PricePoint>>(
-      future: history,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-              height: 60,
-              child: Center(child: CircularProgressIndicator.adaptive()));
-        }
-        final points = snap.data ?? const [];
-        final values = points
-            .map((p) => settings.source == PriceSource.tcgplayer
-                ? p.tcgMarket
-                : p.cmTrend)
-            .toList();
-        final hasSeries = values.where((v) => v != null).length >= 2;
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.show_chart,
-                        size: 18, color: theme.colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text('Price history',
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                  ],
-                ),
-                if (hasSeries) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    _historyRangeLabel(points),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                if (!hasSeries)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Center(
-                      child: Text(
-                        'Not enough history yet.\nDaily snapshots build the chart over time.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 140,
-                    child: _Sparkline(
-                      points: points,
-                      values: values,
-                      color: theme.colorScheme.primary,
-                      symbol: settings.source.symbol,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Human-readable span for the price history X-axis (e.g. "Last 3 months · Mar 4 – Jul 18").
-String _historyRangeLabel(List<PricePoint> points) {
-  if (points.isEmpty) return '';
-  final start = points.first.capturedOn.toLocal();
-  final end = points.last.capturedOn.toLocal();
-  final days = end.difference(start).inDays;
-  final fmt = DateFormat('MMM d');
-  final span = days >= 150
-      ? 'Last 6 months'
-      : days >= 60
-          ? 'Last 3 months'
-          : days >= 25
-              ? 'Last month'
-              : 'Last $days days';
-  if (days < 1) return span;
-  return '$span · ${fmt.format(start)} – ${fmt.format(end)}';
-}
-
-class _Sparkline extends StatelessWidget {
-  const _Sparkline({
-    required this.points,
-    required this.values,
-    required this.color,
-    required this.symbol,
-  });
-  final List<PricePoint> points;
-  final List<double?> values;
-  final Color color;
-  final String symbol;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spots = <FlSpot>[];
-    final indexBySpotX = <double, int>{};
-    for (var i = 0; i < values.length; i++) {
-      final v = values[i];
-      if (v != null) {
-        final x = i.toDouble();
-        spots.add(FlSpot(x, v));
-        indexBySpotX[x] = i;
-      }
-    }
-    if (spots.isEmpty) return const SizedBox.shrink();
-
-    final firstX = spots.first.x;
-    final lastX = spots.last.x;
-    final midX = spots[spots.length ~/ 2].x;
-    final labelXs = <double>{firstX, midX, lastX};
-
-    String labelFor(double x) {
-      final i = indexBySpotX[x];
-      if (i == null || i < 0 || i >= points.length) return '';
-      return DateFormat('MMM d').format(points[i].capturedOn.toLocal());
-    }
-
-    return LineChart(
-      LineChartData(
-        gridData: const FlGridData(show: false),
-        titlesData: FlTitlesData(
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 22,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                if (!labelXs.contains(value)) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    labelFor(value),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: false),
-        lineTouchData: LineTouchData(
-          enabled: true,
-          touchTooltipData: LineTouchTooltipData(
-            getTooltipItems: (touched) => touched.map((s) {
-              final i = indexBySpotX[s.x];
-              final date = i == null
-                  ? ''
-                  : DateFormat('MMM d').format(
-                      points[i].capturedOn.toLocal(),
-                    );
-              return LineTooltipItem(
-                '$date\n$symbol${s.y.toStringAsFixed(2)}',
-                TextStyle(
-                  color: theme.colorScheme.onInverseSurface,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            color: color,
-            barWidth: 3,
-            dotData: const FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: color.withValues(alpha: 0.14),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
