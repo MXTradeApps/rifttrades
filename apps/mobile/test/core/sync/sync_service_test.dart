@@ -1,15 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rifttrades/core/data/binder_repository.dart';
+import 'package:rifttrades/core/data/binders_repository.dart';
 import 'package:rifttrades/core/data/lend_repository.dart';
 import 'package:rifttrades/core/data/settings_repository.dart';
 import 'package:rifttrades/core/data/trade_repository.dart';
 import 'package:rifttrades/core/models/app_settings.dart';
+import 'package:rifttrades/core/models/binder.dart';
 import 'package:rifttrades/core/models/binder_entry.dart';
 import 'package:rifttrades/core/models/lend_group.dart';
 import 'package:rifttrades/core/models/trade.dart';
 import 'package:rifttrades/core/providers.dart';
 import 'package:rifttrades/core/sync/binder_sync.dart';
+import 'package:rifttrades/core/sync/binders_sync.dart';
 import 'package:rifttrades/core/sync/collection_sync.dart';
 import 'package:rifttrades/core/sync/lend_sync.dart';
 import 'package:rifttrades/core/sync/remote_store.dart';
@@ -69,10 +72,12 @@ void main() {
 
   late SyncJournal journal;
   late BinderRepository binder;
+  late BindersRepository binders;
   late LendRepository lend;
   late TradeRepository trades;
   late SettingsRepository settings;
   late FakeTable binderTable;
+  late FakeTable bindersTable;
   late FakeTable lendTable;
   late FakeTable tradesTable;
   late FakeRemoteSettings settingsRow;
@@ -95,6 +100,7 @@ void main() {
     return SyncService(
       journal: journal,
       binder: collection(const BinderSyncAdapter(), binder, binderTable),
+      binders: collection(const BindersSyncAdapter(), binders, bindersTable),
       lend: collection(const LendSyncAdapter(), lend, lendTable),
       trades: collection(const TradeSyncAdapter(), trades, tradesTable),
       settings: SettingsSync(
@@ -110,12 +116,14 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     journal = SyncJournal(prefs);
     binder = BinderRepository(prefs, journal);
+    binders = BindersRepository(prefs, journal);
     lend = LendRepository(prefs, journal);
     trades = TradeRepository(prefs, journal);
     settings = SettingsRepository(prefs, journal);
 
-    binderTable =
-        FakeTable((row) => '${row['is_wanted']}|${row['card_id']}');
+    binderTable = FakeTable((row) => (row['client_id'] as String?) ??
+        '${row['is_wanted']}|${row['card_id']}');
+    bindersTable = FakeTable((row) => row['client_id'] as String);
     lendTable = FakeTable((row) => row['client_id'] as String);
     tradesTable = FakeTable((row) => row['client_id'] as String);
     settingsRow = FakeRemoteSettings();
@@ -200,6 +208,10 @@ void main() {
       );
       expect(lendTable.rows.values.where((r) => r['user_id'] == _bob), isEmpty);
       expect(binder.load(), isEmpty);
+      expect(
+        binders.load().where((b) => b.isLive).map((b) => b.clientId),
+        containsAll([BinderIds.trade, BinderIds.collection]),
+      );
       expect(lend.load(), isEmpty);
       expect(trades.load(), isEmpty);
       expect(journal.syncedUserId, _bob);
@@ -251,6 +263,7 @@ void main() {
         final outcome = await service.run(_bob);
 
         expect(outcome.binderChanged, isTrue);
+        expect(outcome.bindersChanged, isTrue);
         expect(outcome.lendChanged, isTrue);
         expect(outcome.tradesChanged, isTrue);
         expect(
@@ -260,6 +273,10 @@ void main() {
               'force a settings refresh',
         );
         expect(binder.load(), isEmpty);
+        expect(
+          binders.load().where((b) => b.isLive).map((b) => b.clientId),
+          containsAll([BinderIds.trade, BinderIds.collection]),
+        );
         expect(lend.load(), isEmpty);
         expect(trades.load(), isEmpty);
       },
@@ -319,12 +336,43 @@ void main() {
     test('throws when nothing at all could be reached', () async {
       await seedLocalCollection();
       binderTable.failOnRead = true;
+      bindersTable.failOnRead = true;
       lendTable.failOnRead = true;
       tradesTable.failOnRead = true;
       settingsRow.failOnRead = true;
 
       await expectLater(service.run(_alice), throwsA(isA<Exception>()));
     });
+  });
+
+  test('first-run empty local keeps remote extras instead of journaling deletes',
+      () async {
+    bindersTable.rows[BinderIds.trade] = {
+      'user_id': _alice,
+      'client_id': BinderIds.trade,
+      'name': 'Trade Binder',
+      'role': 'trade',
+      'created_at': DateTime.utc(2026, 1, 1).toIso8601String(),
+      'updated_at': DateTime.utc(2026, 1, 1).toIso8601String(),
+      'deleted_at': null,
+    };
+    bindersTable.rows['extra'] = {
+      'user_id': _alice,
+      'client_id': 'extra',
+      'name': 'Side Event',
+      'role': 'standard',
+      'created_at': DateTime.utc(2026, 1, 2).toIso8601String(),
+      'updated_at': DateTime.utc(2026, 1, 2).toIso8601String(),
+      'deleted_at': null,
+    };
+
+    await service.run(_alice);
+
+    expect(
+      binders.load().any((b) => b.clientId == 'extra' && b.isLive),
+      isTrue,
+    );
+    expect(bindersTable.rows['extra']!['deleted_at'], isNull);
   });
 
   test('reports which collections changed, and nothing more', () async {

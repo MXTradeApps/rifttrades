@@ -121,6 +121,24 @@ void main() {
       expect(c.read(binderProvider).single.condition, 'HP');
     });
 
+    test('two conditions in one Binder stay independent', () async {
+      final c = await makeContainer();
+      final n = c.read(binderProvider.notifier);
+      final card = buildCard(id: 'k');
+      n.add(card, condition: 'NM', quantity: 2);
+      n.add(card, condition: 'LP', quantity: 3);
+      expect(c.read(binderProvider), hasLength(2));
+      n.setQuantity('k', false, 5, condition: 'NM');
+      expect(n.quantityOf('k', condition: 'NM'), 5);
+      expect(n.quantityOf('k', condition: 'LP'), 3);
+      n.setCondition('k', false, 'HP', condition: 'LP');
+      expect(n.quantityOf('k', condition: 'NM'), 5);
+      expect(n.quantityOf('k', condition: 'HP'), 3);
+      n.remove('k', false, condition: 'NM');
+      expect(n.quantityOf('k', condition: 'HP'), 3);
+      expect(n.quantityOf('k', condition: 'NM'), 0);
+    });
+
     test('state persists across a rebuilt container', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();

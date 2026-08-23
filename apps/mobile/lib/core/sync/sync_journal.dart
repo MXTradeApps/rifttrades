@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// The collections that sync, one per local storage key.
 enum SyncDomain {
   binder('binder'),
+  binders('binders'),
   lend('lend'),
   trades('trades'),
   settings('settings');
@@ -179,6 +180,42 @@ class SyncJournal {
     final at = previous is String ? DateTime.tryParse(previous) : null;
     if (at == null || floor.isAfter(at)) return floor;
     return at.add(const Duration(milliseconds: 1));
+  }
+
+  /// One-shot rewrite of journal record ids. Copies live timestamps and
+  /// tombstones onto [oldToNew] values, then drops the old keys.
+  ///
+  /// Used to upgrade pre-multi-binder owned ids `binder|{cardId}` to
+  /// `binder|{binderId}|{cardId}|{condition}` without losing dirty writes.
+  Future<void> remapRecordIds(
+    SyncDomain domain,
+    Map<String, String> oldToNew,
+  ) async {
+    if (oldToNew.isEmpty) return;
+    final journal = _read();
+    final domains = journal['domains'] is Map
+        ? Map<String, dynamic>.from(journal['domains'] as Map)
+        : <String, dynamic>{};
+    final entry = _domain(journal, domain);
+    final records = entry['records'] is Map
+        ? Map<String, dynamic>.from(entry['records'] as Map)
+        : <String, dynamic>{};
+    var changed = false;
+    for (final mapping in oldToNew.entries) {
+      final oldId = mapping.key;
+      final newId = mapping.value;
+      if (oldId == newId || !records.containsKey(oldId)) continue;
+      if (!records.containsKey(newId)) {
+        records[newId] = records[oldId];
+      }
+      records.remove(oldId);
+      changed = true;
+    }
+    if (!changed) return;
+    entry['records'] = records;
+    domains[domain.key] = entry;
+    journal['domains'] = domains;
+    await _write(journal);
   }
 
   /// Replaces a domain's bookkeeping with the result of a completed sync, keeping

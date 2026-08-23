@@ -1,0 +1,5 @@
+productId,name,cleanName,imageUrl,categoryId,groupId,url,modifiedOn,imageCount,lowPrice,midPrice,highPrice,marketPrice,directLowPrice,subTypeName,extRarity,extNumber,extEnergyCost,extMight,extCardType,extTag,extDomain,extPowerCost
+710238,Secret Garden Box,Secret Garden Box,https://tcgplayer-cdn.tcgplayer.com/product/710238_200w.jpg,89,24797,https://cpt.tcgcsv.com/N6J7,2026-08-05T16:59:03.073,1,216.0,233.49,500.0,231.96,,Normal,,,,,,,,
+710873,Ultrasoft Poro,Ultrasoft Poro,https://tcgplayer-cdn.tcgplayer.com/product/710873_200w.jpg,89,24797,https://cpt.tcgcsv.com/tmJ7,2026-08-11T16:28:54.687,1,89.01,90.0,90.98,93.33,,Foil,Promo,003/003,5,5,Unit,Freljord;Poro,Order,
+710874,"Lillia, Bashful Bloom",Lillia Bashful Bloom,https://tcgplayer-cdn.tcgplayer.com/product/710874_200w.jpg,89,24797,https://cpt.tcgcsv.com/vmJ7,2026-08-12T20:31:38.323,1,88.0,91.0,147.99,87.0,,Foil,Promo,001/003,0,0,Legend,Lillia,Calm;Mind,0
+710875,"Ivern, Green Father",Ivern Green Father,https://tcgplayer-cdn.tcgplayer.com/product/710875_200w.jpg,89,24797,https://cpt.tcgcsv.com/wmJ7,2026-08-12T20:31:31.207,1,70.0,77.9,80.0,,,Foil,Promo,002/003,0,0,Legend,Ivern,Calm;Order,0

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rifttrades/core/logic/confirm_trade.dart';
+import 'package:rifttrades/core/models/binder.dart';
 import 'package:rifttrades/core/models/binder_entry.dart';
 import 'package:rifttrades/core/models/trade.dart';
 
@@ -69,6 +70,77 @@ void main() {
       );
       expect(next.single.quantity, 1);
       expect(next.single.isWanted, isTrue);
+    });
+
+    test('does not change Collection qty when confirming the same printing', () {
+      final trade = Trade(
+        id: 't',
+        createdAt: now,
+        haveItems: [
+          TradeItem(card: buildCard(id: 'keep'), quantity: 1, priceEach: 1),
+        ],
+        wantItems: [
+          TradeItem(card: buildCard(id: 'got'), quantity: 1, priceEach: 1),
+        ],
+      );
+      final collection = BinderEntry(
+        card: buildCard(id: 'keep'),
+        quantity: 4,
+        binderId: BinderIds.collection,
+        addedAt: now,
+      );
+      final next = reconcileBinderAfterTrade(
+        entries: [collection],
+        trade: trade,
+        removeGivenFromBinder: true,
+        addReceivedToBinder: true,
+        now: now,
+      );
+      expect(
+        next
+            .where((e) => e.resolvedBinderId == BinderIds.collection)
+            .single
+            .quantity,
+        4,
+      );
+      expect(
+        next.where((e) => e.resolvedBinderId == BinderIds.trade).single.card.id,
+        'got',
+      );
+    });
+
+    test('given-side decrement prefers NM then remaining conditions', () {
+      final card = buildCard(id: 'a');
+      final trade = Trade(
+        id: 't',
+        createdAt: now,
+        haveItems: [TradeItem(card: card, quantity: 3, priceEach: 1)],
+      );
+      final next = reconcileBinderAfterTrade(
+        entries: [
+          BinderEntry(
+            card: card,
+            quantity: 2,
+            condition: 'LP',
+            binderId: BinderIds.trade,
+            addedAt: now,
+          ),
+          BinderEntry(
+            card: card,
+            quantity: 2,
+            condition: 'NM',
+            binderId: BinderIds.trade,
+            addedAt: now,
+          ),
+        ],
+        trade: trade,
+        removeGivenFromBinder: true,
+        addReceivedToBinder: false,
+        now: now,
+      );
+      expect(next.where((e) => e.condition == 'NM'), isEmpty);
+      expect(next.single.condition, 'LP');
+      expect(next.single.quantity, 1);
     });
 
     test('skips binder mutations when both checkboxes are off', () {

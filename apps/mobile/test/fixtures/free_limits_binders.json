@@ -1,0 +1,69 @@
+{
+  "$comment": "Multi-Binder free limits. binderCards is counted per Binder (refuse a new Printing). binders: 4 with paywall. wantListCards is unchanged by this fixture and is asserted only in each client's existing suite.",
+  "limits": {
+    "binderCards": 50,
+    "binders": 4
+  },
+  "behaviour": {
+    "binderCards": "refuse",
+    "binders": "paywall"
+  },
+  "wantListCards": "unchanged",
+  "cases": [
+    {
+      "name": "50 distinct Printings in Collection refuse a new Printing move-in from Trade Binder",
+      "limit": "binderCards",
+      "action": "move-in-new",
+      "destinationDistinct": 50,
+      "printingAlreadyInDestination": false,
+      "isPro": false,
+      "allowed": false
+    },
+    {
+      "name": "quantity-up of a Printing already in Collection is allowed at 50 distinct",
+      "limit": "binderCards",
+      "action": "quantity-up",
+      "destinationDistinct": 50,
+      "printingAlreadyInDestination": true,
+      "isPro": false,
+      "allowed": true
+    },
+    {
+      "name": "same Printing in Trade Binder and Collection counts as 1 in each Binder",
+      "limit": "binderCards",
+      "action": "same-printing-two-binders",
+      "tradeDistinct": 1,
+      "collectionDistinct": 1,
+      "countsAsOneInEach": true
+    },
+    {
+      "name": "a free account with three live Binders may create another",
+      "limit": "binders",
+      "existing": 3,
+      "isPro": false,
+      "allowed": true
+    },
+    {
+      "name": "a free account with four live Binders cannot create a fifth",
+      "limit": "binders",
+      "existing": 4,
+      "isPro": false,
+      "allowed": false
+    },
+    {
+      "name": "a Pro account with four live Binders may create a fifth",
+      "limit": "binders",
+      "existing": 4,
+      "isPro": true,
+      "allowed": true
+    },
+    {
+      "name": "a tombstoned Collection does not count toward four live Binders",
+      "limit": "binders",
+      "existing": 3,
+      "tombstonedCollection": true,
+      "isPro": false,
+      "allowed": true
+    }
+  ]
+}

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/logic/free_limits.dart';
+import '../../core/models/binder.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
-import '../sync/sync_actions.dart';
 import 'pro_paywall.dart';
 
 /// Adds [card] to the binder or want list, turning a free-tier cap into an
@@ -24,12 +24,25 @@ Future<bool> addToBinderOrUpsell(
   CardModel card, {
   bool isWanted = false,
   int quantity = 1,
+  String? binderId,
   String? successMessage,
 }) async {
   final binder = ref.read(binderProvider.notifier);
+  final targetBinderId =
+      isWanted
+          ? null
+          : (binderId ??
+              destinationBinderId(
+                openId: ref.read(openBinderIdProvider),
+                tab: ref.read(homeTabIndexProvider),
+              ));
 
-  if (binder.add(card, quantity: quantity, isWanted: isWanted)) {
-    queueSyncAfterBinderChange(ref);
+  if (binder.add(
+    card,
+    quantity: quantity,
+    isWanted: isWanted,
+    binderId: targetBinderId,
+  )) {
     if (successMessage != null) _showMessage(context, successMessage);
     return true;
   }
@@ -41,14 +54,17 @@ Future<bool> addToBinderOrUpsell(
     ref,
     message: '$listName hold $limit cards on the free plan.',
     onUpgraded: () {
-      if (binder.add(card, quantity: quantity, isWanted: isWanted)) {
-        queueSyncAfterBinderChange(ref);
-      }
+      binder.add(
+        card,
+        quantity: quantity,
+        isWanted: isWanted,
+        binderId: targetBinderId,
+      );
       if (context.mounted) {
         _showMessage(
           context,
           successMessage ??
-              'Added ${card.name} to ${isWanted ? 'Want List' : 'Binder'}',
+              'Added ${card.name} to ${isWanted ? 'Want List' : (ref.read(bindersProvider.notifier).byId(targetBinderId ?? BinderIds.trade)?.name ?? 'Binder')}',
         );
       }
     },

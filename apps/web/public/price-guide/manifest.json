@@ -1,0 +1,61 @@
+{
+  "lastUpdated": "2026-08-16T16:20:39.048Z",
+  "totalFiles": 11,
+  "files": [
+    {
+      "name": "set_1.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24819/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_2.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24698/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_3.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24560/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_4.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24519/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_5.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24552/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_6.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24344/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_7.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24439/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_8.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24528/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_9.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24343/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_10.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24502/ProductsAndPrices.csv",
+      "status": "downloaded"
+    },
+    {
+      "name": "set_11.csv",
+      "url": "https://tcgcsv.com/tcgplayer/89/24797/ProductsAndPrices.csv",
+      "status": "downloaded"
+    }
+  ]
+}

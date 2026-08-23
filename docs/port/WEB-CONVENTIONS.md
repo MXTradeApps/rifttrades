@@ -4,21 +4,23 @@ Read this fully before Phase 10. It is the web counterpart of
 [`CONVENTIONS.md`](CONVENTIONS.md). Mobile phases still use `CONVENTIONS.md`;
 Phases 10–12 use this file.
 
-The web app lives in a **separate repository**. Do not put web source under
-`apps/web/` in the mobile monorepo.
+The web client is a **peer surface in this repo** at `apps/web/`. Do not
+send product UI to a second repo (`/Users/joseescaler/Documents/riftrades`
+is historical port target only).
 
 ## Paths (this machine)
 
 | Name | Path |
 | --- | --- |
-| Source repo (**read only — never write**) | `/Users/joseescaler/Documents/fabtrades` |
-| Source web app | `/Users/joseescaler/Documents/fabtrades/apps/web` |
-| Web target repo (write here for Phases 10–12) | `/Users/joseescaler/Documents/riftrades` |
-| Mobile monorepo (migrations, Phase 13, these docs) | `/Users/joseescaler/Documents/rifttrades` |
-| Mobile Flutter app | `/Users/joseescaler/Documents/rifttrades/apps/mobile` |
+| This repo | `/Users/joseescaler/Documents/rifttrades` |
+| Flutter client | `/Users/joseescaler/Documents/rifttrades/apps/mobile` |
+| Web client | `/Users/joseescaler/Documents/rifttrades/apps/web` |
+| FAB Trades reference (read only) | `/Users/joseescaler/Documents/fabtrades` |
 
-When a phase says "source `src/…`", it means under the **source web app**.
-When it says "target `src/…`", it means under the **web target repo**.
+`/binder` is **grid-first** (Trade Binder + Collection tiles, then drill-in
+to one Binder's list). Owned entries carry `binder_id`. Binder records live
+in `rift_binders`. `/wants` stays the Want List and is not a Binder grid.
+Do not invent signed-out web Binder storage.
 
 ## Product constants (web)
 
@@ -41,7 +43,8 @@ RiftTrades user-data tables are `rift_`-prefixed. Catalog tables are unprefixed.
 
 | Purpose | FAB Trades (source) | RiftTrades (what you write) |
 | --- | --- | --- |
-| Binder + want list | `binder_entries` | `rift_binder_entries` |
+| Binder records | `binders` | `rift_binders` |
+| Binder + want list | `binder_entries` | `rift_binder_entries` (owned rows carry `binder_id`) |
 | Binder share tokens | `binder_shares` | `rift_binder_shares` |
 | Trade history | `trades` | `rift_trades` |
 | Pro access | `entitlements` | `rift_entitlements` |
@@ -173,6 +176,7 @@ index.html
 | `wantListCards` | 25 | refuse new distinct cards |
 | `loanedCards` | 25 | refuse; borrowing uncapped (mobile only) |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
+| `binders` | 4 | paywall; create nothing |
 
 Quantity bumps on an existing binder/want card are never capped.
 
@@ -190,7 +194,7 @@ FAB's `/sets` routes unless a later phase says so.
 
 ## Verification commands (web target)
 
-From `/Users/joseescaler/Documents/riftrades`:
+From `/Users/joseescaler/Documents/rifttrades/apps/web`:
 
 ```bash
 npm install

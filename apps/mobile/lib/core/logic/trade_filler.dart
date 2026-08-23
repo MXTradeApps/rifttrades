@@ -1,3 +1,4 @@
+import '../models/binder.dart';
 import '../models/binder_entry.dart';
 import '../models/card_model.dart';
 import '../models/trade.dart';
@@ -31,7 +32,8 @@ class FillerPartition {
 }
 
 /// Builds filler suggestions near [target], boosting cards from [boostEntries]
-/// (binder when filling my side, want list when filling theirs) to the top.
+/// (Trade Binder when filling my side, want list when filling theirs) to the
+/// top. Collection is never boosted on the have side.
 FillerPartition partitionFillerMatches({
   required List<CardModel> catalog,
   required Pricing pricing,
@@ -39,11 +41,16 @@ FillerPartition partitionFillerMatches({
   required TradeSide fillSide,
   required List<BinderEntry> binderEntries,
   int maxResults = 60,
+  String tradeBinderId = BinderIds.trade,
 }) {
   final boostWanted = fillSide == TradeSide.want;
   final boostIds = <String>{
     for (final e in binderEntries)
-      if (e.isWanted == boostWanted && e.quantity > 0) e.card.id,
+      if (e.quantity > 0 &&
+          (boostWanted
+              ? e.isWanted
+              : (!e.isWanted && e.resolvedBinderId == tradeBinderId)))
+        e.card.id,
   };
 
   final boosted = <FillerMatch>[];

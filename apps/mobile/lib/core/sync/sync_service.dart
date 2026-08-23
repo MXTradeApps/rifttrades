@@ -2,13 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/binder_repository.dart';
+import '../data/binders_repository.dart';
 import '../data/lend_repository.dart';
 import '../data/settings_repository.dart';
 import '../data/trade_repository.dart';
+import '../models/binder.dart';
 import '../models/binder_entry.dart';
 import '../models/lend_group.dart';
 import '../models/trade.dart';
 import 'binder_sync.dart';
+import 'binders_sync.dart';
 import 'collection_sync.dart';
 import 'lend_sync.dart';
 import 'remote_store.dart';
@@ -22,18 +25,24 @@ import 'trade_sync.dart';
 class SyncOutcome {
   const SyncOutcome({
     this.binderChanged = false,
+    this.bindersChanged = false,
     this.lendChanged = false,
     this.tradesChanged = false,
     this.settingsChanged = false,
   });
 
   final bool binderChanged;
+  final bool bindersChanged;
   final bool lendChanged;
   final bool tradesChanged;
   final bool settingsChanged;
 
   bool get anyChanged =>
-      binderChanged || lendChanged || tradesChanged || settingsChanged;
+      binderChanged ||
+      bindersChanged ||
+      lendChanged ||
+      tradesChanged ||
+      settingsChanged;
 }
 
 /// Reconciles every synced collection for the signed-in account.
@@ -45,6 +54,7 @@ class SyncService {
   SyncService({
     required this.journal,
     required this.binder,
+    required this.binders,
     required this.lend,
     required this.trades,
     required this.settings,
@@ -55,6 +65,7 @@ class SyncService {
     required SupabaseClient client,
     required SyncJournal journal,
     required BinderRepository binder,
+    required BindersRepository binders,
     required LendRepository lend,
     required TradeRepository trades,
     required SettingsRepository settings,
@@ -76,6 +87,7 @@ class SyncService {
     return SyncService(
       journal: journal,
       binder: collection(const BinderSyncAdapter(), binder),
+      binders: collection(const BindersSyncAdapter(), binders),
       lend: collection(const LendSyncAdapter(), lend),
       trades: collection(const TradeSyncAdapter(), trades),
       settings: SettingsSync(
@@ -88,6 +100,7 @@ class SyncService {
 
   final SyncJournal journal;
   final CollectionSync<BinderEntry> binder;
+  final CollectionSync<Binder> binders;
   final CollectionSync<LendGroup> lend;
   final CollectionSync<Trade> trades;
   final SettingsSync settings;
@@ -116,12 +129,19 @@ class SyncService {
 
     // Always run each merge; OR the discard in afterward so short-circuit does
     // not skip pulling the new account's remote rows.
+    var bindersMerged = await attempt(() => binders.run(userId: userId));
+    final bindersSeeded = await _ensureDefaultBinders();
+    if (bindersSeeded) {
+      bindersMerged =
+          await attempt(() => binders.run(userId: userId)) || bindersMerged;
+    }
     final binderMerged = await attempt(() => binder.run(userId: userId));
     final lendMerged = await attempt(() => lend.run(userId: userId));
     final tradesMerged = await attempt(() => trades.run(userId: userId));
     final settingsMerged = await attempt(() => settings.run(userId: userId));
 
     final outcome = SyncOutcome(
+      bindersChanged: discardedOtherAccount || bindersMerged,
       binderChanged: discardedOtherAccount || binderMerged,
       lendChanged: discardedOtherAccount || lendMerged,
       tradesChanged: discardedOtherAccount || tradesMerged,
@@ -129,7 +149,7 @@ class SyncService {
       settingsChanged: settingsMerged,
     );
 
-    if (failures.length == 4) throw failures.first;
+    if (failures.length >= 5) throw failures.first;
     return outcome;
   }
 
@@ -145,7 +165,8 @@ class SyncService {
   ///   another's account, so the local cache is discarded instead.
   /// * **Same account.** Ordinary incremental sync.
   ///
-  /// Returns `true` when an other-account discard ran (binder/lend/trades cleared).
+  /// Returns `true` when an other-account discard ran (binder/binders/lend/trades
+  /// cleared).
   Future<bool> _claimLocalDataFor(String userId) async {
     final previous = journal.syncedUserId;
     if (previous == userId) return false;
@@ -155,6 +176,7 @@ class SyncService {
       // `saveSynced`, not `save`: this is not the customer deleting their binder, and
       // recording it as one would push those deletions into the new account.
       await binder.local.saveSynced(const []);
+      await binders.local.saveSynced(const []);
       await lend.local.saveSynced(const []);
       await trades.local.saveSynced(const []);
       // Settings survive. They are a device preference as much as an account one,
@@ -165,5 +187,20 @@ class SyncService {
 
     await journal.setSyncedUserId(userId);
     return discarded;
+  }
+
+  /// After pull: empty list seeds Trade + Collection (first run). A live Trade
+  /// Binder is always kept. A tombstoned Collection is never resurrected.
+  Future<bool> _ensureDefaultBinders() async {
+    final current = binders.local.load();
+    final hasLiveTrade =
+        current.any((b) => b.isLive && b.role == BinderRole.trade);
+    if (hasLiveTrade) return false;
+    if (current.isEmpty) {
+      await binders.local.save(Binder.seedDefaults());
+    } else {
+      await binders.local.save(Binder.ensureTrade(current));
+    }
+    return true;
   }
 }

@@ -1,0 +1,10 @@
+# This directory will contain the downloaded CSV files and consolidated data
+# Run `npm run download-csvs` followed by `npm run consolidate-csvs` to populate
+
+
+
+
+
+
+
+

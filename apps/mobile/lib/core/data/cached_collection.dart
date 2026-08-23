@@ -25,6 +25,9 @@ abstract class CachedCollection<T> implements LocalCollection<T> {
   /// they are effectively permanent.
   String get storageKey;
 
+  /// Whether this collection has ever been written (including an empty list).
+  bool get hasStorageKey => _prefs.containsKey(storageKey);
+
   SyncAdapter<T> get adapter;
 
   Map<String, dynamic> encode(T value);
@@ -66,6 +69,9 @@ abstract class CachedCollection<T> implements LocalCollection<T> {
 
   @override
   Future<void> saveSynced(List<T> values) => _write(values);
+
+  @override
+  Future<void> persistRemappedBinderIds() async {}
 
   Future<void> _write(List<T> values) =>
       _prefs.setString(storageKey, jsonEncode(values.map(encode).toList()));

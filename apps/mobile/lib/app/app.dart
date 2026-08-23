@@ -94,6 +94,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        ref.read(homeTabIndexProvider.notifier).setIndex(_index);
         _checkForAppUpdate();
         _maybeStartTourForTab(_index);
       }
@@ -146,6 +147,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     }
     HapticFeedback.selectionClick();
     setState(() => _index = i);
+    ref.read(homeTabIndexProvider.notifier).setIndex(i);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _maybeStartTourForTab(i);
     });

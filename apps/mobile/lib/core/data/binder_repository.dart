@@ -1,3 +1,4 @@
+import '../models/binder.dart';
 import '../models/binder_entry.dart';
 import '../sync/binder_sync.dart';
 import 'cached_collection.dart';
@@ -18,4 +19,38 @@ class BinderRepository extends CachedCollection<BinderEntry> {
 
   @override
   BinderEntry decode(Map<String, dynamic> json) => BinderEntry.fromJson(json);
+
+  /// Pre-feature owned rows have no `binder_id`; they belong in Trade Binder.
+  /// Want List stays `binderId` null.
+  @override
+  List<BinderEntry> load() {
+    final loaded = super.load();
+    return [
+      for (final entry in loaded)
+        if (entry.isWanted)
+          entry
+        else if (entry.binderId == null || entry.binderId!.trim().isEmpty)
+          entry.copyWith(binderId: BinderIds.trade)
+        else
+          entry
+    ];
+  }
+
+  /// Write remapped `binder_id` back to disk without journaling a new edit.
+  @override
+  Future<void> persistRemappedBinderIds() async {
+    if (!hasStorageKey) return;
+    final remapped = load();
+    final raw = super.load();
+    var needsWrite = raw.length != remapped.length;
+    if (!needsWrite) {
+      for (var i = 0; i < raw.length; i++) {
+        if (raw[i].binderId != remapped[i].binderId) {
+          needsWrite = true;
+          break;
+        }
+      }
+    }
+    if (needsWrite) await saveSynced(remapped);
+  }
 }

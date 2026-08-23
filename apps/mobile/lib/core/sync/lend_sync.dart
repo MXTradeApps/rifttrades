@@ -14,6 +14,12 @@ class LendSyncAdapter implements SyncAdapter<LendGroup> {
   const LendSyncAdapter();
 
   @override
+  Future<void> beforeReconcile(
+    SyncJournal journal,
+    LocalCollection<LendGroup> local,
+  ) async {}
+
+  @override
   SyncDomain get domain => SyncDomain.lend;
 
   @override

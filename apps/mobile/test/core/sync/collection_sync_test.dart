@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:rifttrades/core/data/binder_repository.dart';
+import 'package:rifttrades/core/models/binder.dart';
 import 'package:rifttrades/core/models/binder_entry.dart';
 import 'package:rifttrades/core/sync/binder_sync.dart';
 import 'package:rifttrades/core/sync/collection_sync.dart';
@@ -26,7 +29,8 @@ class FakeRemoteCollection implements RemoteCollection {
   bool failOnWrite = false;
 
   static String _key(Map<String, Object?> row) =>
-      '${row['is_wanted']}|${row['card_id']}';
+      (row['client_id'] as String?) ??
+      '${row['is_wanted']}|${row['binder_id']}|${row['card_id']}|${row['condition']}';
 
   @override
   Future<List<Map<String, dynamic>>> fetchAll(String userId) async => [
@@ -65,13 +69,19 @@ Map<String, Object?> remoteRow(
   bool isWanted = false,
   int quantity = 1,
   String condition = 'NM',
+  String? binderId,
   required DateTime updatedAt,
   DateTime? deletedAt,
 }) {
+  final ownedBinder = isWanted ? null : (binderId ?? 'system:trade');
   return {
     'user_id': _userId,
+    'client_id': isWanted
+        ? 'want|$cardId'
+        : 'binder|$ownedBinder|$cardId|$condition',
     'card_id': cardId,
     'is_wanted': isWanted,
+    'binder_id': ownedBinder,
     'quantity': quantity,
     'condition': condition,
     'card': buildCard(id: cardId, name: 'Card $cardId').toStub(),
@@ -128,9 +138,9 @@ void main() {
 
       expect(changed, isFalse, reason: 'nothing came back, so nothing to apply');
       expect(remote.rows, hasLength(2));
-      expect(remote.rows['false|a']!['quantity'], 2);
-      expect(remote.rows['true|b']!['is_wanted'], isTrue);
-      expect(remote.rows['false|a']!['user_id'], _userId);
+      expect(remote.rows['binder|system:trade|a|NM']!['quantity'], 2);
+      expect(remote.rows['want|b']!['is_wanted'], isTrue);
+      expect(remote.rows['binder|system:trade|a|NM']!['user_id'], _userId);
     });
 
     test('uploads data that predates the journal entirely', () async {
@@ -146,10 +156,10 @@ void main() {
 
       await syncWith(remote).run(userId: _userId);
 
-      expect(remote.rows['false|legacy']!['quantity'], 4);
+      expect(remote.rows['binder|system:trade|legacy|NM']!['quantity'], 4);
       // Falling back to the record's own creation time means a later edit made on
       // another device still wins.
-      expect(remote.rows['false|legacy']!['updated_at'],
+      expect(remote.rows['binder|system:trade|legacy|NM']!['updated_at'],
           startsWith('2026-01-01T00:00:00'));
     });
   });
@@ -225,7 +235,7 @@ void main() {
       await syncWith(remote).run(userId: _userId);
 
       expect(local.load().single.quantity, 7);
-      expect(remote.rows['false|a']!['quantity'], 7);
+      expect(remote.rows['binder|system:trade|a|NM']!['quantity'], 7);
     });
 
     test('a pulled record is not then mistaken for a local edit', () async {
@@ -238,7 +248,7 @@ void main() {
       await syncWith(remote).run(userId: _userId);
 
       expect(
-        journal.localTimestamps(SyncDomain.binder)['binder|a'],
+        journal.localTimestamps(SyncDomain.binder)['binder|system:trade|a|NM'],
         DateTime.utc(2026, 6, 1),
       );
 
@@ -257,7 +267,7 @@ void main() {
       await local.save(const []);
       await syncWith(remote).run(userId: _userId);
 
-      expect(remote.rows['false|a']!['deleted_at'], isNotNull);
+      expect(remote.rows['binder|system:trade|a|NM']!['deleted_at'], isNotNull);
       expect(local.load(), isEmpty);
     });
 
@@ -293,14 +303,14 @@ void main() {
       // Wall-clock stamps are too coarse to order edits made in quick succession,
       // and the tie rule favours deletion, so a naive clock would lose the re-add.
       await local.save([entry('a')]);
-      final created = journal.localTimestamps(SyncDomain.binder)['binder|a']!;
+      final created = journal.localTimestamps(SyncDomain.binder)['binder|system:trade|a|NM']!;
 
       await local.save(const []);
-      final deleted = journal.tombstones(SyncDomain.binder)['binder|a']!;
+      final deleted = journal.tombstones(SyncDomain.binder)['binder|system:trade|a|NM']!;
       expect(deleted.isAfter(created), isTrue);
 
       await local.save([entry('a', quantity: 5)]);
-      final readded = journal.localTimestamps(SyncDomain.binder)['binder|a']!;
+      final readded = journal.localTimestamps(SyncDomain.binder)['binder|system:trade|a|NM']!;
       expect(readded.isAfter(deleted), isTrue);
     });
 
@@ -333,7 +343,7 @@ void main() {
       await local.save(const []);
       await journal.noteLocalWrite(
         SyncDomain.binder,
-        before: {'binder|a': 'live'},
+        before: {'binder|system:trade|a|NM': 'live'},
         after: const {},
         at: DateTime.now().toUtc().add(const Duration(seconds: 30)),
       );
@@ -356,7 +366,7 @@ void main() {
       await syncWith(remote).run(userId: _userId);
 
       expect(local.load().single.quantity, 5);
-      expect(remote.rows['false|a']!['deleted_at'], isNull,
+      expect(remote.rows['binder|system:trade|a|NM']!['deleted_at'], isNull,
           reason: 'pushing a live record must clear its tombstone');
     });
   });
@@ -378,7 +388,7 @@ void main() {
 
       remote.failOnWrite = false;
       await syncWith(remote).run(userId: _userId);
-      expect(remote.rows['false|a']!['quantity'], 4);
+      expect(remote.rows['binder|system:trade|a|NM']!['quantity'], 4);
     });
   });
 
@@ -392,7 +402,7 @@ void main() {
 
       await syncWith(remote).run(userId: _userId);
 
-      expect(remote.rows.keys, containsAll(['false|a', 'true|a']));
+      expect(remote.rows.keys, containsAll(['binder|system:trade|a|NM', 'want|a']));
       expect(local.load(), hasLength(2));
     });
 
@@ -405,7 +415,88 @@ void main() {
       await syncWith(remote).run(userId: _userId);
 
       // Splitting on the wrong separator would tombstone nothing, or the wrong row.
-      expect(remote.rows['false|weird|id']!['deleted_at'], isNotNull);
+      expect(remote.rows['binder|system:trade|weird|id|NM']!['deleted_at'], isNotNull);
+    });
+  });
+
+  group('legacy journal ids', () {
+    Future<void> seedLegacyJournal({
+      required String cardId,
+      required DateTime at,
+      bool deleted = false,
+    }) async {
+      await prefs.setString(
+        'sync_journal_v1',
+        jsonEncode({
+          'user_id': _userId,
+          'domains': {
+            'binder': {
+              'records': {
+                'binder|$cardId': {
+                  'at': at.toIso8601String(),
+                  if (deleted) 'deleted': true,
+                },
+              },
+              'high_water_mark': at.toIso8601String(),
+            },
+          },
+        }),
+      );
+    }
+
+    test('offline qty after upgrade pushes the remapped id', () async {
+      await setUpStore({
+        'collection_entries':
+            '[{"card":{"id":"a","name":"A","is_foil":false},'
+                '"quantity":2,"condition":"NM","is_wanted":false,'
+                '"added_at":"2026-01-01T00:00:00.000Z"}]',
+      });
+      await seedLegacyJournal(cardId: 'a', at: DateTime.utc(2026, 6, 2));
+      final remote = FakeRemoteCollection([
+        remoteRow('a', quantity: 1, updatedAt: DateTime.utc(2026, 6, 1)),
+      ]);
+
+      await syncWith(remote).run(userId: _userId);
+
+      expect(remote.rows['binder|system:trade|a|NM']!['quantity'], 2);
+      expect(remote.rows.containsKey('binder|a'), isFalse);
+      expect(local.load().single.binderId, BinderIds.trade);
+    });
+
+    test('offline delete after upgrade tombstones the remapped id', () async {
+      await setUpStore({'collection_entries': '[]'});
+      await seedLegacyJournal(
+        cardId: 'a',
+        at: DateTime.utc(2026, 6, 2),
+        deleted: true,
+      );
+      final remote = FakeRemoteCollection([
+        remoteRow('a', quantity: 1, updatedAt: DateTime.utc(2026, 6, 1)),
+      ]);
+
+      await syncWith(remote).run(userId: _userId);
+
+      expect(remote.rows['binder|system:trade|a|NM']!['deleted_at'], isNotNull);
+      expect(local.load(), isEmpty);
+    });
+
+    test('fully synced then upgrade does not rewrite the remote row', () async {
+      await setUpStore({
+        'collection_entries':
+            '[{"card":{"id":"a","name":"A","is_foil":false},'
+                '"quantity":1,"condition":"NM","is_wanted":false,'
+                '"added_at":"2026-01-01T00:00:00.000Z"}]',
+      });
+      await seedLegacyJournal(cardId: 'a', at: DateTime.utc(2026, 6, 1));
+      final remote = FakeRemoteCollection([
+        remoteRow('a', quantity: 1, updatedAt: DateTime.utc(2026, 6, 1)),
+      ]);
+
+      await syncWith(remote).run(userId: _userId);
+
+      expect(remote.upsertCalls, 0);
+      expect(local.load().single.quantity, 1);
+      expect(local.load().single.binderId, BinderIds.trade);
     });
   });
 }

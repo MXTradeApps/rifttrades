@@ -16,6 +16,9 @@ abstract class LocalCollection<T> {
   /// engine already knows when each of these records last changed, and stamping them
   /// as edits made here would make this device win every subsequent merge.
   Future<void> saveSynced(List<T> values);
+
+  /// Persist identity remaps (e.g. missing `binder_id`) without journaling.
+  Future<void> persistRemappedBinderIds() async {}
 }
 
 /// Everything the sync engine needs to know about one collection: how its records
@@ -62,6 +65,12 @@ abstract class SyncAdapter<T> {
   /// Parses a row, or returns null if it is unintelligible. A single malformed row
   /// should cost that one record, not the whole sync.
   SyncRecord<T>? fromRow(Map<String, dynamic> row);
+
+  /// Optional one-shot local upgrade before a reconcile (journal id remaps).
+  Future<void> beforeReconcile(
+    SyncJournal journal,
+    LocalCollection<T> local,
+  ) async {}
 }
 
 /// Reads `updated_at` / `deleted_at` the way every synced table stores them.

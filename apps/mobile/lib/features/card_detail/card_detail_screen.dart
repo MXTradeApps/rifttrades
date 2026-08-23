@@ -33,9 +33,21 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
     final theme = Theme.of(context);
     final settings = ref.watch(settingsProvider);
     final pricing = ref.watch(pricingProvider);
-    final owned = ref.watch(binderProvider.select((entries) => entries
-        .where((e) => e.card.id == _selected.id && !e.isWanted)
-        .fold<int>(0, (s, e) => s + e.quantity)));
+    final destId = destinationBinderId(
+      openId: ref.watch(openBinderIdProvider),
+      tab: ref.watch(homeTabIndexProvider),
+    );
+    final destRows = ref.watch(binderProvider.select((entries) => entries
+        .where((e) =>
+            e.card.id == _selected.id &&
+            !e.isWanted &&
+            e.resolvedBinderId == destId)
+        .toList(growable: false)));
+    final editCondition =
+        destRows.length == 1 ? destRows.single.condition : 'NM';
+    final owned = destRows
+        .where((e) => e.condition == editCondition)
+        .fold<int>(0, (s, e) => s + e.quantity);
     final wanted = ref.watch(binderProvider.select((entries) => entries.any(
         (e) => e.card.id == _selected.id && e.isWanted && e.quantity > 0)));
     final catalog = ref.watch(catalogProvider).maybeWhen(
@@ -104,7 +116,8 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
                               icon: Icons.auto_awesome),
                         if (owned > 0)
                           GestureDetector(
-                            onTap: () => _editBinderQty(context, owned),
+                            onTap: () => _editBinderQty(
+                                context, owned, destId, editCondition),
                             child: PillBadge(
                                 label: 'Own $owned',
                                 color: AppTheme.positive,
@@ -141,7 +154,12 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
     );
   }
 
-  Future<void> _editBinderQty(BuildContext context, int current) async {
+  Future<void> _editBinderQty(
+    BuildContext context,
+    int current,
+    String binderId,
+    String condition,
+  ) async {
     var qty = current;
     final saved = await showDialog<int>(
       context: context,
@@ -182,9 +200,13 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
       },
     );
     if (saved == null || !mounted) return;
-    ref
-        .read(binderProvider.notifier)
-        .setQuantity(_selected.id, false, saved);
+    ref.read(binderProvider.notifier).setQuantity(
+          _selected.id,
+          false,
+          saved,
+          binderId: binderId,
+          condition: condition,
+        );
   }
 }
 

@@ -90,6 +90,23 @@ tombstones, high-water marks, and which account the cache belongs to — without
 changing the on-disk shape of binder/trade/settings JSON that existing installs
 already have.
 
+### Binders domain
+
+Binder **records** sync as their own domain (`SyncDomain.binders` →
+`public.rift_binders`). Identity is the client-minted `client_id`
+(`system:trade`, `system:collection`, or a UUID). Last-write-wins per
+record. Live names are unique per user after trim + case-fold; a unique
+violation is a surfaced error, not a silent rename.
+
+Owned Binder **entries** stay in `rift_binder_entries` with identity
+`binder|{binderId}|{cardId}|{condition}`. Want List identity is
+`want|{cardId}` (`binder_id` null). Conflict targets match the live
+uniques. Lend (`rift_lend_groups`) is unchanged and is not an input to
+Binder totals.
+
+Pre-feature owned rows migrate to `binder_id = system:trade`. Public
+share (`get_rift_public_binder`) returns Trade Binder rows only.
+
 ---
 
 ## 6. Entitlements (RiftTrades Pro)

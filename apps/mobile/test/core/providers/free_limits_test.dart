@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:rifttrades/core/logic/free_limits.dart';
+import 'package:rifttrades/core/models/binder.dart';
 import 'package:rifttrades/core/models/subscription_status.dart';
 import 'package:rifttrades/core/models/trade.dart';
 import 'package:rifttrades/core/providers.dart';
@@ -57,6 +58,7 @@ void main() {
         expect(FreeLimits.wantListCards, 25, reason: reason);
         expect(FreeLimits.loanedCards, 25, reason: reason);
         expect(FreeLimits.savedTrades, 3, reason: reason);
+        expect(FreeLimits.binders, 4, reason: reason);
       },
     );
   });
@@ -107,6 +109,58 @@ void main() {
         expect(binder.add(buildCard(id: 'card-$i')), isTrue);
       }
       expect(c.read(binderProvider), hasLength(FreeLimits.binderCards + 5));
+    });
+
+    test('50 in Collection refuses a new printing add or move-in', () async {
+      final c = await makeContainer(isPro: false);
+      final binder = c.read(binderProvider.notifier);
+      for (var i = 0; i < FreeLimits.binderCards; i++) {
+        expect(
+          binder.add(buildCard(id: 'col-$i'), binderId: BinderIds.collection),
+          isTrue,
+        );
+      }
+      expect(
+        binder.add(buildCard(id: 'new-in-collection'),
+            binderId: BinderIds.collection),
+        isFalse,
+      );
+      expect(
+        FreeLimits.canAddDistinctCard(
+          FreeLimits.binderCards,
+          isWanted: false,
+          isPro: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('qty-up of a Collection printing at 50 is allowed', () async {
+      final c = await makeContainer(isPro: false);
+      final binder = c.read(binderProvider.notifier);
+      for (var i = 0; i < FreeLimits.binderCards; i++) {
+        binder.add(buildCard(id: 'col-$i'), binderId: BinderIds.collection);
+      }
+      expect(
+        binder.add(buildCard(id: 'col-0'),
+            quantity: 2, binderId: BinderIds.collection),
+        isTrue,
+      );
+      expect(
+        binder.quantityOf('col-0', binderId: BinderIds.collection),
+        3,
+      );
+    });
+
+    test('same printing in two binders counts as 1 each', () async {
+      final c = await makeContainer(isPro: false);
+      final binder = c.read(binderProvider.notifier);
+      final card = buildCard(id: 'shared');
+      expect(binder.add(card, binderId: BinderIds.trade), isTrue);
+      expect(binder.add(card, binderId: BinderIds.collection), isTrue);
+      expect(binder.quantityOf('shared', binderId: BinderIds.trade), 1);
+      expect(binder.quantityOf('shared', binderId: BinderIds.collection), 1);
+      expect(c.read(binderProvider).where((e) => !e.isWanted), hasLength(2));
     });
 
     test('trade reconciliation is exempt from the cap', () async {

@@ -1,6 +1,10 @@
 # Node
 node_modules/
+dist/
+*.log
 npm-debug.log*
+*.tmp
+*.swp
 
 # Env / secrets
 .env

@@ -1,0 +1,94 @@
+/**
+ * Free-tier ceilings. RiftTrades Pro removes all of them.
+ *
+ * These numbers must match the mobile app
+ * (`apps/mobile/lib/core/logic/free_limits.dart`). Drift here is not cosmetic:
+ * mobile enforces the trade window by deleting the oldest rows, so a higher cap
+ * on web would look to the customer like mobile eating trades they had saved.
+ *
+ * Binder and want-list caps refuse new distinct cards (never trim existing rows).
+ * Raising quantity on a card that is already listed is never capped — same as
+ * mobile's `_canAddNewCard`. Distinct owned cards are counted **per Binder**
+ * (caller passes that Binder's count). Creating a 5th Binder is paywall
+ * (show Pro, create nothing).
+ */
+export const FreeLimits = {
+    binderCards: 50,
+    wantListCards: 25,
+    savedTrades: 3,
+    loanedCards: 25,
+    binders: 4,
+};
+
+/**
+ * Distinct-card cap for binder vs want list.
+ *
+ * @param {{ isWanted: boolean }} opts
+ * @returns {number}
+ */
+export function cardsFor({ isWanted }) {
+    return isWanted ? FreeLimits.wantListCards : FreeLimits.binderCards;
+}
+
+/**
+ * Whether a free account may add another distinct card to binder or want list.
+ *
+ * Matches mobile: Pro always allowed; free accounts are blocked once they already
+ * hold the cap. Callers that are only raising quantity on an existing entry should
+ * not use this — that path is uncapped. For owned rows, `existingDistinctCount`
+ * is that Binder's distinct count (same Printing in two Binders counts as 1 in each).
+ *
+ * @param {number} existingDistinctCount - Distinct cards already listed (per Binder when owned)
+ * @param {{ isWanted: boolean, isPro?: boolean }} opts
+ * @returns {boolean}
+ */
+export function canAddDistinctCard(existingDistinctCount, { isWanted, isPro = false } = {}) {
+    if (isPro) return true;
+    return existingDistinctCount < cardsFor({ isWanted });
+}
+
+/**
+ * Distinct owned printing ids. When `binderId` is set, count only that Binder
+ * (same Printing in two Binders counts as 1 in each). Want List is excluded.
+ *
+ * @param {Array<{ isWanted?: boolean, cardId?: string, printingId?: string, binderId?: string|null }>} entries
+ * @param {string} [binderId]
+ * @returns {number}
+ */
+export function distinctOwnedCount(entries, binderId) {
+    const ids = new Set();
+    for (const entry of entries || []) {
+        if (entry?.isWanted) continue;
+        if (binderId != null && (entry.binderId || 'system:trade') !== binderId) continue;
+        const id = entry.cardId || entry.printingId;
+        if (id) ids.add(id);
+    }
+    return ids.size;
+}
+
+/**
+ * Whether a free account may create another Binder. Pro always allowed.
+ * At the cap, callers present the Pro upgrade and create nothing.
+ *
+ * @param {number} liveBinderCount
+ * @param {{ isPro?: boolean }} [opts]
+ * @returns {boolean}
+ */
+export function canCreateBinder(liveBinderCount, { isPro = false } = {}) {
+    if (isPro) return true;
+    return liveBinderCount < FreeLimits.binders;
+}
+
+/**
+ * How many of the oldest trades have to roll off to fit inside the free window.
+ *
+ * Saving a trade is never refused, on either client. Refusing would lose the
+ * trade outright, and a history that quietly keeps the most recent is a much
+ * gentler limit to run into than a save button that stops working.
+ *
+ * @param {number} total - Trades the account would hold after the save
+ * @returns {number} Trades to tombstone, oldest first; 0 when inside the window
+ */
+export function tradesOverFreeLimit(total) {
+    return Math.max(0, total - FreeLimits.savedTrades);
+}

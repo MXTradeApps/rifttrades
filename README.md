@@ -8,7 +8,8 @@ binder and want list, lend cards, and scan with the camera.
 
 | Path | What it is |
 | --- | --- |
-| `apps/mobile/` | Flutter app (the product) |
+| `apps/mobile/` | Flutter app (peer client) |
+| `apps/web/` | Web app (peer client in this repo) |
 | `apps/legal/` | Static Privacy / Terms pages for store review (deploy to Netlify) |
 | `services/price-pipeline` | Daily Node ingest: TCGCSV + CardMarket → Supabase |
 | `supabase/` | Migrations and Edge Functions for auth, sync, entitlements |

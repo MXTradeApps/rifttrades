@@ -4,7 +4,7 @@
  * Apple guideline 5.1.1(v) and Google Play both require an in-app path to delete
  * an account created in-app. The client cannot call auth.admin.deleteUser — that
  * needs the service role — so this function verifies the caller's JWT and deletes
- * only that user. Cascading FKs on rift_binder_entries, rift_lend_groups,
+ * only that user. Cascading FKs on rift_binders, rift_binder_entries, rift_lend_groups,
  * rift_user_settings, rift_binder_shares, rift_entitlements, and rift_trades
  * remove the associated rows.
  *

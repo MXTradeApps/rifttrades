@@ -70,6 +70,7 @@ Must stay in lockstep with the web app (see
 | `wantListCards` | 25 | refuse the add |
 | `loanedCards` | 25 | refuse; borrowing is uncapped |
 | `savedTrades` | 3 | trim oldest; never refuse the save |
+| `binders` | 4 | paywall; create nothing |
 
 ### Pro-only features
 
@@ -106,6 +107,7 @@ users' local data or corrupts the sync journal.
 | Where | Literal | What it actually is |
 | --- | --- | --- |
 | `lib/core/data/binder_repository.dart` | `'collection_entries'` | SharedPreferences key |
+| `lib/core/data/binders_repository.dart` | `'binders'` | SharedPreferences key |
 | `lib/core/data/lend_repository.dart` | `'lend_groups'` | SharedPreferences key |
 | `lib/core/data/trade_repository.dart` | `'saved_trades'` | SharedPreferences key |
 | `lib/core/data/settings_repository.dart` | `'app_settings'` | SharedPreferences key |

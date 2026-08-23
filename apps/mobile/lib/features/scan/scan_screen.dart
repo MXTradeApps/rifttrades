@@ -51,6 +51,7 @@ class ScanScreen extends ConsumerStatefulWidget {
     super.key,
     this.destination = ScanDestination.detail,
     this.tradeSide,
+    this.binderId,
   }) : assert(
           destination != ScanDestination.trade || tradeSide != null,
           'tradeSide is required when destination is trade',
@@ -60,6 +61,9 @@ class ScanScreen extends ConsumerStatefulWidget {
 
   /// Required when [destination] is [ScanDestination.trade].
   final TradeSide? tradeSide;
+
+  /// Snapshot of the receiving Binder when opened from the Binder FAB.
+  final String? binderId;
 
   /// Opens the scanner wired to add scanned cards to [side] of the trade draft.
   static Future<void> forTrade(BuildContext context, TradeSide side) {
@@ -74,11 +78,13 @@ class ScanScreen extends ConsumerStatefulWidget {
   }
 
   /// Opens the scanner wired to add scanned cards to the Binder.
-  static Future<void> forBinder(BuildContext context) {
+  static Future<void> forBinder(BuildContext context, {String? binderId}) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) =>
-            const ScanScreen(destination: ScanDestination.binder),
+        builder: (_) => ScanScreen(
+          destination: ScanDestination.binder,
+          binderId: binderId,
+        ),
       ),
     );
   }
@@ -739,10 +745,24 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       case ScanDestination.binder:
         // Stop scanning if the free binder is full — continuing to rack up
         // rejected scans would be worse than surfacing the limit once.
-        if (!await addToBinderOrUpsell(context, ref, card)) return;
+        final dest = widget.binderId ??
+            destinationBinderId(
+              openId: ref.read(openBinderIdProvider),
+              tab: ref.read(homeTabIndexProvider),
+            );
+        final destName = ref.read(bindersProvider.notifier).byId(dest)?.name ??
+            'Binder';
+        if (!await addToBinderOrUpsell(
+          context,
+          ref,
+          card,
+          binderId: dest,
+        )) {
+          return;
+        }
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Added ${card.name} to Binder'),
+            content: Text('Added ${card.name} to $destName'),
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),

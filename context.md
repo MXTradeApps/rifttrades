@@ -14,15 +14,30 @@ Reads from a shared **Supabase** DB populated daily by the Node ingest under
 ## Language
 
 **Binder**:
-The cards a player is willing to trade away right now — their tradeable stock.
-Putting a card in the Binder is the act of marking it for trade. There is no
-owned-but-not-tradeable concept: deck cards and shoebox bulk do not exist in
-the app.
-_Avoid_: Collection, inventory, owned cards
+The product noun for a named pile of owned Printings. A player can have
+more than one. The type is always Binder — do not rename the Binder
+destination or tab.
+
+**Trade Binder**:
+The tradeable-stock Binder (`role = trade`, `client_id = system:trade`).
+Confirm Trade, Trade Filler, public share, and default adds (when no
+Binder list is open) use this pile. It is never deleted. Putting a card
+here marks it for trade.
+
+**Collection**:
+The default keep-pile Binder **name** (`role = standard`,
+`client_id = system:collection`). Owned, not for trade. The type is still
+Binder. Do not treat Collection as a second product noun or as a rename
+of the Binder tab.
 
 **Want List**:
-Cards a player is looking to acquire. Shown to other players as a visual grid
-so they can check their binder against it.
+Cards a player is looking to acquire (`isWanted`). Not a Binder. Not a
+grid tile. Reachable as a sibling of the Binder grid (mobile tab /
+`/wants`).
+
+**Lend**:
+Cards lent out or borrowed. A separate type. Lend does not read or write
+Binders; Binder totals and the value overlay do not include Lend.
 
 **Trade Filler**:
 A suggested card whose price closes the value gap of a live trade. The side
@@ -48,7 +63,8 @@ See `docs/BINDER-PLAN.md` for Phase 7 Binder (B1–B4).
 
 ## Repo layout
 
-- `apps/mobile/` — Flutter app (active product work).
+- `apps/mobile/` — Flutter app (peer client).
+- `apps/web/` — web product UI (peer client in this repo).
 - `services/price-pipeline` — Node ingest (TCGCSV + CardMarket → Supabase).
 - `supabase/` — migrations + Edge Functions (auth sync, entitlements).
 - `docs/` — architecture, database, environments, entitlements, releasing.
@@ -58,9 +74,10 @@ See `docs/BINDER-PLAN.md` for Phase 7 Binder (B1–B4).
 
 | Cap | Value | At the cap |
 | --- | --- | --- |
-| Binder cards | 50 | refuse the add |
-| Want-list cards | 25 | refuse the add |
-| Loaned cards | 25 | refuse; borrowing uncapped |
+| Distinct cards **per Binder** | 50 | refuse a new Printing (qty-up allowed) |
+| Live Binders | 4 | Pro upgrade; create nothing |
+| Want-list cards | 25 (mobile) / 50 (web) | refuse the add (unchanged here) |
+| Loaned cards | 25 (mobile) / 1 (web) | refuse; borrowing uncapped |
 | Saved trades | 3 | trim oldest; never refuse the save |
 
 Constants live in `apps/mobile/lib/core/logic/free_limits.dart`. Pro unlocks via

@@ -26,12 +26,20 @@ Future<void> showCardActions(
 
       void addToList({required bool isWanted}) {
         Navigator.of(ctx).pop();
+        final dest = destinationBinderId(
+          openId: ref.read(openBinderIdProvider),
+          tab: ref.read(homeTabIndexProvider),
+        );
+        final destName =
+            ref.read(bindersProvider.notifier).byId(dest)?.name ?? 'Binder';
         addToBinderOrUpsell(
           context,
           ref,
           card,
           isWanted: isWanted,
-          successMessage: isWanted ? 'Added to Want List' : 'Added to Binder',
+          binderId: isWanted ? null : dest,
+          successMessage:
+              isWanted ? 'Added to Want List' : 'Added to $destName',
         );
       }
 

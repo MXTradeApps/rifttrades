@@ -1,17 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:showcaseview/showcaseview.dart';
 
 import '../../app/app.dart';
 import '../../app/theme.dart';
-import '../../app/widgets.dart';
-import '../../core/data/card_repository.dart';
-import '../../core/logic/pricing.dart';
+import '../../core/logic/binder_names.dart';
+import '../../core/logic/free_limits.dart';
+import '../../core/models/binder.dart';
 import '../../core/models/binder_entry.dart';
 import '../../core/providers.dart';
-import '../card_detail/card_detail_screen.dart';
 import '../onboarding/onboarding_keys.dart';
 import '../onboarding/onboarding_provider.dart';
 import '../onboarding/onboarding_repository.dart';
@@ -19,10 +16,13 @@ import '../onboarding/showcase_theme.dart';
 import '../onboarding/tour_controller.dart';
 import '../onboarding/tour_copy.dart';
 import '../paywall/pro_limits.dart';
+import '../paywall/pro_paywall.dart';
 import '../scan/scan_screen.dart';
 import '../search/card_picker.dart';
-import '../sync/sync_actions.dart';
 import '../want_list/want_list_screen.dart';
+import 'binder_grid.dart';
+import 'binder_list.dart';
+import 'binder_value_sheet.dart';
 
 class BinderScreen extends ConsumerStatefulWidget {
   const BinderScreen({super.key});
@@ -54,7 +54,6 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
       return;
     }
 
-    // Don't interrupt a home-shell tour already running (e.g. Binder).
     final home = ShowcaseView.getNamed(OnboardingKeys.homeScope);
     if (home.isShowcaseRunning) return;
 
@@ -94,37 +93,81 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
   @override
   Widget build(BuildContext context) {
     final entries = ref.watch(binderProvider);
+    final binders = ref.watch(bindersProvider);
     final pricing = ref.watch(pricingProvider);
-    final binder = entries.where((e) => !e.isWanted).toList();
+    final openId = ref.watch(openBinderIdProvider);
     final wanted = entries.where((e) => e.isWanted).toList();
+    final owned = entries.where((e) => !e.isWanted).toList();
     final onBinderTab = _tab.index == 0;
-    final binderTotal = binder.fold<double>(
-        0, (s, e) => s + (pricing.value(e.card) ?? 0) * e.quantity);
+    final inBinder = onBinderTab && openId != null;
+    final openRows = openId == null
+        ? const <BinderEntry>[]
+        : ownedInBinder(owned, openId);
+    final valueLabel = openId == null
+        ? ''
+        : binderTileValueLabel(owned, openId, pricing);
+    final title = _appBarTitle(
+      onBinderTab: onBinderTab,
+      openId: openId,
+      binders: binders,
+    );
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Binder'),
-        actions: const [AppMenuAction()],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(46),
-          child: ShowcaseTheme.mark(
-            key: OnboardingKeys.binderTabs,
-            title: TourCopy.binderTabsTitle,
-            description: TourCopy.binderTabsBody,
-            child: TabBar(
-              controller: _tab,
-              tabs: [
-                Tab(text: 'Binder (${_count(binder)})'),
-                Tab(text: 'Want List (${_count(wanted)})'),
-              ],
+        leading: inBinder
+            ? IconButton(
+                key: const Key('binderBackToGrid'),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back to Binders',
+                onPressed: () {
+                  ref.read(binderFiltersProvider.notifier).clear();
+                  ref.read(openBinderIdProvider.notifier).close();
+                },
+              )
+            : null,
+        title: Text(title, key: const Key('binderHomeTitle')),
+        actions: [
+          if (onBinderTab && openId == null)
+            TextButton.icon(
+              key: const Key('createBinder'),
+              onPressed: () => _createBinder(context),
+              icon: const Icon(Icons.add_box_outlined),
+              label: const Text('New'),
             ),
-          ),
-        ),
+          const AppMenuAction(),
+        ],
+        bottom: inBinder
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(46),
+                child: ShowcaseTheme.mark(
+                  key: OnboardingKeys.binderTabs,
+                  title: TourCopy.binderTabsTitle,
+                  description: TourCopy.binderTabsBody,
+                  child: TabBar(
+                    controller: _tab,
+                    tabs: [
+                      Tab(text: 'Binder (${_count(owned)})'),
+                      Tab(text: 'Want List (${_count(wanted)})'),
+                    ],
+                  ),
+                ),
+              ),
       ),
       body: TabBarView(
         controller: _tab,
+        physics: inBinder ? const NeverScrollableScrollPhysics() : null,
         children: [
-          _BinderList(allEntries: binder, pricing: pricing),
+          openId == null
+              ? BinderGrid(
+                  onOpen: (id) {
+                    ref.read(binderFiltersProvider.notifier).clear();
+                    ref.read(openBinderIdProvider.notifier).open(id);
+                  },
+                  onRename: (id) => _renameBinder(context, id),
+                  onDelete: (id) => _deleteBinder(context, id),
+                )
+              : BinderList(binderId: openId, pricing: pricing),
           WantListPane(
             onAdd: () => _addBySearch(isWanted: true),
           ),
@@ -138,13 +181,14 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (onBinderTab && binder.isNotEmpty)
+              if (onBinderTab && openId != null && openRows.isNotEmpty)
                 ShowcaseTheme.mark(
                   key: OnboardingKeys.binderTotal,
                   title: TourCopy.binderTotalTitle,
                   description: TourCopy.binderTotalBody,
                   child: _BinderValueChip(
-                    total: pricing.formatValue(binderTotal),
+                    total: valueLabel,
+                    onTap: () => showBinderValueSheet(context),
                   ),
                 )
               else
@@ -171,6 +215,130 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
 
   int _count(List<BinderEntry> e) => e.fold<int>(0, (s, x) => s + x.quantity);
 
+  static String _appBarTitle({
+    required bool onBinderTab,
+    required String? openId,
+    required List<Binder> binders,
+  }) {
+    if (!onBinderTab) return 'Want List';
+    if (openId == null) return 'My Binders';
+    for (final binder in binders) {
+      if (binder.clientId == openId && binder.isLive) return binder.name;
+    }
+    return 'Binder';
+  }
+
+  Future<void> _createBinder(BuildContext context) async {
+    final isPro = ref.read(isProProvider);
+    if (!FreeLimits.canCreateBinder(
+        ref.read(bindersProvider.notifier).live.length,
+        isPro: isPro)) {
+      await presentProPaywall(context, ref);
+      if (!context.mounted) return;
+      if (!ref.read(isProProvider)) return;
+    }
+    final name = await _promptName(context, title: 'New Binder');
+    if (name == null || !context.mounted) return;
+    final result = ref
+        .read(bindersProvider.notifier)
+        .create(name, isPro: ref.read(isProProvider));
+    if (!result.ok && context.mounted) {
+      if (result.reason == 'paywall') {
+        await presentProPaywall(context, ref);
+        if (!context.mounted) return;
+        if (ref.read(isProProvider)) {
+          final retry = ref
+              .read(bindersProvider.notifier)
+              .create(name, isPro: true);
+          if (!retry.ok && context.mounted) _showNameError(context, retry);
+        }
+      } else {
+        _showNameError(context, result);
+      }
+    }
+  }
+
+  Future<void> _renameBinder(BuildContext context, String clientId) async {
+    final current = ref.read(bindersProvider.notifier).byId(clientId);
+    final name = await _promptName(
+      context,
+      title: 'Rename Binder',
+      initial: current?.name ?? '',
+    );
+    if (name == null || !context.mounted) return;
+    final result = ref.read(bindersProvider.notifier).rename(clientId, name);
+    if (!result.ok && context.mounted) _showNameError(context, result);
+  }
+
+  Future<void> _deleteBinder(BuildContext context, String clientId) async {
+    final binder = ref.read(bindersProvider.notifier).byId(clientId);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Binder?'),
+        content: Text(
+          'Delete ${binder?.name ?? 'this Binder'}? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final err = ref.read(bindersProvider.notifier).delete(clientId);
+    if (err == null || !context.mounted) return;
+    final message = switch (err) {
+      'trade' => 'Trade Binder cannot be deleted',
+      'not-empty' => 'Move or remove cards before deleting this Binder',
+      _ => 'Could not delete Binder',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showNameError(BuildContext context, BinderNameResult result) {
+    final message = switch (result.reason) {
+      'duplicate' => 'A Binder with that name already exists',
+      'empty' => 'Name cannot be empty',
+      _ => 'Could not save name',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String?> _promptName(
+    BuildContext context, {
+    required String title,
+    String initial = '',
+  }) async {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          key: const Key('binderNameField'),
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Binder name'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showBinderAddOptions(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -185,10 +353,14 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
               subtitle: const Text('Add each match and keep scanning'),
               onTap: () {
                 Navigator.pop(ctx);
-                // Push after the sheet closes — same-frame pop+push can drop
-                // the route on some Android builds.
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (context.mounted) ScanScreen.forBinder(context);
+                  if (context.mounted) {
+                    ScanScreen.forBinder(
+                      context,
+                      binderId: ref.read(openBinderIdProvider) ??
+                          BinderIds.trade,
+                    );
+                  }
                 });
               },
             ),
@@ -209,6 +381,12 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
   }
 
   Future<void> _addBySearch({required bool isWanted}) async {
+    final destId = destinationBinderId(
+      openId: ref.read(openBinderIdProvider),
+      tab: ref.read(homeTabIndexProvider),
+    );
+    final destName =
+        ref.read(bindersProvider.notifier).byId(destId)?.name ?? 'Binder';
     await CardPickerScreen.showMulti(
       context,
       title: isWanted ? 'Add to Want List' : 'Add to Binder',
@@ -217,259 +395,19 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
         ref,
         card,
         isWanted: isWanted,
-        successMessage:
-            'Added ${card.name} to ${isWanted ? 'Want List' : 'Binder'}',
+        binderId: isWanted ? null : destId,
+        successMessage: isWanted
+            ? 'Added ${card.name} to Want List'
+            : 'Added ${card.name} to $destName',
       ),
     );
   }
 }
 
-class _BinderList extends ConsumerStatefulWidget {
-  const _BinderList({required this.allEntries, required this.pricing});
-
-  final List<BinderEntry> allEntries;
-  final Pricing pricing;
-
-  @override
-  ConsumerState<_BinderList> createState() => _BinderListState();
-}
-
-class _BinderListState extends ConsumerState<_BinderList> {
-  final _controller = TextEditingController();
-  Timer? _debounce;
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onChanged(String value) {
-    setState(() {}); // refresh clear button
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      ref.read(binderFiltersProvider.notifier).setQuery(value);
-    });
-  }
-
-  void _clearQuery() {
-    _debounce?.cancel();
-    _controller.clear();
-    ref.read(binderFiltersProvider.notifier).setQuery('');
-    setState(() {});
-  }
-
-  void _clearFilters() {
-    _debounce?.cancel();
-    _controller.clear();
-    ref.read(binderFiltersProvider.notifier).clear();
-    setState(() {});
-  }
-
-  Future<void> _onRefresh() => pullToRefreshAccountSync(ref);
-
-  @override
-  Widget build(BuildContext context) {
-    final all = widget.allEntries;
-    final pricing = widget.pricing;
-
-    if (all.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _onRefresh,
-        child: _BinderEmptyState(
-          onScan: () {
-            if (context.mounted) ScanScreen.forBinder(context);
-          },
-          onSearch: () async {
-            await CardPickerScreen.showMulti(
-              context,
-              title: 'Add to Binder',
-              onPick: (card) => addToBinderOrUpsell(
-                context,
-                ref,
-                card,
-                successMessage: 'Added ${card.name} to Binder',
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    final filters = ref.watch(binderFiltersProvider);
-    final visible = ref.watch(filteredBinderProvider);
-    final hasQuery = filters.query.trim().isNotEmpty;
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  onChanged: _onChanged,
-                  textInputAction: TextInputAction.search,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Search binder…',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 36,
-                    ),
-                    suffixIcon: _controller.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: _clearQuery,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              _BinderFilterControls(
-                filters: filters,
-                onFoilOnly: (v) =>
-                    ref.read(binderFiltersProvider.notifier).setFoilOnly(v),
-                onSort: (s) =>
-                    ref.read(binderFiltersProvider.notifier).setSort(s),
-                onClear: _clearFilters,
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _onRefresh,
-            child: visible.isEmpty
-                ? _BinderNoMatches(
-                    hasQuery: hasQuery || filters.hasActiveFilters,
-                    onClear: _clearFilters,
-                  )
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 96),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, indent: 72),
-                    itemBuilder: (context, i) =>
-                        _EntryRow(entry: visible[i], pricing: pricing),
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BinderNoMatches extends StatelessWidget {
-  const _BinderNoMatches({required this.hasQuery, required this.onClear});
-  final bool hasQuery;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search_off, size: 48, color: scheme.outline),
-                  const SizedBox(height: 12),
-                  Text(
-                    hasQuery
-                        ? 'No cards match your filters.'
-                        : 'No cards in binder.',
-                    textAlign: TextAlign.center,
-                  ),
-                  if (hasQuery) ...[
-                    const SizedBox(height: 16),
-                    TextButton(
-                        onPressed: onClear, child: const Text('Clear filters')),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BinderEmptyState extends StatelessWidget {
-  const _BinderEmptyState({required this.onScan, required this.onSearch});
-  final VoidCallback onScan;
-  final VoidCallback onSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.menu_book_outlined,
-                      size: 56, color: scheme.outline),
-                  const SizedBox(height: 16),
-                  Text('Your Binder is empty',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Add the cards you\'re willing to trade. Scan a stack or '
-                    'search by name — no separate chore.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: onScan,
-                    icon: const Icon(Icons.qr_code_scanner),
-                    label: const Text('Scan cards'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: onSearch,
-                    icon: const Icon(Icons.search),
-                    label: const Text('Add by search'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact FAB-height chip showing binder total, opposite the Add button.
 class _BinderValueChip extends StatelessWidget {
-  const _BinderValueChip({required this.total});
+  const _BinderValueChip({required this.total, required this.onTap});
   final String total;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -481,250 +419,29 @@ class _BinderValueChip extends StatelessWidget {
       shadowColor: Colors.black54,
       color: scheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: SizedBox(
-        height: 56,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Center(
-            child: Text(
-              total,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact foil / sort / clear controls that sit beside the binder search field.
-class _BinderFilterControls extends StatelessWidget {
-  const _BinderFilterControls({
-    required this.filters,
-    required this.onFoilOnly,
-    required this.onSort,
-    required this.onClear,
-  });
-
-  final CardFilters filters;
-  final ValueChanged<bool> onFoilOnly;
-  final ValueChanged<CardSort> onSort;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Foil only',
-          isSelected: filters.foilOnly,
-          onPressed: () => onFoilOnly(!filters.foilOnly),
-          icon: const Icon(Icons.auto_awesome, size: 20),
-          visualDensity: VisualDensity.compact,
-          style: IconButton.styleFrom(
-            foregroundColor: filters.foilOnly ? scheme.onPrimary : null,
-            backgroundColor: filters.foilOnly ? scheme.primary : null,
-          ),
-        ),
-        PopupMenuButton<CardSort>(
-          tooltip: 'Sort',
-          initialValue: filters.sort,
-          onSelected: onSort,
-          itemBuilder: (_) => CardSort.values
-              .map((s) => PopupMenuItem(value: s, child: Text(s.label)))
-              .toList(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Icon(
-              Icons.sort,
-              size: 20,
-              color: filters.sort != CardSort.nameAsc
-                  ? scheme.primary
-                  : scheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        if (filters.hasActiveFilters)
-          IconButton(
-            tooltip: 'Clear filters',
-            onPressed: onClear,
-            icon: const Icon(Icons.filter_alt_off, size: 20),
-            visualDensity: VisualDensity.compact,
-          ),
-      ],
-    );
-  }
-}
-
-class _EntryRow extends ConsumerWidget {
-  const _EntryRow({required this.entry, required this.pricing});
-  final BinderEntry entry;
-  final Pricing pricing;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final notifier = ref.read(binderProvider.notifier);
-    final card = entry.card;
-    final lineValue = (pricing.value(card) ?? 0) * entry.quantity;
-
-    return Dismissible(
-      key: ValueKey('${card.id}_${entry.isWanted}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: AppTheme.negative,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (_) => notifier.remove(card.id, entry.isWanted),
       child: InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => CardDetailScreen(card: card))),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
-            children: [
-              CardThumbnail(url: card.imageUrl, foil: card.isFoil),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(card.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 3),
-                    CardMetaLine(card: card),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        RarityBadge(rarity: card.rarity),
-                        if (card.isFoil) ...[
-                          const SizedBox(width: 5),
-                          const PillBadge(
-                              label: 'FOIL',
-                              color: Color(0xFF9B5DE5),
-                              icon: Icons.auto_awesome),
-                        ],
-                        const SizedBox(width: 5),
-                        _ConditionChip(
-                          condition: entry.condition,
-                          onChanged: (c) => notifier.setCondition(
-                              card.id, entry.isWanted, c),
-                        ),
-                      ],
-                    ),
-                  ],
+        key: const Key('binderValueChip'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Semantics(
+          button: true,
+          label: 'Binder value',
+          child: SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Center(
+                child: Text(
+                  total,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(pricing.formatValue(lineValue),
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  if (pricing.lowPriceLabel(card) != null)
-                    Text(pricing.lowPriceLabel(card)!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
-                  const SizedBox(height: 4),
-                  _MiniStepper(
-                    qty: entry.quantity,
-                    onInc: () => notifier.setQuantity(
-                        card.id, entry.isWanted, entry.quantity + 1),
-                    onDec: () => notifier.setQuantity(
-                        card.id, entry.isWanted, entry.quantity - 1),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ConditionChip extends StatelessWidget {
-  const _ConditionChip({required this.condition, required this.onChanged});
-  final String condition;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return PopupMenuButton<String>(
-      onSelected: onChanged,
-      itemBuilder: (_) => BinderEntry.conditions
-          .map((c) => PopupMenuItem(value: c, child: Text(c)))
-          .toList(),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: scheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(condition,
-                style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSecondaryContainer)),
-            Icon(Icons.arrow_drop_down,
-                size: 14, color: scheme.onSecondaryContainer),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniStepper extends StatelessWidget {
-  const _MiniStepper(
-      {required this.qty, required this.onInc, required this.onDec});
-  final int qty;
-  final VoidCallback onInc;
-  final VoidCallback onDec;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: onDec,
-            child: const Padding(
-                padding: EdgeInsets.all(5), child: Icon(Icons.remove, size: 15)),
-          ),
-          SizedBox(
-            width: 20,
-            child: Text('$qty',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 13)),
-          ),
-          InkWell(
-            onTap: onInc,
-            child: const Padding(
-                padding: EdgeInsets.all(5), child: Icon(Icons.add, size: 15)),
-          ),
-        ],
       ),
     );
   }

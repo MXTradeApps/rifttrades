@@ -42,17 +42,19 @@ abstract final class TourCopy {
   // ── Binder ─────────────────────────────────────────────────────────────
   static const binderTabsTitle = 'Binder & Want List';
   static const binderTabsBody =
-      'Your tradeable collection lives here. Switch tabs to see cards you\'re '
-      'hunting for.';
+      'The Binder tab opens a grid of Binders. Trade Binder is what you are '
+      'willing to trade; Collection is a keep pile. Want List is the other '
+      'tab — it is not a Binder.';
 
   static const binderTotalTitle = 'Binder value';
   static const binderTotalBody =
-      'The chip shows a running total of what\'s in your binder, using the '
-      'price source from Settings.';
+      'Tap the green total on an open Binder to inspect TCGplayer and '
+      'CardMarket totals. The chip uses the price source from Settings.';
 
   static const binderFabTitle = 'Add cards';
   static const binderFabBody =
-      'Scan a stack or search by name to build your binder.';
+      'Scan a stack or search by name. Adds go to the Binder you have open, '
+      'or to Trade Binder from the grid.';
 
   // ── Want List ──────────────────────────────────────────────────────────
   static const wantListTitle = 'Want List';

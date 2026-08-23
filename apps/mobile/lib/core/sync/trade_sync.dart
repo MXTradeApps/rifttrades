@@ -14,6 +14,12 @@ class TradeSyncAdapter implements SyncAdapter<Trade> {
   const TradeSyncAdapter();
 
   @override
+  Future<void> beforeReconcile(
+    SyncJournal journal,
+    LocalCollection<Trade> local,
+  ) async {}
+
+  @override
   SyncDomain get domain => SyncDomain.trades;
 
   @override
