@@ -34,6 +34,15 @@ describe('Header drawer', () => {
         expect(screen.queryByText('Sets · Most Expensive')).not.toBeInTheDocument();
     });
 
+    test('links Terms of Use to /terms', () => {
+        renderHeader('/');
+
+        fireEvent.click(screen.getByRole('button', { name: /menu/i }));
+
+        const terms = screen.getByRole('link', { name: /terms of use/i });
+        expect(terms).toHaveAttribute('href', '/terms');
+    });
+
     test('links Support to /support', () => {
         renderHeader('/');
 

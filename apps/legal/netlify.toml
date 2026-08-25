@@ -4,9 +4,9 @@
 #   netlify deploy --prod --dir=apps/legal
 #   (or drag-drop apps/legal in the Netlify UI)
 #
-# Canonical URLs expected by the mobile app (LegalUrls):
-#   https://rifttrades.net/privacy
-#   https://rifttrades.net/terms
+# Canonical URLs expected by the mobile app (LegalUrls) and StoreKit:
+#   https://riftrades.com/privacy
+#   https://riftrades.com/terms
 
 [build]
   publish = "."

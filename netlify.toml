@@ -1,0 +1,16 @@
+# Production web app (riftrades.com / riftrades.netlify.app).
+# Legal pages for App Store review live in apps/legal and are a separate deploy.
+[build]
+  base = "apps/web"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_PUBLIC_POSTHOG_PROJECT_TOKEN,VITE_PUBLIC_POSTHOG_HOST"
+
+# SPA fallback so client routes like /privacy, /support, /binder keep working.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

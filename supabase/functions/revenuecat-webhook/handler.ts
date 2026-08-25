@@ -110,8 +110,9 @@ export async function handleWebhook(
   }
 
   if (!appUserId) {
-    // An anonymous RevenueCat id from before sign-in, or a deleted account. Recorded
-    // above so it can be investigated; there is no row to write.
+    // An anonymous RevenueCat id from a guest purchase, or a deleted account.
+    // Recorded above so it can be investigated; there is no row to write until
+    // Purchases.logIn aliases this customer onto a Supabase user.
     console.warn(`Event ${event.id} has no Supabase user: ${event.app_user_id}`);
     return json({ ok: true, ignored: 'unknown app_user_id' });
   }

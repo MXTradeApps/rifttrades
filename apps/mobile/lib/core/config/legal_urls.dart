@@ -1,8 +1,9 @@
-/// Public legal URLs used by in-app Settings links and App Store / Play listing
-/// metadata. Hosted on rifttrades.net so store reviewers always hit a live page.
+/// Public legal URLs used by in-app Settings links, StoreKit policy buttons,
+/// and App Store / Play listing metadata.
 ///
-/// Source files live in `apps/legal/` and must be deployed before submission.
+/// Hosted on the production site (riftrades.com) so store reviewers always hit
+/// a live page. `/privacy` and `/terms` are routes on the web app.
 abstract final class LegalUrls {
-  static const privacyPolicy = 'https://rifttrades.net/privacy';
-  static const termsOfUse = 'https://rifttrades.net/terms';
+  static const privacyPolicy = 'https://riftrades.com/privacy';
+  static const termsOfUse = 'https://riftrades.com/terms';
 }

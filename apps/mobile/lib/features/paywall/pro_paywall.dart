@@ -7,39 +7,69 @@ import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 
 import '../../core/config/revenuecat_config.dart';
 import '../../core/models/purchase_outcome.dart';
+import '../../core/platform/subscription_store.dart';
 import '../../core/providers.dart';
 import '../auth/sign_in_sheet.dart';
 
-/// Presentation helpers for RevenueCat's remotely-configured UI.
+/// Presentation helpers for the Pro purchase UI.
 ///
-/// The paywall and Customer Center are both native views driven entirely by the
-/// RevenueCat dashboard, so pricing, copy, layout, A/B tests and retention
-/// offers all change without an app release. Everything here funnels through
-/// these two functions so behaviour stays consistent wherever Pro is offered.
+/// iOS 17+ uses Apple's `SubscriptionStoreView` so Guideline 3.1.2 metadata
+/// (price, period, auto-renewal, Privacy, Terms) is attached by StoreKit.
+/// Android, older iOS, and the Test Store still use RevenueCat's paywall.
+/// Customer Center stays on RevenueCat. Everything here funnels through these
+/// functions so behaviour stays consistent wherever Pro is offered.
 
-/// Shows the paywall for the current offering and returns true if the customer
-/// has Pro when it closes.
+/// Shows the Pro purchase UI and returns true if the customer has Pro when it
+/// closes.
 ///
-/// [onlyIfNeeded] uses `presentPaywallIfNeeded`, which skips presentation
-/// entirely for customers who already have the entitlement — the right default
-/// for an "unlock this feature" tap. Pass false for an explicit "see plans"
-/// action, where showing the paywall regardless is expected.
+/// On iOS 17+ this is Apple's `SubscriptionStoreView`, which attaches the
+/// localized product name, description, price, auto-renewal terms, and Privacy /
+/// Terms of Use buttons from App Store Connect. Android and older iOS use the
+/// RevenueCat paywall.
 ///
-/// [offering] overrides which offering is shown; leave it null to use the one
-/// marked **Current** in the dashboard so offerings can be swapped remotely.
+/// Sign-in is not required. App Review 5.1.1(v) treats Pro as IAP that is not
+/// account-based: local limits lift from StoreKit even for a guest. An optional
+/// prompt after a successful purchase offers an account so Pro can follow them
+/// to other devices.
+///
+/// [onlyIfNeeded] skips presentation entirely for customers who already have
+/// the entitlement — the right default for an "unlock this feature" tap. Pass
+/// false for an explicit "see plans" action.
+///
+/// [offering] overrides which offering the RevenueCat fallback shows; leave it
+/// null to use the one marked **Current** in the dashboard.
 Future<bool> presentProPaywall(
   BuildContext context,
   WidgetRef ref, {
   Offering? offering,
   bool onlyIfNeeded = true,
+  SubscriptionStore subscriptionStore = const SubscriptionStore(),
 }) async {
   if (!ref.read(purchasesAvailableProvider)) {
     _showMessage(context, 'Subscriptions are unavailable in this build.');
     return ref.read(isProProvider);
   }
 
-  if (!await _ensureSignedIn(context, ref)) return ref.read(isProProvider);
+  // App Review 5.1.1(v): IAP must work without registration. If they are already
+  // signed in, bind identity so the webhook can name a Supabase user — but never
+  // block the paywall on that, and never prompt for an account first.
+  if (ref.read(isSignedInProvider)) {
+    await _bindPurchasesIdentity(ref);
+  }
 
+  if (onlyIfNeeded && ref.read(isProProvider)) return true;
+
+  // iOS 17+: Apple's SubscriptionStoreView, so Privacy, Terms, price, period,
+  // and auto-renewal copy are attached by StoreKit rather than a custom paywall.
+  if (subscriptionStore.isSupported) {
+    return _presentNativeSubscriptionStore(
+      context,
+      ref,
+      subscriptionStore: subscriptionStore,
+    );
+  }
+
+  final wasPro = ref.read(isProProvider);
   final PaywallResult result;
   try {
     result = onlyIfNeeded
@@ -56,15 +86,66 @@ Future<bool> presentProPaywall(
     return ref.read(isProProvider);
   }
 
-  // The paywall purchases through the native SDK, so pull the entitlement back
-  // into Riverpod. The customer info listener usually beats us to it; this
-  // makes the state correct before we return either way.
+  return _finishPaywall(context, ref, result: result, wasPro: wasPro);
+}
+
+/// StoreKit 2 subscription store: localized products plus Privacy / Terms
+/// buttons. RevenueCat still owns entitlements; we sync after the sheet closes
+/// so a restore or purchase lands in `CustomerInfo`.
+Future<bool> _presentNativeSubscriptionStore(
+  BuildContext context,
+  WidgetRef ref, {
+  required SubscriptionStore subscriptionStore,
+}) async {
+  final wasPro = ref.read(isProProvider);
+  final outcome = await subscriptionStore.present();
+  if (outcome == SubscriptionStoreOutcome.unavailable) {
+    // iOS < 17, or the native presenter couldn't come up. Fall through to the
+    // RevenueCat paywall so the customer can still buy.
+    try {
+      final result = await RevenueCatUI.presentPaywall();
+      return _finishPaywall(context, ref, result: result, wasPro: wasPro);
+    } catch (e) {
+      debugPrint('RevenueCat: failed to present paywall — $e');
+      if (context.mounted) {
+        _showMessage(context, "Couldn't open RiftTrades Pro. Please try again.");
+      }
+      return ref.read(isProProvider);
+    }
+  }
+
+  await ref.read(purchasesRepositoryProvider).syncPurchases();
+  await ref.read(subscriptionProvider.notifier).refresh();
+
+  final isPro = ref.read(isProProvider);
+  if (outcome == SubscriptionStoreOutcome.purchased || (isPro && !wasPro)) {
+    ref.invalidate(serverEntitlementProvider);
+  }
+  if (!context.mounted) return isPro;
+
+  if (outcome == SubscriptionStoreOutcome.purchased) {
+    _showMessage(context, "You're on RiftTrades Pro — thanks for the support!");
+    if (!wasPro && !ref.read(isSignedInProvider)) {
+      await _offerPostPurchaseSignIn(context, ref);
+    }
+  } else if (isPro && !wasPro) {
+    _showMessage(context, 'Purchases restored.');
+    if (!ref.read(isSignedInProvider)) {
+      await _offerPostPurchaseSignIn(context, ref);
+    }
+  }
+
+  return ref.read(isProProvider);
+}
+
+Future<bool> _finishPaywall(
+  BuildContext context,
+  WidgetRef ref, {
+  required PaywallResult result,
+  required bool wasPro,
+}) async {
   await ref.read(subscriptionProvider.notifier).refresh();
   if (result == PaywallResult.purchased || result == PaywallResult.restored) {
-    // Ask the server for its row too. It is written by a webhook, so it may not
-    // exist yet — access is already granted by the device's answer, and this
-    // only fills in what the server knows. If it loses the race, the next launch
-    // reads it.
     ref.invalidate(serverEntitlementProvider);
   }
   final isPro = ref.read(isProProvider);
@@ -76,13 +157,24 @@ Future<bool> presentProPaywall(
     case PaywallResult.restored:
       _showMessage(context, 'Purchases restored.');
     case PaywallResult.error:
-      _showMessage(context, "Couldn't complete that purchase. Please try again.");
+      _showMessage(
+        context,
+        "The App Store couldn't complete that purchase. Please try again "
+        'in a moment, or restore purchases if you have already paid.',
+      );
     case PaywallResult.cancelled:
     case PaywallResult.notPresented:
-      // Nothing to say: the customer either backed out, or already had Pro.
       break;
   }
-  return isPro;
+
+  if (result == PaywallResult.purchased &&
+      !wasPro &&
+      !ref.read(isSignedInProvider) &&
+      context.mounted) {
+    await _offerPostPurchaseSignIn(context, ref);
+  }
+
+  return ref.read(isProProvider);
 }
 
 /// Opens the RevenueCat [Customer Center][cc] — the self-service screen for
@@ -154,31 +246,23 @@ Future<bool> restoreProPurchases(BuildContext context, WidgetRef ref) async {
   return isPro;
 }
 
-/// Makes sure there is an account before money changes hands.
+/// Offers sign-in after a successful anonymous purchase, then aliases the
+/// RevenueCat customer onto the Supabase user if they accept.
 ///
-/// Not a policy choice — it is what makes the entitlement addressable. A purchase
-/// made while signed out is attributed to an anonymous RevenueCat id, so the
-/// webhook has no Supabase user to write a row for, and the customer ends up
-/// having paid for access the server cannot grant them. Reattaching it later is
-/// manual support work.
-///
-/// The prompt is the same dismissable sheet as everywhere else. Backing out just
-/// means no purchase.
-Future<bool> _ensureSignedIn(BuildContext context, WidgetRef ref) async {
-  if (!ref.read(isSignedInProvider)) {
-    if (!await presentSignIn(context)) return false;
+/// Dismissing is a valid outcome: Pro already unlocked on this device from
+/// StoreKit / `CustomerInfo`. Signing in is how that purchase follows them.
+Future<void> _offerPostPurchaseSignIn(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final signedIn = await presentSignIn(
+    context,
+    copy: SignInCopy.keepProOnOtherDevices,
+  );
+  if (!signedIn) return;
 
-    // A redirect-based provider finishes in a browser, so `presentSignIn` can
-    // return true before the session lands.
-    if (!await _waitForAccount(ref)) return false;
-  }
-
-  if (await _bindPurchasesIdentity(ref)) return true;
-
-  if (context.mounted) {
-    _showMessage(context, "Couldn't reach the store. Please try again.");
-  }
-  return false;
+  if (!await _waitForAccount(ref)) return;
+  await _bindPurchasesIdentity(ref);
 }
 
 /// Binds RevenueCat to the signed-in user, and waits for it.
@@ -189,9 +273,8 @@ Future<bool> _ensureSignedIn(BuildContext context, WidgetRef ref) async {
 /// there first, the purchase is attributed to the Supabase user rather than to the
 /// anonymous id the SDK starts with.
 ///
-/// A failure blocks the purchase. Letting it through would take the customer's money
-/// against an identity the webhook cannot resolve, which is the one outcome here that
-/// needs a human to unpick.
+/// Also the recovery path for a purchase made signed out: `logIn` aliases the
+/// anonymous RevenueCat customer onto this account.
 Future<bool> _bindPurchasesIdentity(WidgetRef ref) async {
   final account = ref.read(accountProvider).value;
   if (account == null) return false;
@@ -201,8 +284,10 @@ Future<bool> _bindPurchasesIdentity(WidgetRef ref) async {
   // only reason for no customer info is that the call failed.
   if (info == null) return false;
 
-  // Signing in can grant Pro outright, if this account already had it.
+  // Signing in can grant Pro outright, if this account already had it — or if
+  // this install just bought while signed out and the alias carried it over.
   ref.read(subscriptionProvider.notifier).adopt(info);
+  ref.invalidate(serverEntitlementProvider);
   return true;
 }
 

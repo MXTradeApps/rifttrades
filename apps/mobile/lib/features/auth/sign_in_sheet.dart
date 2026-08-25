@@ -10,23 +10,64 @@ import 'auth_provider_icons.dart';
 /// Redirect-based providers finish in a browser, so this does not wait for the
 /// session: it closes when the browser opens and the customer comes back to an
 /// app that has already updated via [accountProvider].
-Future<bool> presentSignIn(BuildContext context) async {
+Future<bool> presentSignIn(
+  BuildContext context, {
+  SignInCopy copy = SignInCopy.syncCollection,
+}) async {
   final signedIn = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => const SignInSheet(),
+    builder: (_) => SignInSheet(copy: copy),
   );
   return signedIn ?? false;
+}
+
+/// Headline and body for [SignInSheet], so the same providers can be offered
+/// for sync and for the optional post-purchase "keep Pro on other devices"
+/// prompt App Review 5.1.1 asks for.
+class SignInCopy {
+  const SignInCopy({
+    required this.title,
+    required this.body,
+    this.dismissLabel,
+  });
+
+  final String title;
+  final String body;
+
+  /// When set, a dismiss control with this label is shown. The sheet is always
+  /// skippable via the drag handle; this just makes that obvious.
+  final String? dismissLabel;
+
+  static const syncCollection = SignInCopy(
+    title: 'Sync your collection',
+    body:
+        'Sign in to keep your binder, want list, and trade history on '
+        'every device you use. Everything already on this device is kept.',
+  );
+
+  static const keepProOnOtherDevices = SignInCopy(
+    title: 'Use Pro on other devices',
+    body:
+        'Sign in to keep RiftTrades Pro on every device you use, along with '
+        'your binder and trade history. You can do this later in My Account.',
+    dismissLabel: 'Not now',
+  );
 }
 
 /// Why an account is worth having, then one button per provider.
 ///
 /// Signing in is never required to use RiftTrades — it exists to sync a binder
-/// across devices — so this is always a sheet the customer can dismiss, never a
-/// wall in front of the app.
+/// across devices, and optionally to carry Pro to other devices — so this is
+/// always a sheet the customer can dismiss, never a wall in front of the app.
 class SignInSheet extends ConsumerStatefulWidget {
-  const SignInSheet({super.key});
+  const SignInSheet({
+    super.key,
+    this.copy = SignInCopy.syncCollection,
+  });
+
+  final SignInCopy copy;
 
   @override
   ConsumerState<SignInSheet> createState() => _SignInSheetState();
@@ -112,11 +153,10 @@ class _SignInSheetState extends ConsumerState<SignInSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Sync your collection', style: theme.textTheme.headlineSmall),
+              Text(widget.copy.title, style: theme.textTheme.headlineSmall),
               const SizedBox(height: 8),
               Text(
-                'Sign in to keep your binder, want list, and trade history on '
-                'every device you use. Everything already on this device is kept.',
+                widget.copy.body,
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
@@ -224,6 +264,15 @@ class _SignInSheetState extends ConsumerState<SignInSheet> {
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
+              if (widget.copy.dismissLabel != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _busy == null
+                      ? () => Navigator.of(context).pop(false)
+                      : null,
+                  child: Text(widget.copy.dismissLabel!),
+                ),
+              ],
             ],
           ),
         ),

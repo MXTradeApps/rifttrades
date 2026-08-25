@@ -12,5 +12,11 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    guard let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "SubscriptionStorePlugin"
+    ) else {
+      return
+    }
+    SubscriptionStorePlugin.register(with: registrar)
   }
 }

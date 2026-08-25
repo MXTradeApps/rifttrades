@@ -22,6 +22,7 @@ import {
     Home as HomeIcon,
     Style as BrowseIcon,
     PrivacyTip as PrivacyIcon,
+    Gavel as TermsIcon,
     SupportAgent as SupportIcon,
     CollectionsBookmark as BinderIcon,
     FavoriteBorder as WantIcon,
@@ -357,6 +358,33 @@ const Header = ({ lastUpdatedTimestamp }) => {
                         </ListItemIcon>
                         <ListItemText
                             primary="Privacy Policy"
+                            primaryTypographyProps={{
+                                fontWeight: 600,
+                                color: isDark ? '#e8f4f8' : '#0a2540'
+                            }}
+                        />
+                    </ListItemButton>
+
+                    <ListItemButton
+                        component={Link}
+                        to="/terms"
+                        selected={location.pathname === '/terms'}
+                        onClick={() => setDrawerOpen(false)}
+                        sx={{
+                            mx: 1,
+                            borderRadius: 2,
+                            '&.Mui-selected': {
+                                backgroundColor: isDark
+                                    ? 'rgba(212, 168, 83, 0.15)'
+                                    : 'rgba(26, 90, 122, 0.1)',
+                            },
+                        }}
+                    >
+                        <ListItemIcon sx={{ color: isDark ? '#d4a853' : '#1a5a7a', minWidth: 40 }}>
+                            <TermsIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                            primary="Terms of Use"
                             primaryTypographyProps={{
                                 fontWeight: 600,
                                 color: isDark ? '#e8f4f8' : '#0a2540'

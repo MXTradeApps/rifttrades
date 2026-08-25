@@ -198,6 +198,7 @@ const PrivacyPolicy = () => {
                         handled, please reach out via our{' '}
                         <a href="/support">Support</a> page or email{' '}
                         <a href="mailto:mxbloombusiness@gmail.com">mxbloombusiness@gmail.com</a>.
+                        See also our <a href="/terms">Terms of Use</a>.
                     </Section>
 
                     <Divider sx={{
