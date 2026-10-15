@@ -10,6 +10,7 @@ import TradeHistory from './pages/TradeHistory.jsx';
 import SetList from './pages/SetList.jsx';
 import SetDetail from './pages/SetDetail.jsx';
 import Trends from './pages/Trends.jsx';
+import CollectionStats from './pages/CollectionStats.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { EntitlementProvider } from './contexts/EntitlementContext.jsx';
 import { CardDetailProvider } from './contexts/CardDetailContext.jsx';
@@ -29,6 +30,7 @@ function App() {
                         <Route path="/terms" element={<TermsOfUse />} />
                         <Route path="/support" element={<Support />} />
                         <Route path="/binder" element={<BinderCollection isWanted={false} />} />
+                        <Route path="/binder/stats" element={<CollectionStats />} />
                         <Route path="/wants" element={<BinderCollection isWanted={true} />} />
                         <Route path="/b/:token" element={<SharedBinder />} />
                         <Route path="/history" element={<TradeHistory />} />

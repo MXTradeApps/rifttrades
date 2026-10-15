@@ -29,6 +29,7 @@ import {
     ArrowBack as ArrowBackIcon,
     ContentCopy as ContentCopyIcon,
     DeleteOutline as DeleteIcon,
+    InsightsOutlined,
     Remove as RemoveIcon,
     Search as SearchIcon,
     Share as ShareIcon,
@@ -924,6 +925,17 @@ const BinderCollection = ({ isWanted = false }) => {
                         </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        {!isWanted && !showingGrid && entries.length > 0 && (
+                            <Button
+                                data-testid="collection-stats"
+                                variant="outlined"
+                                color="inherit"
+                                startIcon={<InsightsOutlined />}
+                                onClick={() => navigate(`/binder/stats?b=${encodeURIComponent(openBinderId)}`)}
+                            >
+                                Collection Stats
+                            </Button>
+                        )}
                         {!isWanted && openBinderId === TRADE_BINDER_ID && (
                             <Button
                                 variant="outlined"
