@@ -211,9 +211,8 @@ const BinderCollection = ({ isWanted = false }) => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { isPro, loading: entitlementLoading } = useEntitlement();
-    const { cards, cardGroups, metadata } = useCardData();
+    const { cards, cardGroups, pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
     const { openDetail } = useCardDetail();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
 
     const [entries, setEntries] = useState([]);
     const [allOwned, setAllOwned] = useState([]);

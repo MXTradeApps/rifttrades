@@ -53,8 +53,7 @@ const TradeHistory = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { isPro, loading: entitlementLoading } = useEntitlement();
-    const { metadata, cardIdLookup } = useCardData();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
+    const { pricesUpdatedAt: lastUpdatedTimestamp, cardIdLookup } = useCardData();
     const [trades, setTrades] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);

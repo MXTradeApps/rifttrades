@@ -182,8 +182,7 @@ const SpecialTag = ({ kind, isDark }) => {
 const SetDetail = () => {
     const { setId } = useParams();
     const { getSetById, loading, error } = useSets();
-    const { metadata } = useCardData();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
+    const { pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
     const { isDark } = useThemeMode();
     const { openDetail } = useCardDetail();
     const theme = useTheme();

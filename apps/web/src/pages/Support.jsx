@@ -20,8 +20,7 @@ const encodeFormBody = (data) =>
         .join('&');
 
 const Support = () => {
-    const { metadata } = useCardData();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
+    const { pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');

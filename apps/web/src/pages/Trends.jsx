@@ -5,7 +5,7 @@ import RecentMoversSection from '../components/movers/RecentMoversSection.jsx';
 import { useCardData } from '../hooks/useCardData.jsx';
 
 const Trends = () => {
-    const { metadata } = useCardData();
+    const { pricesUpdatedAt } = useCardData();
 
     useEffect(() => {
         document.title = 'Recent movers | RiftTrades';
@@ -16,7 +16,7 @@ const Trends = () => {
 
     return (
         <>
-            <Header lastUpdatedTimestamp={metadata?.lastUpdated || metadata?.updatedAt || null} />
+            <Header lastUpdatedTimestamp={pricesUpdatedAt} />
             <Page>
                 <PageHeader
                     title="Trends"

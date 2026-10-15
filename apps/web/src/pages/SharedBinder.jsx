@@ -164,9 +164,8 @@ function SharedCardArt({ imageUrl, fallbackUrl, alt, onClick, qty }) {
  */
 const SharedBinder = () => {
     const { token } = useParams();
-    const { cards, metadata } = useCardData();
+    const { cards, pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
     const { openDetail } = useCardDetail();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
 
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
