@@ -89,7 +89,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                         child: _TradeSideList(
                           side: TradeSide.want,
                           title: 'Their cards',
-                          accent: AppTheme.wantAccent,
+                          accent: context.tokens.accent,
                           items: trade.wantItems,
                           symbol: trade.currencySymbol,
                           addLabel: 'Add their cards',
@@ -122,7 +122,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
                         child: _TradeSideList(
                           side: TradeSide.have,
                           title: 'My cards',
-                          accent: AppTheme.haveAccent,
+                          accent: context.tokens.gain,
                           items: trade.haveItems,
                           symbol: trade.currencySymbol,
                           addLabel: 'Add my cards',
@@ -409,7 +409,7 @@ class _DragBar extends StatelessWidget {
     final balanced = diff.abs() < 0.01;
     final Color deltaColor = balanced
         ? theme.colorScheme.onSurfaceVariant
-        : (diff >= 0 ? AppTheme.positive : AppTheme.negative);
+        : (diff >= 0 ? context.tokens.gain : context.tokens.loss);
     final String deltaText = balanced
         ? 'Even'
         : '${diff >= 0 ? '+' : '-'}$symbol${diff.abs().toStringAsFixed(2)}';
@@ -445,7 +445,7 @@ class _DragBar extends StatelessWidget {
             _summaryRow(
               theme,
               icon: Icons.south,
-              accent: AppTheme.wantAccent,
+              accent: context.tokens.accent,
               label: 'Their ${trade.wantCount} '
                   '${trade.wantCount == 1 ? 'card' : 'cards'}',
               value: '$symbol${theirs.toStringAsFixed(2)}',
@@ -503,7 +503,7 @@ class _DragBar extends StatelessWidget {
             _summaryRow(
               theme,
               icon: Icons.north,
-              accent: AppTheme.haveAccent,
+              accent: context.tokens.gain,
               label: 'My ${trade.haveCount} '
                   '${trade.haveCount == 1 ? 'card' : 'cards'}',
               value: '$symbol${mine.toStringAsFixed(2)}',
