@@ -46,10 +46,10 @@ abstract final class TourCopy {
       'willing to trade; Collection is a keep pile. Want List is the other '
       'tab — it is not a Binder.';
 
-  static const binderTotalTitle = 'Binder value';
+  static const binderTotalTitle = 'Collection Stats';
   static const binderTotalBody =
-      'Tap the green total on an open Binder to inspect TCGplayer and '
-      'CardMarket totals. The chip uses the price source from Settings.';
+      'Tap the green total on an open Binder for its Collection Stats: '
+      'TCGplayer and CardMarket totals, stock, top cards and recent movers.';
 
   static const binderFabTitle = 'Add cards';
   static const binderFabBody =

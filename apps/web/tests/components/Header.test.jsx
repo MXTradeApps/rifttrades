@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Header from '../../src/components/elements/Header.jsx';
 
@@ -22,11 +22,9 @@ function renderHeader(initialPath = '/binder') {
     );
 }
 
-describe('Header drawer', () => {
+describe('Header navigation', () => {
     test('links Browse Sets to /sets instead of embedding a sets list', () => {
         renderHeader('/binder');
-
-        fireEvent.click(screen.getByRole('button', { name: /menu/i }));
 
         const browse = screen.getByRole('link', { name: /browse sets/i });
         expect(browse).toHaveAttribute('href', '/sets');
@@ -37,16 +35,12 @@ describe('Header drawer', () => {
     test('links Terms of Use to /terms', () => {
         renderHeader('/');
 
-        fireEvent.click(screen.getByRole('button', { name: /menu/i }));
-
         const terms = screen.getByRole('link', { name: /terms of use/i });
         expect(terms).toHaveAttribute('href', '/terms');
     });
 
     test('links Support to /support', () => {
         renderHeader('/');
-
-        fireEvent.click(screen.getByRole('button', { name: /menu/i }));
 
         const support = screen.getByRole('link', { name: /^support$/i });
         expect(support).toHaveAttribute('href', '/support');
@@ -55,9 +49,23 @@ describe('Header drawer', () => {
     test('Want List is one step to /wants and Binder dest is /binder', () => {
         renderHeader('/');
 
-        fireEvent.click(screen.getByRole('button', { name: /menu/i }));
-
         expect(screen.getByRole('link', { name: /want list/i })).toHaveAttribute('href', '/wants');
         expect(screen.getAllByRole('link', { name: /my binders/i })[0]).toHaveAttribute('href', '/binder');
+    });
+
+    test('More opens a sheet with Trade History and the help pages on phones', () => {
+        renderHeader('/');
+
+        fireEvent.click(screen.getByRole('button', { name: /^more$/i }));
+
+        const sheet = screen.getByRole('presentation');
+        expect(within(sheet).getByRole('link', { name: /trade history/i })).toHaveAttribute('href', '/history');
+        expect(within(sheet).getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/privacy');
+    });
+
+    test('shows the RiftTrades brand', () => {
+        renderHeader('/');
+
+        expect(screen.getAllByText('RiftTrades').length).toBeGreaterThan(0);
     });
 });

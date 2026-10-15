@@ -4,7 +4,6 @@ import ClearIcon from '@mui/icons-material/Clear';
 import SearchIcon from '@mui/icons-material/Search';
 import { useSearch } from '../../hooks/useSearch';
 import SearchDropdown from './SearchDropdown';
-import { useThemeMode } from '../../contexts/ThemeContext.jsx';
 
 /**
  * SearchInput Component
@@ -26,7 +25,6 @@ const SearchInput = ({
     /** 'small' for denser chrome (binder toolbar); default matches trade calculator. */
     size = 'medium',
 }) => {
-    const { isDark } = useThemeMode();
     const dense = size === 'small';
     
     const {
@@ -72,8 +70,8 @@ const SearchInput = ({
                         <InputAdornment position="start">
                             <SearchIcon 
                                 sx={{ 
-                                    fontSize: dense ? '1rem' : '1.25rem',
-                                    color: isDark ? '#a0c4d4' : '#1a5a7a'
+                                    fontSize: dense ? '1.05rem' : '1.25rem',
+                                    color: 'text.secondary'
                                 }} 
                             />
                         </InputAdornment>
@@ -87,10 +85,8 @@ const SearchInput = ({
                                 aria-label="clear search"
                                 sx={{
                                     p: dense ? 0.35 : 0.5,
-                                    color: isDark ? '#a0c4d4' : '#1a5a7a',
-                                    '&:hover': {
-                                        backgroundColor: isDark ? 'rgba(160, 196, 212, 0.1)' : 'rgba(26, 90, 122, 0.08)'
-                                    }
+                                    color: 'text.secondary',
+                                    '&:hover': { color: 'text.primary', bgcolor: 'action.hover' }
                                 }}
                             >
                                 <ClearIcon sx={{ fontSize: dense ? '0.95rem' : '1.1rem' }} />
@@ -100,41 +96,14 @@ const SearchInput = ({
                 }}
                 sx={{
                     '& .MuiOutlinedInput-root': {
-                        backgroundColor: disabled 
-                            ? (isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)')
-                            : (isDark ? '#0d3050' : '#ffffff'),
-                        transition: 'all 0.2s ease',
-                        ...(dense ? { minHeight: 36 } : {}),
-                        '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: isDark ? 'rgba(58, 154, 186, 0.3)' : 'rgba(26, 90, 122, 0.23)'
-                        },
-                        '&:hover': {
-                            '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: disabled 
-                                    ? (isDark ? 'rgba(58, 154, 186, 0.3)' : 'rgba(26, 90, 122, 0.23)')
-                                    : (isDark ? 'rgba(212, 168, 83, 0.5)' : 'rgba(26, 90, 122, 0.5)')
-                            }
-                        },
-                        '&.Mui-focused': {
-                            '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: isDark ? '#d4a853' : '#1a5a7a',
-                                borderWidth: dense ? '1px' : '2px'
-                            }
-                        }
+                        ...(dense ? { minHeight: 40 } : {}),
                     },
                     '& .MuiOutlinedInput-input': {
-                        color: isDark ? '#e8f4f8' : 'inherit',
-                        fontSize: dense ? '0.8125rem' : undefined,
-                        py: dense ? 0.75 : undefined,
+                        fontSize: dense ? '0.875rem' : undefined,
+                        py: dense ? 1 : undefined,
                         '&::placeholder': {
-                            color: isDark ? '#6a8a9a' : 'inherit',
-                            opacity: isDark ? 1 : 0.7
-                        }
-                    },
-                    '& .MuiInputLabel-root': {
-                        color: isDark ? '#a0c4d4' : '#1a5a7a',
-                        '&.Mui-focused': {
-                            color: isDark ? '#d4a853' : '#1a5a7a'
+                            color: 'text.secondary',
+                            opacity: 1
                         }
                     }
                 }}

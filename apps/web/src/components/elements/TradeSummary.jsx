@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
     Box, 
     Typography, 
-    Chip, 
     Button,
     Tooltip,
     IconButton,
@@ -25,9 +24,7 @@ import {
     BookmarkAdd as BookmarkAddIcon,
     CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
-import { formatCurrency } from "../../utils/helpers.js";
 import { usePriceType } from "../../contexts/PriceContext.jsx";
-import { useThemeMode } from "../../contexts/ThemeContext.jsx";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import FindFillerDialog from "./FindFillerDialog.jsx";
 import { FILLER_BALANCE_THRESHOLD } from "../../utils/findFiller.js";
@@ -35,6 +32,67 @@ import { saveTradeToHistory } from "../../services/tradeHistory.js";
 import { confirmTrade } from "../../services/confirmTrade.js";
 import { FreeLimits } from "../../utils/freeLimits.js";
 import { capture } from "../../lib/analytics.js";
+import { tk } from "../../theme/tokens.js";
+
+// Whole amounts stay short ($12); anything with cents always shows both digits.
+// CardMarket prices are euros, TCGplayer prices are dollars.
+const formatMoney = (value, priceSource) => {
+    const amount = Math.round(Number(value || 0) * 100) / 100;
+    const euro = priceSource === 'cardmarket';
+    return new Intl.NumberFormat(euro ? 'de-DE' : 'en-US', {
+        style: 'currency',
+        currency: euro ? 'EUR' : 'USD',
+        minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+        maximumFractionDigits: 2,
+    }).format(amount);
+};
+
+// One side of the trade: label, card count and total.
+const SideTotal = ({ label, count, total, tone, align = 'left', compact }) => (
+    <Box sx={{ minWidth: 0, textAlign: align }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
+            <Box aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: tone, flexShrink: 0 }} />
+            <Typography
+                component="span"
+                sx={{ fontSize: compact ? '0.6875rem' : '0.75rem', fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}
+            >
+                {label} · {count} {count === 1 ? 'card' : 'cards'}
+            </Typography>
+        </Box>
+        <Typography
+            component="div"
+            sx={{
+                fontFamily: (t) => t.typography.h1.fontFamily,
+                fontWeight: 750,
+                fontStretch: '108%',
+                fontSize: compact ? '1.125rem' : '1.375rem',
+                lineHeight: 1.2,
+                mt: 0.25,
+                color: 'text.primary',
+                fontVariantNumeric: 'tabular-nums',
+                whiteSpace: 'nowrap',
+            }}
+        >
+            {total}
+        </Typography>
+    </Box>
+);
+
+// Two-sided bar: how the trade value splits between what you give and get.
+const BalanceBar = ({ give, get, height = 6 }) => {
+    const total = Number(give || 0) + Number(get || 0);
+    const givePct = total > 0 ? (Number(give || 0) / total) * 100 : 50;
+    return (
+        <Box
+            role="img"
+            aria-label={total > 0 ? `You give ${Math.round(givePct)}% of the trade value` : 'No cards in the trade yet'}
+            sx={{ display: 'flex', gap: '3px', height, width: '100%' }}
+        >
+            <Box sx={{ width: `${givePct}%`, minWidth: 3, borderRadius: 999, bgcolor: total > 0 ? 'primary.main' : 'action.hover', transition: 'width 240ms ease' }} />
+            <Box sx={{ flex: 1, minWidth: 3, borderRadius: 999, bgcolor: total > 0 ? 'success.main' : 'action.hover', transition: 'width 240ms ease' }} />
+        </Box>
+    );
+};
 
 const TradeSummary = ({ 
     haveList, 
@@ -51,7 +109,6 @@ const TradeSummary = ({
     onAddWantCard
 }) => {
     const { priceType, setPriceType, priceSource, setPriceSource } = usePriceType();
-    const { isDark } = useThemeMode();
     const { user } = useAuth();
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [showFiller, setShowFiller] = useState(false);
@@ -90,17 +147,7 @@ const TradeSummary = ({
     };
 
     // Format currency based on price source
-    const formatPrice = (amount) => {
-        if (priceSource === 'cardmarket') {
-            return new Intl.NumberFormat('de-DE', {
-                style: 'currency',
-                currency: 'EUR',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2
-            }).format(amount);
-        }
-        return formatCurrency(amount);
-    };
+    const money = (amount) => formatMoney(amount, priceSource);
 
     const handleClearTradeData = () => {
         if (typeof clearTrade === 'function') {
@@ -214,396 +261,253 @@ const TradeSummary = ({
         return `${Math.round(ageInDays / 30)} month${Math.round(ageInDays / 30) !== 1 ? 's' : ''}`;
     };
 
-    // Common toggle button styles - Riftbound teal/gold
-    const toggleButtonSx = {
-        '& .MuiToggleButton-root': {
-            px: { xs: 0.75, sm: 1 },
-            py: { xs: 0.25, sm: 0.5 },
-            fontSize: { xs: '0.65rem', sm: '0.7rem' },
-            textTransform: 'none',
-            border: isDark ? '1px solid rgba(58, 154, 186, 0.4)' : '1px solid rgba(26, 90, 122, 0.3)',
-            color: isDark ? '#5abada' : '#1a5a7a',
-            '&.Mui-selected': {
-                backgroundColor: isDark ? '#3a9aba' : '#1a5a7a',
-                color: isDark ? '#0a2540' : '#ffffff',
-                '&:hover': {
-                    backgroundColor: isDark ? '#5abada' : '#0d4560'
-                }
-            },
-            '&:hover': {
-                backgroundColor: isDark ? 'rgba(58, 154, 186, 0.15)' : 'rgba(26, 90, 122, 0.08)'
-            }
-        }
-    };
+    const marketDiffLabel = money(Math.abs(diff));
+    const even = Math.abs(diff) < 0.01;
+    const verdict = even
+        ? 'Even trade'
+        : diff > 0
+            ? `You give ${marketDiffLabel} more`
+            : `You get ${marketDiffLabel} more`;
+    const verdictColor = even ? 'text.secondary' : diff > 0 ? 'primary.main' : 'success.main';
 
-    // Theme-aware colors - Riftbound palette
-    const textColor = isDark ? '#e8f4f8' : '#0a2540';
-    const bgGradient = isLandscape 
-        ? (isDark ? 'linear-gradient(180deg, #0d3050 0%, #0a2540 100%)' : 'linear-gradient(180deg, #ffffff 0%, #e8f4f8 100%)')
-        : (isDark ? 'linear-gradient(90deg, #0a2540 0%, #0d3050 50%, #0a2540 100%)' : 'linear-gradient(90deg, #e8f4f8 0%, #ffffff 50%, #e8f4f8 100%)');
+    // Price source (TCGplayer USD / CardMarket EUR) and price type (Market / Low).
+    const priceControls = (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: isLandscape ? 'flex-start' : 'center' }}>
+            <ToggleButtonGroup
+                value={priceSource}
+                exclusive
+                onChange={handlePriceSourceChange}
+                size="small"
+                sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.35, fontSize: '0.75rem' } }}
+            >
+                <ToggleButton value="tcgplayer" aria-label="TCGPlayer prices (USD)">
+                    {isLandscape ? '🇺🇸 TCGPlayer' : '🇺🇸 TCG'}
+                </ToggleButton>
+                <ToggleButton value="cardmarket" aria-label="CardMarket prices (EUR)">
+                    {isLandscape ? '🇪🇺 CardMarket' : '🇪🇺 CM'}
+                </ToggleButton>
+            </ToggleButtonGroup>
+            <ToggleButtonGroup
+                value={priceType}
+                exclusive
+                onChange={handlePriceTypeChange}
+                size="small"
+                sx={{ '& .MuiToggleButton-root': { px: 1.25, py: 0.35, fontSize: '0.75rem' } }}
+            >
+                <ToggleButton value="market" aria-label="market/trend price">
+                    {priceSource === 'cardmarket' ? 'Trend' : 'Market'}
+                </ToggleButton>
+                <ToggleButton value="low" aria-label="low price">
+                    Low
+                </ToggleButton>
+            </ToggleButtonGroup>
+        </Box>
+    );
+
+    const clearUrlButton = hasLoadedFromURL && urlTradeData && (
+        <Tooltip title="Clear loaded trade data from URL">
+            <IconButton
+                size="small"
+                onClick={() => setShowClearConfirm(true)}
+                aria-label="Clear loaded trade data from URL"
+                sx={{ color: 'warning.main', p: 0.5 }}
+            >
+                <ClearIcon fontSize="small" />
+            </IconButton>
+        </Tooltip>
+    );
+
+    const ageWarning = urlTradeData && urlTradeData.ageInDays > 7 && (
+        <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.25,
+            py: 0.75,
+            borderRadius: '10px',
+            bgcolor: 'action.hover',
+            color: 'warning.main',
+        }}>
+            <WarningIcon sx={{ fontSize: '1rem' }} />
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Trade data is {formatAge(urlTradeData.ageInDays)} old
+            </Typography>
+        </Box>
+    );
+
+    const fillerButton = isUnbalanced && onAddHaveCard && onAddWantCard && (
+        <Button
+            size="small"
+            variant="outlined"
+            color="primary"
+            fullWidth={isLandscape}
+            startIcon={<AutoFixHighIcon sx={{ fontSize: '1rem !important' }} />}
+            onClick={() => {
+                capture('filler_opened', {
+                    have_count: haveCardCount,
+                    want_count: wantCardCount,
+                    diff,
+                });
+                setShowFiller(true);
+            }}
+        >
+            Find Trade Filler
+        </Button>
+    );
+
+    const tradeActions = user && (
+        <Box sx={{ display: 'flex', gap: 1, flexDirection: isLandscape ? 'column' : 'row', justifyContent: 'center' }}>
+            <Tooltip title="Record the trade and update your Binder">
+                <span style={{ display: 'block' }}>
+                    <Button
+                        variant="contained"
+                        size={isLandscape ? 'large' : 'small'}
+                        fullWidth={isLandscape}
+                        startIcon={<CheckCircleIcon />}
+                        onClick={handleOpenConfirmDialog}
+                        disabled={!canActOnTrade}
+                    >
+                        Confirm Trade
+                    </Button>
+                </span>
+            </Tooltip>
+            <Tooltip title="Save this trade to your history without changing your Binder">
+                <span style={{ display: 'block' }}>
+                    <Button
+                        variant="outlined"
+                        color="inherit"
+                        size={isLandscape ? 'medium' : 'small'}
+                        fullWidth={isLandscape}
+                        startIcon={<BookmarkAddIcon />}
+                        onClick={handleOpenSaveDialog}
+                        disabled={!canActOnTrade}
+                        sx={{ color: 'text.primary' }}
+                    >
+                        Save
+                    </Button>
+                </span>
+            </Tooltip>
+        </Box>
+    );
 
     return (
         <>
-        <Box sx={{
-            display: 'flex',
-            flexDirection: isLandscape ? 'column' : 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 0,
-            p: isLandscape ? 2.5 : 0,
-            background: bgGradient,
-            borderTop: isLandscape ? 'none' : `3px solid #d4a853`,
-            borderBottom: isLandscape ? 'none' : `3px solid #d4a853`,
-            borderRadius: isLandscape ? 3 : 0,
-            border: isLandscape ? `2px solid ${isDark ? 'rgba(212, 168, 83, 0.3)' : 'rgba(26, 90, 122, 0.15)'}` : 'none',
-            width: isLandscape ? '280px' : '100%',
-            minWidth: isLandscape ? '280px' : 'auto',
-            maxWidth: isLandscape ? '320px' : '100%',
-            boxSizing: 'border-box',
-            boxShadow: isLandscape ? '0 8px 24px rgba(10, 37, 64, 0.2)' : '0 4px 12px rgba(10, 37, 64, 0.1)'
-        }}>
-            {/* Price Source & Type Selectors - Landscape mode (stacked) */}
-            {isLandscape && (
-                <Box sx={{
+        {isLandscape ? (
+            <Box
+                component="section"
+                aria-label="Trade balance"
+                sx={{
+                    alignSelf: 'flex-start',
+                    width: 312,
+                    flexShrink: 0,
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 1,
-                    px: 1,
-                    py: 1.5,
-                    borderBottom: `2px solid ${isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.1)'}`,
-                    width: '100%'
-                }}>
-                    {/* Price Source: TCGPlayer vs CardMarket */}
-                    <ToggleButtonGroup
-                        value={priceSource}
-                        exclusive
-                        onChange={handlePriceSourceChange}
-                        size="small"
-                        sx={toggleButtonSx}
-                    >
-                        <ToggleButton value="tcgplayer" aria-label="TCGPlayer prices (USD)">
-                            🇺🇸 TCGPlayer
-                        </ToggleButton>
-                        <ToggleButton value="cardmarket" aria-label="CardMarket prices (EUR)">
-                            🇪🇺 CardMarket
-                        </ToggleButton>
-                    </ToggleButtonGroup>
-                    
-                    {/* Price Type: Market vs Low */}
-                    <ToggleButtonGroup
-                        value={priceType}
-                        exclusive
-                        onChange={handlePriceTypeChange}
-                        size="small"
-                        sx={toggleButtonSx}
-                    >
-                        <ToggleButton value="market" aria-label="market/trend price">
-                            {priceSource === 'cardmarket' ? 'Trend' : 'Market'}
-                        </ToggleButton>
-                        <ToggleButton value="low" aria-label="low price">
-                            Low
-                        </ToggleButton>
-                    </ToggleButtonGroup>
+                    gap: 2,
+                    p: 2.5,
+                    borderRadius: '16px',
+                    border: 1,
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    boxShadow: (t) => tk(t).shadowSm,
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1.4 }}>
+                        Trade balance
+                    </Typography>
+                    {clearUrlButton}
                 </Box>
-            )}
 
-            <Box sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: isLandscape ? 1 : 2,
-                px: isLandscape ? 1 : { xs: 0.5, sm: 0.75, md: 1 },
-                py: isLandscape ? 1 : { xs: 0.25, sm: 0.5, md: 0.75 },
-                flexDirection: isLandscape ? 'column' : 'row'
-            }}>
-                <Typography variant="h6" sx={{ 
-                    fontWeight: 'medium', 
-                    color: textColor, 
-                    fontSize: isLandscape ? '0.75rem' : { xs: '0.8rem', sm: '0.9rem' },
-                    textAlign: 'center'
-                }}>
-                    My {haveCardCount} cards
-                </Typography>
-                <Chip 
-                    label={formatPrice(haveTotal.toFixed(2))} 
-                    color="primary" 
-                    variant="filled" 
-                    size={isLandscape ? 'small' : 'medium'}
-                />
-            </Box>
+                {priceControls}
 
-            <Box sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: isLandscape ? 1 : 1,
-                px: isLandscape ? 2 : { xs: 1 },
-                py: isLandscape ? 2 : { xs: 0.75 },
-                background: isDark 
-                    ? 'linear-gradient(135deg, #0a2540 0%, #0d3050 100%)' 
-                    : 'linear-gradient(135deg, #ffffff 0%, #f0f8fa 100%)',
-                borderTop: isLandscape ? 'none' : `2px solid ${isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.1)'}`,
-                borderBottom: isLandscape ? 'none' : `2px solid ${isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.1)'}`,
-                borderRadius: isLandscape ? 2 : 0,
-                mx: isLandscape ? 0 : 0,
-                my: isLandscape ? 1 : 0,
-                flexDirection: isLandscape ? 'column' : 'row',
-                flexWrap: 'wrap',
-                boxShadow: isLandscape ? '0 2px 8px rgba(10, 37, 64, 0.1)' : 'none'
-            }}>
-                {/* Price Source & Type Selectors - Portrait mode */}
-                {!isLandscape && (
-                    <Box sx={{ 
-                        display: 'flex', 
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        mr: 1
-                    }}>
-                        {/* Price Source: TCGPlayer vs CardMarket */}
-                        <ToggleButtonGroup
-                            value={priceSource}
-                            exclusive
-                            onChange={handlePriceSourceChange}
-                            size="small"
-                            sx={toggleButtonSx}
-                        >
-                            <ToggleButton value="tcgplayer" aria-label="TCGPlayer prices (USD)">
-                                🇺🇸 TCG
-                            </ToggleButton>
-                            <ToggleButton value="cardmarket" aria-label="CardMarket prices (EUR)">
-                                🇪🇺 CM
-                            </ToggleButton>
-                        </ToggleButtonGroup>
-                        
-                        {/* Price Type: Market vs Low */}
-                        <ToggleButtonGroup
-                            value={priceType}
-                            exclusive
-                            onChange={handlePriceTypeChange}
-                            size="small"
-                            sx={toggleButtonSx}
-                        >
-                            <ToggleButton value="market" aria-label="market/trend price">
-                                {priceSource === 'cardmarket' ? 'Trend' : 'Market'}
-                            </ToggleButton>
-                            <ToggleButton value="low" aria-label="low price">
-                                Low
-                            </ToggleButton>
-                        </ToggleButtonGroup>
-                    </Box>
-                )}
-
-                {/* Difference section - centered */}
-                <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: isLandscape ? 1 : 2,
-                    flexDirection: isLandscape ? 'column' : 'row',
-                    justifyContent: 'center',
-                    flexGrow: !isLandscape ? 1 : 'none',
-                    flexWrap: 'wrap'
-                }}>
-                    <Typography variant="h6" sx={{ 
-                        fontWeight: 'bold', 
-                        color: textColor, 
-                        fontSize: isLandscape ? '0.75rem' : { xs: '0.8rem' },
-                        textAlign: 'center'
-                    }}>
+                <Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
                         Difference
                     </Typography>
-                    <Chip
-                        label={diff > 0 ? `+${formatPrice(diff.toFixed(2))}` : formatPrice(diff.toFixed(2))}
-                        color={diff > 0 ? 'primary' : diff < 0 ? 'success' : 'default'}
-                        variant="filled"
-                        size={isLandscape ? 'small' : 'medium'}
-                    />
-                    {isUnbalanced && onAddHaveCard && onAddWantCard && (
-                        <Button
-                            size="small"
-                            variant="contained"
-                            startIcon={<AutoFixHighIcon sx={{ fontSize: '14px !important' }} />}
-                            onClick={() => {
-                                capture('filler_opened', {
-                                    have_count: haveCardCount,
-                                    want_count: wantCardCount,
-                                    diff,
-                                });
-                                setShowFiller(true);
-                            }}
-                            sx={{
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                fontSize: isLandscape ? '0.7rem' : { xs: '0.7rem', sm: '0.75rem' },
-                                px: 1.25,
-                                py: 0.35,
-                                borderRadius: 5,
-                                backgroundColor: isDark ? '#3a9aba' : '#1a5a7a',
-                                color: isDark ? '#0a2540' : '#ffffff',
-                                boxShadow: 'none',
-                                '&:hover': {
-                                    backgroundColor: isDark ? '#5abada' : '#0d4560',
-                                    boxShadow: 'none'
-                                }
-                            }}
-                        >
-                            Find Trade Filler
-                        </Button>
-                    )}
-                </Box>
-
-                {/* Clear Button - on the right side for portrait mode */}
-                {!isLandscape && hasLoadedFromURL && urlTradeData && (
-                    <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        ml: 1
-                    }}>
-                        <Tooltip title="Clear loaded trade data from URL">
-                            <IconButton
-                                size="small"
-                                onClick={() => setShowClearConfirm(true)}
-                                sx={{ color: 'warning.main', p: 0.5 }}
-                            >
-                                <ClearIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-                )}
-
-                {/* Clear Button for landscape mode - below difference */}
-                {isLandscape && hasLoadedFromURL && urlTradeData && (
-                    <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        mt: 1
-                    }}>
-                        <Tooltip title="Clear loaded trade data from URL">
-                            <IconButton
-                                size="small"
-                                onClick={() => setShowClearConfirm(true)}
-                                sx={{ color: 'warning.main', p: 0.5 }}
-                            >
-                                <ClearIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-                )}
-            </Box>
-
-            {/* Their Cards Summary */}
-            <Box sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: isLandscape ? 1 : 2,
-                px: isLandscape ? 1 : { xs: 0.5, sm: 0.75, md: 1 },
-                py: isLandscape ? 1 : { xs: 0.25, sm: 0.5, md: 0.75 },
-                flexDirection: isLandscape ? 'column' : 'row'
-            }}>
-                <Typography variant="h6" sx={{ 
-                    fontWeight: 'medium', 
-                    color: textColor, 
-                    fontSize: isLandscape ? '0.75rem' : { xs: '0.8rem', sm: '0.9rem' },
-                    textAlign: 'center'
-                }}>
-                    Their {wantCardCount} cards
-                </Typography>
-                <Chip 
-                    label={formatPrice(wantTotal.toFixed(2))} 
-                    color="success" 
-                    variant="filled" 
-                    size={isLandscape ? 'small' : 'medium'}
-                />
-            </Box>
-
-            {/* URL Age Warning */}
-            {urlTradeData && urlTradeData.ageInDays > 7 && (
-                <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    px: isLandscape ? 1 : { xs: 0.5, sm: 0.75, md: 1 },
-                    py: 0.5,
-                    backgroundColor: isDark ? 'rgba(212, 168, 83, 0.2)' : '#fff3cd',
-                    borderTop: `1px solid ${isDark ? 'rgba(212, 168, 83, 0.3)' : '#ffeaa7'}`,
-                    borderBottom: `1px solid ${isDark ? 'rgba(212, 168, 83, 0.3)' : '#ffeaa7'}`
-                }}>
-                    <WarningIcon fontSize="small" sx={{ color: isDark ? '#e5c078' : '#856404' }} />
-                    <Typography variant="caption" sx={{ color: isDark ? '#e5c078' : '#856404', fontSize: '0.7rem' }}>
-                        Trade data is {formatAge(urlTradeData.ageInDays)} old
+                    <Typography
+                        component="div"
+                        sx={{
+                            fontFamily: (t) => t.typography.h1.fontFamily,
+                            fontWeight: 800,
+                            fontStretch: '112%',
+                            fontSize: '2.25rem',
+                            lineHeight: 1.1,
+                            letterSpacing: '-0.02em',
+                            color: 'text.primary',
+                            fontVariantNumeric: 'tabular-nums',
+                        }}
+                    >
+                        {even ? money(0) : marketDiffLabel}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 650, color: verdictColor, mt: 0.25 }}>
+                        {verdict}
                     </Typography>
                 </Box>
-            )}
 
-            {/* Confirm / Save (signed-in only) */}
-            {user && (
-                <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 0.75,
-                    px: isLandscape ? 0.75 : { xs: 1, sm: 1.5 },
-                    py: isLandscape ? 0.75 : { xs: 0.4, sm: 0.6 },
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    borderTop: `1px solid ${isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.12)'}`
-                }}>
-                    <Tooltip title="Record the trade and update your Binder">
-                        <span>
-                            <Button
-                                variant="contained"
-                                size="small"
-                                startIcon={<CheckCircleIcon />}
-                                onClick={handleOpenConfirmDialog}
-                                disabled={!canActOnTrade}
-                                sx={{
-                                    textTransform: 'none',
-                                    fontWeight: 700,
-                                    px: 1.5,
-                                    py: 0.25,
-                                    minHeight: 28,
-                                    background: 'linear-gradient(135deg, #1a5a7a 0%, #3a9aba 100%)',
-                                    boxShadow: '0 1px 4px rgba(10, 37, 64, 0.25)',
-                                    '&:hover': {
-                                        background: 'linear-gradient(135deg, #0d4560 0%, #1a5a7a 100%)',
-                                    },
-                                }}
-                            >
-                                Confirm Trade
-                            </Button>
-                        </span>
-                    </Tooltip>
-                    <Tooltip title="Save this trade to your history without changing your Binder">
-                        <span>
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<BookmarkAddIcon />}
-                                onClick={handleOpenSaveDialog}
-                                disabled={!canActOnTrade}
-                                sx={{
-                                    textTransform: 'none',
-                                    fontWeight: 600,
-                                    px: 1.5,
-                                    py: 0.25,
-                                    minHeight: 28,
-                                    color: isDark ? '#e5c078' : '#1a5a7a',
-                                    borderColor: isDark ? 'rgba(212, 168, 83, 0.4)' : 'rgba(26, 90, 122, 0.35)',
-                                }}
-                            >
-                                Save
-                            </Button>
-                        </span>
-                    </Tooltip>
+                <BalanceBar give={haveTotal} get={wantTotal} />
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                    <SideTotal label="You give" count={haveCardCount} total={money(haveTotal)} tone="primary.main" />
+                    <SideTotal label="You get" count={wantCardCount} total={money(wantTotal)} tone="success.main" align="right" />
                 </Box>
-            )}
-        </Box>
+
+                {fillerButton}
+
+                {ageWarning}
+
+                {tradeActions}
+            </Box>
+        ) : (
+            <Box
+                component="section"
+                aria-label="Trade balance"
+                sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                    px: 2,
+                    py: 1.5,
+                    bgcolor: 'background.paper',
+                    borderTop: 1,
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                }}
+            >
+                {priceControls}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 1 }}>
+                    <SideTotal label="Give" count={haveCardCount} total={money(haveTotal)} tone="primary.main" compact />
+                    <Box sx={{ textAlign: 'center', minWidth: 0 }}>
+                        <Typography sx={{ fontSize: '0.6875rem', fontWeight: 600, color: 'text.secondary' }}>
+                            Difference
+                        </Typography>
+                        <Typography
+                            sx={{
+                                fontFamily: (t) => t.typography.h1.fontFamily,
+                                fontWeight: 800,
+                                fontStretch: '110%',
+                                fontSize: '1.125rem',
+                                lineHeight: 1.2,
+                                color: verdictColor,
+                                fontVariantNumeric: 'tabular-nums',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {even ? money(0) : `${diff > 0 ? '+' : '−'}${marketDiffLabel}`}
+                        </Typography>
+                    </Box>
+                    <SideTotal label="Get" count={wantCardCount} total={money(wantTotal)} tone="success.main" align="right" compact />
+                </Box>
+                <BalanceBar give={haveTotal} get={wantTotal} height={4} />
+                {(ageWarning || tradeActions || clearUrlButton || fillerButton) && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 1 }}>
+                        {ageWarning}
+                        {fillerButton}
+                        {tradeActions}
+                        {clearUrlButton}
+                    </Box>
+                )}
+            </Box>
+        )}
 
         {/* Clear Confirmation Dialog */}
         <Dialog open={showClearConfirm} onClose={() => setShowClearConfirm(false)}>
@@ -615,7 +519,7 @@ const TradeSummary = ({
                 </Typography>
             </DialogContent>
             <DialogActions>
-                <Button onClick={() => setShowClearConfirm(false)}>Cancel</Button>
+                <Button color="inherit" onClick={() => setShowClearConfirm(false)}>Cancel</Button>
                 <Button onClick={handleClearTradeData} color="warning" variant="contained">
                     Clear
                 </Button>
@@ -663,8 +567,8 @@ const TradeSummary = ({
                     disabled={saving}
                 />
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-                <Button onClick={() => setShowSaveDialog(false)} disabled={saving}>
+            <DialogActions>
+                <Button color="inherit" onClick={() => setShowSaveDialog(false)} disabled={saving}>
                     Cancel
                 </Button>
                 <Button
@@ -720,8 +624,8 @@ const TradeSummary = ({
                     }
                 />
             </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-                <Button onClick={() => setShowConfirmDialog(false)} disabled={confirming}>
+            <DialogActions>
+                <Button color="inherit" onClick={() => setShowConfirmDialog(false)} disabled={confirming}>
                     Cancel
                 </Button>
                 <Button

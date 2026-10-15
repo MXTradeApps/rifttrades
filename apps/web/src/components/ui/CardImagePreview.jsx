@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useThemeMode } from '../../contexts/ThemeContext.jsx';
+import { tk } from '../../theme/tokens.js';
 
 /**
  * Get image URL - TCGPlayer CDN uses _200w suffix
@@ -50,21 +51,22 @@ export const CardThumbnail = ({ imageUrl, fallbackUrl, alt, size = 40, onClick }
                 sx={{
                     width: size,
                     height: size * 1.4,
-                    borderRadius: 1,
-                    backgroundColor: isDark ? 'rgba(58, 154, 186, 0.15)' : 'rgba(26, 90, 122, 0.1)',
+                    borderRadius: '6px',
+                    bgcolor: 'action.hover',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                     cursor: onClick ? 'pointer' : 'default',
-                    border: isDark ? '1px solid rgba(58, 154, 186, 0.2)' : '1px solid rgba(26, 90, 122, 0.15)'
+                    border: 1,
+                    borderColor: 'divider'
                 }}
             >
                 <Box
                     component="span"
                     sx={{
                         fontSize: '0.5rem',
-                        color: isDark ? 'rgba(160, 196, 212, 0.5)' : 'rgba(26, 90, 122, 0.4)',
+                        color: 'text.disabled',
                         textAlign: 'center',
                         lineHeight: 1.1,
                         px: 0.25
@@ -82,20 +84,18 @@ export const CardThumbnail = ({ imageUrl, fallbackUrl, alt, size = 40, onClick }
             sx={{
                 width: size,
                 height: size * 1.4,
-                borderRadius: 1,
+                borderRadius: size >= 60 ? '8px' : '5px',
                 overflow: 'hidden',
                 flexShrink: 0,
                 cursor: onClick ? 'pointer' : 'default',
                 position: 'relative',
-                boxShadow: isDark 
-                    ? '0 2px 4px rgba(0, 0, 0, 0.3)' 
-                    : '0 2px 4px rgba(10, 37, 64, 0.15)',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                bgcolor: 'action.hover',
+                boxShadow: isDark
+                    ? '0 0 0 1px rgba(255,255,255,0.06), 0 1px 3px rgba(0, 0, 0, 0.4)'
+                    : '0 0 0 1px rgba(10,37,64,0.06), 0 1px 3px rgba(10, 37, 64, 0.12)',
+                transition: 'transform 160ms ease',
                 '&:hover': onClick ? {
-                    transform: 'scale(1.05)',
-                    boxShadow: isDark 
-                        ? '0 4px 8px rgba(0, 0, 0, 0.5)' 
-                        : '0 4px 8px rgba(10, 37, 64, 0.25)'
+                    transform: 'scale(1.04)',
                 } : {}
             }}
         >
@@ -107,10 +107,10 @@ export const CardThumbnail = ({ imageUrl, fallbackUrl, alt, size = 40, onClick }
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: isDark ? 'rgba(13, 48, 80, 0.5)' : 'rgba(232, 244, 248, 0.5)'
+                        bgcolor: 'action.hover'
                     }}
                 >
-                    <CircularProgress size={12} sx={{ color: isDark ? '#5abada' : '#1a5a7a' }} />
+                    <CircularProgress size={12} />
                 </Box>
             )}
             <img
@@ -136,7 +136,6 @@ export const CardThumbnail = ({ imageUrl, fallbackUrl, alt, size = 40, onClick }
 export const CardHoverPreview = ({ imageUrl, alt, children, placement = 'right' }) => {
     const [showPreview, setShowPreview] = useState(false);
     const [loaded, setLoaded] = useState(false);
-    const { isDark } = useThemeMode();
 
     if (!imageUrl) {
         return children;
@@ -171,13 +170,10 @@ export const CardHoverPreview = ({ imageUrl, alt, children, placement = 'right' 
                         sx={{
                             width: 150,
                             height: 210,
-                            borderRadius: 2,
+                            borderRadius: '4.5% / 3.2%',
                             overflow: 'hidden',
-                            boxShadow: isDark 
-                                ? '0 8px 24px rgba(0, 0, 0, 0.6)' 
-                                : '0 8px 24px rgba(10, 37, 64, 0.3)',
-                            border: `2px solid ${isDark ? '#d4a853' : '#1a5a7a'}`,
-                            backgroundColor: isDark ? '#0d3050' : '#ffffff',
+                            boxShadow: (t) => tk(t).shadowLg,
+                            bgcolor: 'background.paper',
                             position: 'relative'
                         }}
                     >
@@ -189,10 +185,10 @@ export const CardHoverPreview = ({ imageUrl, alt, children, placement = 'right' 
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    backgroundColor: isDark ? '#0d3050' : '#e8f4f8'
+                                    bgcolor: 'surface.sunken'
                                 }}
                             >
-                                <CircularProgress size={24} sx={{ color: isDark ? '#d4a853' : '#1a5a7a' }} />
+                                <CircularProgress size={24} />
                             </Box>
                         )}
                         <img
@@ -221,7 +217,6 @@ export const CardImageModal = ({ open, onClose, imageUrl, fallbackUrl, cardName 
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
     const [currentSrc, setCurrentSrc] = useState(imageUrl || fallbackUrl);
-    const { isDark } = useThemeMode();
 
     // Reset state when modal opens/closes or imageUrl changes
     useEffect(() => {
@@ -284,11 +279,10 @@ export const CardImageModal = ({ open, onClose, imageUrl, fallbackUrl, cardName 
                     {/* Card image container */}
                     <Box
                         sx={{
-                            borderRadius: 3,
+                            borderRadius: '4.5% / 3.2%',
                             overflow: 'hidden',
-                            boxShadow: '0 16px 48px rgba(0, 0, 0, 0.5)',
-                            border: `3px solid ${isDark ? '#d4a853' : '#1a5a7a'}`,
-                            backgroundColor: isDark ? '#0d3050' : '#ffffff',
+                            boxShadow: '0 24px 64px rgba(0, 0, 0, 0.55)',
+                            bgcolor: 'background.paper',
                             position: 'relative',
                             display: 'flex',
                             alignItems: 'center',
@@ -303,10 +297,10 @@ export const CardImageModal = ({ open, onClose, imageUrl, fallbackUrl, cardName 
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    backgroundColor: isDark ? '#0d3050' : '#e8f4f8'
+                                    bgcolor: 'surface.sunken'
                                 }}
                             >
-                                <CircularProgress size={48} sx={{ color: isDark ? '#d4a853' : '#1a5a7a' }} />
+                                <CircularProgress size={40} />
                             </Box>
                         )}
                         {error && (
@@ -317,8 +311,8 @@ export const CardImageModal = ({ open, onClose, imageUrl, fallbackUrl, cardName 
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    backgroundColor: isDark ? '#0d3050' : '#e8f4f8',
-                                    color: isDark ? '#a0c4d4' : '#1a4a6e',
+                                    bgcolor: 'surface.sunken',
+                                    color: 'text.secondary',
                                     textAlign: 'center',
                                     px: 3
                                 }}

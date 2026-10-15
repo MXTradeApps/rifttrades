@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/ui.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/logic/free_limits.dart';
+import '../../core/logic/binder_value_snapshot.dart';
 import '../../core/logic/pricing.dart';
 import '../../core/models/binder.dart';
 import '../../core/models/binder_entry.dart';
@@ -95,6 +98,7 @@ class _BinderListState extends ConsumerState<BinderList> {
 
     final filters = ref.watch(binderFiltersProvider);
     final visible = ref.watch(filteredBinderProvider);
+    final selection = ref.watch(binderSelectionProvider);
     final binders = ref.watch(bindersProvider);
     final hasQuery = filters.query.trim().isNotEmpty;
 
@@ -163,6 +167,8 @@ class _BinderListState extends ConsumerState<BinderList> {
                       pricing: pricing,
                       binderId: widget.binderId,
                       liveBinders: binders,
+                      selecting: selection.isNotEmpty,
+                      selected: selection.contains(binderRowKey(visible[i])),
                     ),
                   ),
           ),
@@ -334,11 +340,22 @@ class _EntryRow extends ConsumerWidget {
     required this.pricing,
     required this.binderId,
     required this.liveBinders,
+    this.selecting = false,
+    this.selected = false,
   });
   final BinderEntry entry;
   final Pricing pricing;
   final String binderId;
   final List<Binder> liveBinders;
+
+  /// Selection mode is on: a tap toggles the row instead of acting on it.
+  final bool selecting;
+  final bool selected;
+
+  void _toggle(WidgetRef ref) {
+    HapticFeedback.selectionClick();
+    ref.read(binderSelectionProvider.notifier).toggle(binderRowKey(entry));
+  }
 
   Future<void> _move(BuildContext context, WidgetRef ref) async {
     final dests = Binder.gridOrder(liveBinders)
@@ -397,39 +414,90 @@ class _EntryRow extends ConsumerWidget {
     }
   }
 
+  /// Removes this row and offers Undo, since a swipe or a stray − is easy.
+  void _removeWithUndo(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(binderProvider.notifier);
+    final removed = ref
+        .read(binderProvider)
+        .where((e) =>
+            !e.isWanted &&
+            e.card.id == entry.card.id &&
+            e.resolvedBinderId == binderId &&
+            e.condition == entry.condition)
+        .toList();
+    notifier.remove(
+      entry.card.id,
+      entry.isWanted,
+      binderId: binderId,
+      condition: entry.condition,
+    );
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const Key('binderRemovedSnack'),
+        content: Text('Removed ${entry.card.name}'),
+        action: SnackBarAction(
+          key: const Key('binderRemovedUndo'),
+          label: 'Undo',
+          onPressed: () => notifier.restore(removed),
+        ),
+      ));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final notifier = ref.read(binderProvider.notifier);
     final card = entry.card;
-    final lineValue = (pricing.value(card) ?? 0) * entry.quantity;
+    final unit = pricing.value(card);
+    // Unpriced reads `—`, matching the Binder tile and the web list.
+    final lineLabel = isPricedField(unit)
+        ? pricing.formatValue(unit! * entry.quantity)
+        : '—';
     final dests = Binder.gridOrder(liveBinders)
         .where((b) => b.isLive && b.clientId != binderId)
         .toList();
+    final t = context.tokens;
+    final rowKey = binderRowKey(entry);
 
     return Dismissible(
       key: ValueKey(
           '${card.id}_${entry.isWanted}_${entry.resolvedBinderId}_${entry.condition}'),
-      direction: DismissDirection.endToStart,
+      direction:
+          selecting ? DismissDirection.none : DismissDirection.endToStart,
       background: Container(
-        color: AppTheme.negative,
+        color: context.tokens.loss,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => notifier.remove(
-        card.id,
-        entry.isWanted,
-        binderId: binderId,
-        condition: entry.condition,
-      ),
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => CardDetailScreen(card: card))),
-        child: Padding(
+      onDismissed: (_) => _removeWithUndo(context, ref),
+      child: Material(
+        color: selected ? t.selected : Colors.transparent,
+        child: InkWell(
+          key: Key('binderSelectRow-$rowKey'),
+          // A long-press starts selecting with this row picked; while
+          // selecting, a tap toggles the row instead of opening it.
+          onTap: selecting
+              ? () => _toggle(ref)
+              : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CardDetailScreen(card: card))),
+          onLongPress: selecting ? null : () => _toggle(ref),
+          child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Row(
             children: [
+              if (selecting) ...[
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  key: Key('binderSelectMark-$rowKey'),
+                  size: 22,
+                  color: selected ? t.accent : t.textFaint,
+                ),
+                const SizedBox(width: 10),
+              ],
               CardThumbnail(url: card.imageUrl, foil: card.isFoil),
               const SizedBox(width: 12),
               Expanded(
@@ -451,11 +519,13 @@ class _EntryRow extends ConsumerWidget {
                       children: [
                         RarityBadge(rarity: card.rarity),
                         if (card.isFoil)
-                          const PillBadge(
-                              label: 'FOIL',
-                              color: Color(0xFF9B5DE5),
-                              icon: Icons.auto_awesome),
-                        _ConditionChip(
+                          FoilTag(subTypeName: card.subTypeName, label: card.finishLabel),
+                        if (selecting)
+                          Text(entry.condition,
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(color: t.textMuted))
+                        else
+                          _ConditionChip(
                           condition: entry.condition,
                           onChanged: (c) => notifier.setCondition(
                             card.id,
@@ -465,7 +535,7 @@ class _EntryRow extends ConsumerWidget {
                             condition: entry.condition,
                           ),
                         ),
-                        if (dests.isNotEmpty)
+                        if (dests.isNotEmpty && !selecting)
                           TextButton(
                             key: Key('moveBinder-${card.id}'),
                             style: TextButton.styleFrom(
@@ -486,13 +556,15 @@ class _EntryRow extends ConsumerWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(pricing.formatValue(lineValue),
+                  Text(lineLabel,
+                      key: Key('binderRowValue-${card.id}'),
                       style: theme.textTheme.titleSmall
                           ?.copyWith(fontWeight: FontWeight.w800)),
                   if (pricing.lowPriceLabel(card) != null)
                     Text(pricing.lowPriceLabel(card)!,
                         style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant)),
+                  if (!selecting) ...[
                   const SizedBox(height: 4),
                   _MiniStepper(
                     qty: entry.quantity,
@@ -503,17 +575,24 @@ class _EntryRow extends ConsumerWidget {
                       binderId: binderId,
                       condition: entry.condition,
                     ),
-                    onDec: () => notifier.setQuantity(
-                      card.id,
-                      entry.isWanted,
-                      entry.quantity - 1,
-                      binderId: binderId,
-                      condition: entry.condition,
-                    ),
+                    onDec: () => entry.quantity <= 1
+                        ? _removeWithUndo(context, ref)
+                        : notifier.setQuantity(
+                            card.id,
+                            entry.isWanted,
+                            entry.quantity - 1,
+                            binderId: binderId,
+                            condition: entry.condition,
+                          ),
                   ),
+                  ] else if (entry.quantity > 1)
+                    Text('×${entry.quantity}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: t.textMuted, fontWeight: FontWeight.w700)),
                 ],
               ),
             ],
+          ),
           ),
         ),
       ),

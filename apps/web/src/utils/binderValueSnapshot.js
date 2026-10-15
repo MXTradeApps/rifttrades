@@ -150,3 +150,18 @@ export function buildBinderValueSnapshot(
         topPrintings: ranked.slice(0, 5),
     };
 }
+
+/**
+ * Chosen-source headline total. Null when every copy is unpriced, so callers
+ * show `—`, never `$0.00` / `€0.00`.
+ *
+ * @param {Array<object>} entries contract-shaped rows (see snapshotEntryFromBinder)
+ * @param {{ source?: 'tcgplayer'|'cardmarket', headline?: 'pricingValue'|'tcgMarketOnly' }} [options]
+ */
+export function chosenSourceHeadlineAmount(
+    entries,
+    { source = 'tcgplayer', headline = 'pricingValue' } = {},
+) {
+    const rows = (entries || []).filter((row) => (row.quantity || 0) >= 1);
+    return sumField(rows, (r) => sourceValue(r, source, headline)).amount;
+}

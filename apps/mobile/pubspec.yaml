@@ -59,6 +59,9 @@ dependencies:
   purchases_flutter: ^10.4.3
   purchases_ui_flutter: ^10.4.3
   showcaseview: 5.1.0
+  # System rating sheet (SKStoreReviewController / Play In-App Review), asked
+  # only after positive moments — see lib/core/logic/review_prompt.dart.
+  in_app_review: ^2.0.12
 
 dependency_overrides:
   # iOS image streaming silently dies after ~5 frames on camera_avfoundation
@@ -77,6 +80,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   mocktail: ^1.0.4
+  fake_async: ^1.3.3
   url_launcher_platform_interface: ^2.3.2
   # Used by test/core/scan/frame_hasher_test.dart to build synthetic
   # CameraImage frames without a device.

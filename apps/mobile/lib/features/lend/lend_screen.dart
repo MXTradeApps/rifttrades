@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/app.dart';
 import '../../app/theme.dart';
 import '../../app/widgets.dart';
 import '../../core/logic/pricing.dart';
@@ -41,7 +40,7 @@ class _LendScreenState extends ConsumerState<LendScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lend'),
-        actions: const [AppMenuAction()],
+        
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(46),
           child: ShowcaseTheme.mark(
@@ -163,7 +162,7 @@ class _GroupCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final color = group.isBorrowing ? AppTheme.wantAccent : AppTheme.positive;
+    final color = group.isBorrowing ? context.tokens.accent : context.tokens.gain;
     final total = group.items
         .fold<double>(0, (s, i) => s + (pricing.value(i.card) ?? 0) * i.quantity);
     final name =
@@ -176,7 +175,7 @@ class _GroupCard extends ConsumerWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: AppTheme.negative,
+          color: context.tokens.loss,
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Icon(Icons.delete, color: Colors.white),

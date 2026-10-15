@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import {
     Box,
     Typography,
-    Container,
-    Paper,
     List,
     ListItem,
     IconButton,
@@ -21,22 +19,24 @@ import {
     Snackbar
 } from '@mui/material';
 import {
-    Delete as DeleteIcon,
+    HistoryRounded,
+    SwapHorizRounded,
+    DeleteOutline as DeleteIconOutline,
     Download as LoadIcon,
     Search as SearchIcon,
     ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useEntitlement } from '../contexts/EntitlementContext.jsx';
-import { useThemeMode } from '../contexts/ThemeContext.jsx';
 import { getUserTrades, deleteTrade } from '../services/tradeHistory';
 import { useCardData } from '../hooks/useCardData.jsx';
+import { useEntitlement } from '../contexts/EntitlementContext.jsx';
 import { FreeLimits } from '../utils/freeLimits.js';
+import { useCardDetail } from '../contexts/CardDetailContext.jsx';
 import { normalizeTradeList, tradeDisplayName } from '../utils/tradeItems.js';
 import { CardThumbnail } from '../components/ui/CardImagePreview.jsx';
-import { useCardDetail } from '../contexts/CardDetailContext.jsx';
 import Header from '../components/elements/Header.jsx';
+import { Page, PageHeader, Panel, EmptyState } from '../components/layout/Page.jsx';
 import SignInDialog from '../components/auth/SignInDialog.jsx';
 import { capture } from '../lib/analytics.js';
 
@@ -55,7 +55,6 @@ const TradeHistory = () => {
     const { isPro, loading: entitlementLoading } = useEntitlement();
     const { metadata, cardIdLookup } = useCardData();
     const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
-    const { isDark } = useThemeMode();
     const [trades, setTrades] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -137,346 +136,231 @@ const TradeHistory = () => {
         tradeDisplayName(trade).toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Theme-aware colors matching the rest of the app
-    const bgGradient = isDark
-        ? 'linear-gradient(135deg, #061820 0%, #0a2540 50%, #0d3050 100%)'
-        : 'linear-gradient(135deg, #e8f4f8 0%, #d4e8f0 50%, #eef6f9 100%)';
-    const textColor = isDark ? '#e8f4f8' : '#0a2540';
-    const mutedColor = isDark ? '#d4a853' : '#1a4a6e';
-    const accentColor = isDark ? '#e5c078' : '#1a5a7a';
-    const paperBg = isDark ? 'rgba(13, 48, 80, 0.6)' : '#ffffff';
-    const paperBorder = isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)';
+    const textColor = 'text.primary';
+    const mutedColor = 'text.secondary';
 
     // Not signed in: explain and offer the sign-in action right here
     if (!user) {
         return (
-            <Box sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100vh',
-                pb: '28px',
-                background: bgGradient,
-                backgroundAttachment: 'fixed'
-            }}>
+            <>
                 <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
-                <Container maxWidth="sm" sx={{ mt: 8 }}>
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            p: 4,
-                            textAlign: 'center',
-                            backgroundColor: paperBg,
-                            border: `1px solid ${paperBorder}`,
-                            borderRadius: 3
-                        }}
-                    >
-                        <Typography variant="h5" sx={{ mb: 2, color: accentColor, fontWeight: 700 }}>
-                            Sign In Required
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 3, color: mutedColor }}>
+                <Page maxWidth={720}>
+                    <Panel sx={{ mt: { xs: 2, md: 6 } }}>
+                        <EmptyState
+                            icon={<HistoryRounded />}
+                            title="Sign In Required"
+                            actions={(
+                                <>
+                                    <Button variant="contained" size="large" onClick={() => setSignInOpen(true)}>
+                                        Sign in
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        color="inherit"
+                                        size="large"
+                                        startIcon={<ArrowBackIcon />}
+                                        onClick={() => navigate('/')}
+                                    >
+                                        Back to Trading
+                                    </Button>
+                                </>
+                            )}
+                        >
                             Sign in to save trades and view your trade history.
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <Button
-                                variant="contained"
-                                onClick={() => setSignInOpen(true)}
-                            >
-                                Sign in
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                startIcon={<ArrowBackIcon />}
-                                onClick={() => navigate('/')}
-                                sx={{
-                                    color: accentColor,
-                                    borderColor: paperBorder,
-                                    '&:hover': {
-                                        borderColor: accentColor,
-                                        backgroundColor: isDark ? 'rgba(200, 113, 55, 0.12)' : 'rgba(139, 69, 19, 0.06)'
-                                    }
-                                }}
-                            >
-                                Back to Trading
-                            </Button>
-                        </Box>
-                    </Paper>
-                </Container>
+                        </EmptyState>
+                    </Panel>
+                </Page>
                 <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
-            </Box>
+            </>
         );
     }
 
     return (
-        <Box sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: '100vh',
-            pb: '28px',
-            background: bgGradient,
-            backgroundAttachment: 'fixed'
-        }}>
+        <>
             <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
 
-            <Container maxWidth="lg" sx={{ flexGrow: 1, py: 4 }}>
-                <Paper
-                    elevation={0}
-                    sx={{
-                        p: { xs: 2, sm: 3, md: 4 },
-                        borderRadius: 3,
-                        backgroundColor: paperBg,
-                        border: `1px solid ${paperBorder}`,
-                        minHeight: '60vh'
-                    }}
-                >
-                    {/* Header */}
-                    <Box sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        mb: 3,
-                        pb: 2,
-                        borderBottom: '2px solid #d4a574'
-                    }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: accentColor }}>
-                                Trade History
-                            </Typography>
+            <Page maxWidth={1040}>
+                <PageHeader
+                    title={(
+                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1.25 }}>
+                            Trade History
                             {isPro && (
-                                <Chip
-                                    size="small"
-                                    label="PRO"
-                                    sx={{
-                                        fontWeight: 700,
-                                        letterSpacing: 0.5,
-                                        color: isDark ? '#1a0f0a' : '#ffffff',
-                                        backgroundColor: accentColor,
-                                    }}
-                                />
+                                <Chip size="small" color="primary" label="PRO" sx={{ letterSpacing: 0.5 }} />
                             )}
                         </Box>
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<ArrowBackIcon />}
-                            onClick={() => navigate('/')}
-                            sx={{
-                                borderColor: paperBorder,
-                                color: accentColor,
-                                '&:hover': {
-                                    borderColor: accentColor,
-                                    backgroundColor: isDark ? 'rgba(200, 113, 55, 0.12)' : 'rgba(139, 69, 19, 0.08)'
-                                }
-                            }}
-                        >
-                            Back to Trading
+                    )}
+                    subtitle="Every trade you’ve saved or confirmed. Load one back into the calculator to re-price it."
+                    actions={(
+                        <Button variant="contained" startIcon={<SwapHorizRounded />} onClick={() => navigate('/')}>
+                            New trade
                         </Button>
+                    )}
+                />
+
+                {/* Where the free window stands. Only once it is actually in
+                    sight — same 70% pressure rule as mobile's FreeUsage.
+                    Web cannot sell Pro (purchases live in the apps), so this
+                    says where to buy rather than offering a checkout. */}
+                {!entitlementLoading && !isPro &&
+                    trades.length / FreeLimits.savedTrades >= 0.7 && (
+                    <Alert severity="info" icon={false} sx={{ mb: 3 }}>
+                        Free plan — your {FreeLimits.savedTrades} most recent trades are kept.
+                        Subscribe in the RiftTrades app to keep every trade.
+                    </Alert>
+                )}
+
+                <TextField
+                    fullWidth
+                    placeholder="Search trades by name…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    inputProps={{ 'aria-label': 'Search trades' }}
+                    sx={{ mb: 3, maxWidth: 520 }}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon sx={{ color: mutedColor }} />
+                            </InputAdornment>
+                        ),
+                    }}
+                />
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                        <CircularProgress />
                     </Box>
+                )}
 
-                    {/* Where the free window stands. Only once it is actually in
-                        sight — same 70% pressure rule as mobile's FreeUsage.
-                        Web cannot sell Pro (purchases live in the apps), so this
-                        says where to buy rather than offering a checkout. */}
-                    {!entitlementLoading && !isPro &&
-                        trades.length / FreeLimits.savedTrades >= 0.7 && (
-                        <Alert severity="info" icon={false} sx={{ mb: 3 }}>
-                            Free plan — your {FreeLimits.savedTrades} most recent trades are kept.
-                            Subscribe in the RiftTrades app to keep every trade.
-                        </Alert>
-                    )}
+                {error && !loading && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                        {error}
+                    </Alert>
+                )}
 
-                    {/* Search Bar */}
-                    <TextField
-                        fullWidth
-                        placeholder="Search trades by name..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        size="medium"
-                        sx={{
-                            mb: 3,
-                            '& .MuiOutlinedInput-root': {
-                                backgroundColor: isDark ? 'rgba(26, 15, 10, 0.6)' : 'rgba(255, 255, 255, 0.6)',
-                                '& fieldset': { borderColor: paperBorder },
-                                '&:hover fieldset': { borderColor: accentColor }
-                            },
-                            '& input': { color: textColor }
-                        }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon sx={{ color: mutedColor }} />
-                                </InputAdornment>
-                            ),
-                        }}
-                    />
-
-                    {/* Loading State */}
-                    {loading && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                            <CircularProgress sx={{ color: accentColor }} />
-                        </Box>
-                    )}
-
-                    {/* Error State */}
-                    {error && !loading && (
-                        <Alert severity="error" sx={{ mb: 3 }}>
-                            {error}
-                        </Alert>
-                    )}
-
-                    {/* Empty State */}
-                    {!loading && !error && filteredTrades.length === 0 && (
-                        <Box sx={{ textAlign: 'center', py: 8 }}>
-                            {searchQuery ? (
-                                <>
-                                    <Typography variant="h6" sx={{ color: textColor, mb: 1 }}>
-                                        No trades found
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ color: mutedColor }}>
-                                        Try a different search term
-                                    </Typography>
-                                </>
-                            ) : (
-                                <>
-                                    <Typography variant="h6" sx={{ color: textColor, mb: 1 }}>
-                                        No saved trades yet
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ color: mutedColor, mb: 3 }}>
-                                        Build a trade and click Save to add it to your history
-                                    </Typography>
-                                    <Button
-                                        variant="contained"
-                                        onClick={() => navigate('/')}
-                                    >
+                {!loading && !error && filteredTrades.length === 0 && (
+                    <Panel>
+                        {searchQuery ? (
+                            <EmptyState icon={<SearchIcon />} title="No trades found">
+                                Try a different search term
+                            </EmptyState>
+                        ) : (
+                            <EmptyState
+                                icon={<HistoryRounded />}
+                                title="No saved trades yet"
+                                actions={(
+                                    <Button variant="contained" onClick={() => navigate('/')}>
                                         Start Trading
                                     </Button>
-                                </>
-                            )}
-                        </Box>
-                    )}
+                                )}
+                            >
+                                Build a trade and click Save to add it to your history
+                            </EmptyState>
+                        )}
+                    </Panel>
+                )}
 
-                    {/* Trades List */}
-                    {!loading && filteredTrades.length > 0 && (
-                        <List sx={{ py: 0 }}>
-                            {filteredTrades.map((trade) => (
-                                <ListItem key={trade.id} sx={{ px: 0, py: 1 }}>
-                                    <Paper
-                                        elevation={0}
+                {!loading && filteredTrades.length > 0 && (
+                    <List sx={{ py: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        {filteredTrades.map((trade) => {
+                            const diffValue = parseFloat(trade.diff);
+                            return (
+                            <ListItem key={trade.id} sx={{ p: 0 }}>
+                                <Panel sx={{ width: '100%', overflow: 'hidden' }}>
+                                    <Box
                                         sx={{
-                                            width: '100%',
-                                            p: 3,
-                                            backgroundColor: isDark ? 'rgba(26, 15, 10, 0.5)' : '#ffffff',
-                                            border: `1px solid ${paperBorder}`,
-                                            borderRadius: 2,
-                                            transition: 'all 0.2s',
-                                            '&:hover': {
-                                                borderColor: accentColor,
-                                                boxShadow: isDark
-                                                    ? '0 4px 12px rgba(0, 0, 0, 0.3)'
-                                                    : '0 4px 12px rgba(139, 69, 19, 0.15)'
-                                            }
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1.5,
+                                            px: { xs: 2, sm: 2.5 },
+                                            py: 1.75,
+                                            borderBottom: 1,
+                                            borderColor: 'divider',
                                         }}
                                     >
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                                <Typography
-                                                    variant="h6"
-                                                    sx={{
-                                                        fontWeight: 600,
-                                                        color: textColor,
-                                                        mb: 1,
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap'
-                                                    }}
-                                                >
-                                                    {tradeDisplayName(trade)}
-                                                </Typography>
-
-                                                <Typography variant="caption" sx={{ color: mutedColor, display: 'block', mb: 2 }}>
-                                                    {formatDate(trade.created_at)}
-                                                </Typography>
-
-                                                <TradeCardLists
-                                                    haveList={trade.have_list}
-                                                    wantList={trade.want_list}
-                                                    haveCash={trade.have_cash}
-                                                    wantCash={trade.want_cash}
-                                                    currencySymbol={trade.currency_symbol}
-                                                    textColor={textColor}
-                                                    mutedColor={mutedColor}
-                                                    cardIdLookup={cardIdLookup}
-                                                />
-
-                                                {trade.notes ? (
-                                                    <Typography
-                                                        variant="body2"
-                                                        sx={{
-                                                            color: mutedColor,
-                                                            mt: 1.25,
-                                                            fontStyle: 'italic',
-                                                            whiteSpace: 'pre-wrap',
-                                                        }}
-                                                    >
-                                                        {trade.notes}
-                                                    </Typography>
-                                                ) : null}
-
-                                                {/* Diff colors match the trade calculator:
-                                                    positive = your side is worth more (primary),
-                                                    negative = their side is worth more (success) */}
-                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>
-                                                    <Chip
-                                                        size="small"
-                                                        label={`Diff: ${parseFloat(trade.diff) > 0 ? '+' : ''}${formatTradeMoney(trade.diff, trade.currency_symbol)}`}
-                                                        color={parseFloat(trade.diff) > 0 ? 'primary' : parseFloat(trade.diff) < 0 ? 'success' : 'default'}
-                                                        sx={{ fontWeight: 600 }}
-                                                    />
-                                                </Box>
-                                            </Box>
-
-                                            <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
-                                                <Tooltip title="Load this trade">
-                                                    <IconButton
-                                                        onClick={() => handleLoadTrade(trade)}
-                                                        sx={{
-                                                            color: accentColor,
-                                                            '&:hover': {
-                                                                backgroundColor: isDark
-                                                                    ? 'rgba(200, 113, 55, 0.15)'
-                                                                    : 'rgba(139, 69, 19, 0.08)'
-                                                            }
-                                                        }}
-                                                    >
-                                                        <LoadIcon />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Delete this trade">
-                                                    <IconButton
-                                                        onClick={() => setConfirmDeleteTrade(trade)}
-                                                        disabled={deletingId === trade.id}
-                                                        sx={{
-                                                            color: 'error.main',
-                                                            '&:hover': {
-                                                                backgroundColor: 'rgba(211, 47, 47, 0.08)',
-                                                            }
-                                                        }}
-                                                    >
-                                                        {deletingId === trade.id ? (
-                                                            <CircularProgress size={24} />
-                                                        ) : (
-                                                            <DeleteIcon />
-                                                        )}
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
+                                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                            <Typography
+                                                variant="h5"
+                                                component="h2"
+                                                noWrap
+                                                sx={{ color: textColor }}
+                                            >
+                                                {tradeDisplayName(trade)}
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: mutedColor, display: 'block', mt: 0.25 }}>
+                                                {formatDate(trade.created_at)}
+                                            </Typography>
                                         </Box>
-                                    </Paper>
-                                </ListItem>
-                            ))}
-                        </List>
-                    )}
-                </Paper>
-            </Container>
+                                        {/* Diff colors match the trade calculator:
+                                            positive = your side is worth more (primary),
+                                            negative = their side is worth more (success) */}
+                                        <Chip
+                                            size="small"
+                                            label={`Diff: ${diffValue > 0 ? '+' : ''}${formatTradeMoney(trade.diff, trade.currency_symbol)}`}
+                                            color={diffValue > 0 ? 'primary' : diffValue < 0 ? 'success' : 'default'}
+                                            sx={{ flexShrink: 0 }}
+                                        />
+                                        <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                                            <Tooltip title="Load this trade">
+                                                <IconButton
+                                                    onClick={() => handleLoadTrade(trade)}
+                                                    aria-label="Load this trade"
+                                                    sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+                                                >
+                                                    <LoadIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Delete this trade">
+                                                <IconButton
+                                                    onClick={() => setConfirmDeleteTrade(trade)}
+                                                    disabled={deletingId === trade.id}
+                                                    aria-label="Delete this trade"
+                                                    sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
+                                                >
+                                                    {deletingId === trade.id ? (
+                                                        <CircularProgress size={20} />
+                                                    ) : (
+                                                        <DeleteIconOutline />
+                                                    )}
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Box>
+                                    </Box>
+                                    <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2 }}>
+                                        <TradeCardLists
+                                            haveList={trade.have_list}
+                                            wantList={trade.want_list}
+                                            haveCash={trade.have_cash}
+                                            wantCash={trade.want_cash}
+                                            currencySymbol={trade.currency_symbol}
+                                            textColor={textColor}
+                                            mutedColor={mutedColor}
+                                            cardIdLookup={cardIdLookup}
+                                        />
+
+                                        {trade.notes ? (
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    color: mutedColor,
+                                                    mt: 1.5,
+                                                    px: 1.5,
+                                                    py: 1,
+                                                    borderRadius: '10px',
+                                                    bgcolor: 'surface.sunken',
+                                                    whiteSpace: 'pre-wrap',
+                                                }}
+                                            >
+                                                {trade.notes}
+                                            </Typography>
+                                        ) : null}
+                                    </Box>
+                                </Panel>
+                            </ListItem>
+                            );
+                        })}
+                    </List>
+                )}
+            </Page>
 
             {/* Delete Confirmation Dialog */}
             <Dialog
@@ -491,8 +375,8 @@ const TradeHistory = () => {
                         "{confirmDeleteTrade?.name}" will be permanently removed from your history.
                     </Typography>
                 </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setConfirmDeleteTrade(null)}>Cancel</Button>
+                <DialogActions>
+                    <Button color="inherit" onClick={() => setConfirmDeleteTrade(null)}>Cancel</Button>
                     <Button onClick={handleConfirmDelete} color="error" variant="contained">
                         Delete
                     </Button>
@@ -515,7 +399,7 @@ const TradeHistory = () => {
                     {deleteError}
                 </Alert>
             </Snackbar>
-        </Box>
+        </>
     );
 };
 
@@ -535,7 +419,7 @@ function TradeCardLists({
     const cashWant = Number(wantCash) || 0;
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 0.5 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, columnGap: 4, rowGap: 2 }}>
             {(haveCards.length > 0 || cashHave > 0) && (
                 <TradeSideList
                     label="Gave"
@@ -562,7 +446,15 @@ function TradeCardLists({
     );
 }
 
-function TradeSideList({ label, cards, cash, currencySymbol = '$', textColor, mutedColor, cardIdLookup = {} }) {
+function TradeSideList({
+    label,
+    cards,
+    cash,
+    currencySymbol = '$',
+    textColor,
+    mutedColor,
+    cardIdLookup = {},
+}) {
     const { openDetail } = useCardDetail();
 
     const openCard = (card) => {
@@ -573,20 +465,16 @@ function TradeSideList({ label, cards, cash, currencySymbol = '$', textColor, mu
 
     return (
         <Box>
-            <Typography
-                variant="caption"
-                sx={{
-                    color: mutedColor,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.4,
-                    display: 'block',
-                    mb: 0.75,
-                }}
-            >
-                {label}
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+                <Box
+                    aria-hidden
+                    sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: label === 'Gave' ? 'primary.main' : 'success.main' }}
+                />
+                <Typography variant="overline" sx={{ color: mutedColor, lineHeight: 1.4 }}>
+                    {label}
+                </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {cards.map((card, index) => {
                     const printing = card.uniqueId && cardIdLookup[card.uniqueId];
                     return (
@@ -598,7 +486,7 @@ function TradeSideList({ label, cards, cash, currencySymbol = '$', textColor, mu
                             imageUrl={card.imageUrl}
                             fallbackUrl={card.imageUrlFallback}
                             alt={card.name}
-                            size={28}
+                            size={30}
                             onClick={printing ? () => openCard(card) : undefined}
                         />
                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
@@ -609,6 +497,8 @@ function TradeSideList({ label, cards, cash, currencySymbol = '$', textColor, mu
                                 aria-label={printing ? `View details for ${card.name}` : undefined}
                                 variant="body2"
                                 sx={{
+                                    display: 'block',
+                                    maxWidth: '100%',
                                     color: textColor,
                                     fontWeight: 600,
                                     overflow: 'hidden',
@@ -627,13 +517,13 @@ function TradeSideList({ label, cards, cash, currencySymbol = '$', textColor, mu
                                 {card.quantity}× {card.name}
                                 {card.subTypeName ? ` (${card.subTypeName})` : ''}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: mutedColor }}>
+                            <Typography variant="caption" sx={{ color: mutedColor, fontVariantNumeric: 'tabular-nums' }}>
                                 {formatTradeMoney(card.price || 0, currencySymbol)} ea
                             </Typography>
                         </Box>
                         <Typography
                             variant="body2"
-                            sx={{ color: textColor, fontWeight: 700, flexShrink: 0 }}
+                            sx={{ color: textColor, fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
                         >
                             {formatTradeMoney(
                                 Number(card.price || 0) * Number(card.quantity || 1),

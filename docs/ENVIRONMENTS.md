@@ -110,7 +110,7 @@ never appear in a client build or this repository's tracked files.
 | Build | Environment |
 | --- | --- |
 | Android release workflow | `environment` input, default `production` |
-| iOS (Codemagic) | `APP_ENVIRONMENT`, default `production` |
+| iOS (local Xcode / `flutter build ipa`) | `--dart-define-from-file=env/<name>.json`, use `production` for TestFlight |
 
 Use staging for anything exercising purchases. Sandbox transactions on both
 stores are indistinguishable from real ones as far as the app is concerned; the

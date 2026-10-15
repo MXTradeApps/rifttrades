@@ -9,10 +9,9 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import CardList from './CardList.jsx';
 import { SearchInput, SearchDialog } from '../search';
-import { useThemeMode } from "../../contexts/ThemeContext.jsx";
+import { tk } from "../../theme/tokens.js";
 
 const CardPanel = ({ 
-    allCards, 
     title, 
     cards, 
     cardOptions, 
@@ -21,83 +20,76 @@ const CardPanel = ({
     onAddCard, 
     onRemoveCard, 
     onUpdateQuantity,
-    isMobile, 
-    totalColor = 'primary',
     disabled = false,
     isLandscape = false,
     viewMode = 'list',
+    tone,
 }) => {
-    const { isDark } = useThemeMode();
     const theme = useTheme();
     const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
     const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+    const cardCount = (cards || []).reduce((sum, card) => sum + (card.quantity || 1), 0);
+    const toneColor = tone === 'want' ? 'success.main' : tone === 'have' ? 'primary.main' : null;
 
     return (
         <Paper 
-            elevation={isLandscape ? 3 : 0}
             sx={{ 
                 flex: 1,
                 width: '100%',
                 maxWidth: '100%',
+                minHeight: isLandscape ? 0 : { xs: '240px', sm: '300px' },
                 minWidth: 0,
-                minHeight: isLandscape ? 0 : { xs: '250px', sm: '300px', md: '350px' },
-                height: isLandscape ? '100%' : 'auto',
-                overflow: 'hidden',
-                p: isLandscape ? 1.25 : { xs: 1.5, sm: 2, md: 2.5 },
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                borderRadius: isLandscape ? 3 : 0,
-                border: isLandscape 
-                    ? `2px solid ${isDark ? 'rgba(58, 154, 186, 0.2)' : 'rgba(26, 90, 122, 0.15)'}` 
-                    : `1px solid ${isDark ? 'rgba(58, 154, 186, 0.25)' : 'rgba(26, 90, 122, 0.15)'}`,
-                borderTop: isLandscape 
-                    ? `2px solid ${isDark ? 'rgba(58, 154, 186, 0.2)' : 'rgba(26, 90, 122, 0.15)'}` 
-                    : `4px solid ${isDark ? '#d4a853' : '#1a5a7a'}`,
-                boxSizing: 'border-box',
-                background: isDark 
-                    ? 'linear-gradient(180deg, #0d3050 0%, #0a2540 100%)' 
-                    : 'linear-gradient(180deg, #ffffff 0%, #f0f8fa 100%)',
-                boxShadow: isLandscape 
-                    ? '0 8px 24px rgba(10, 37, 64, 0.2)' 
-                    : '0 2px 8px rgba(10, 37, 64, 0.1)',
-                '&:hover': {
-                    boxShadow: isLandscape 
-                        ? '0 12px 32px rgba(10, 37, 64, 0.25)' 
-                        : '0 4px 12px rgba(10, 37, 64, 0.15)',
-                    transform: isLandscape ? 'translateY(-2px)' : 'none',
-                    borderTopColor: '#d4a853'
-                }
+                borderRadius: isLandscape ? '16px' : 0,
+                border: isLandscape ? 1 : 0,
+                borderColor: 'divider',
+                boxShadow: (t) => isLandscape ? tk(t).shadowSm : 'none',
+                bgcolor: isLandscape ? 'background.paper' : 'transparent',
+                overflow: 'hidden',
             }}
         >
             <Box sx={{ 
                 display: 'flex', 
-                alignItems: 'center',
-                gap: 1,
-                mb: isLandscape ? 1 : { xs: 1.5, sm: 2 },
-                width: '100%',
-                pb: isLandscape ? 0.75 : 1.5,
-                flexShrink: 0,
-                borderBottom: `2px solid ${isDark ? 'rgba(212, 168, 83, 0.3)' : 'rgba(26, 90, 122, 0.15)'}`
+                flexDirection: 'column',
+                gap: 1.25,
+                px: { xs: 2, sm: 2 },
+                pt: isLandscape ? 2 : 1.75,
+                pb: 1.5,
             }}>
-                <Typography 
-                    variant="h6" 
-                    sx={{ 
-                        fontSize: isLandscape
-                            ? '0.95rem'
-                            : { xs: '1.1rem', sm: '1.25rem', md: '1.35rem' },
-                        fontWeight: 700,
-                        color: isDark ? '#e5c078' : '#0a2540',
-                        letterSpacing: '-0.01em',
-                        lineHeight: 1.2,
-                        flexShrink: 0,
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    {title}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                    {toneColor && (
+                        <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: toneColor, flexShrink: 0 }} />
+                    )}
+                    <Typography 
+                        variant="h5" 
+                        component="h2"
+                        sx={{ 
+                            color: 'text.primary',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        {title}
+                    </Typography>
+                    {cardCount > 0 && (
+                        <Typography
+                            component="span"
+                            sx={{
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: 'text.secondary',
+                                bgcolor: 'action.hover',
+                                borderRadius: 999,
+                                px: 0.9,
+                                fontVariantNumeric: 'tabular-nums',
+                            }}
+                        >
+                            {cardCount}
+                        </Typography>
+                    )}
+                </Box>
 
-                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ minWidth: 0 }}>
                     {isSmallScreen ? (
                         <Box
                             onClick={() => !disabled && setSearchDialogOpen(true)}
@@ -113,39 +105,32 @@ const CardPanel = ({
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 0.75,
-                                minHeight: 36,
-                                px: 1,
-                                borderRadius: 1,
-                                border: isDark
-                                    ? '1px solid rgba(58, 154, 186, 0.3)'
-                                    : '1px solid rgba(26, 90, 122, 0.25)',
-                                backgroundColor: isDark ? '#0a2540' : '#ffffff',
+                                gap: 1,
+                                minHeight: 42,
+                                px: 1.5,
+                                borderRadius: '10px',
+                                bgcolor: 'surface.sunken',
                                 cursor: disabled ? 'default' : 'pointer',
                                 opacity: disabled ? 0.6 : 1,
                             }}
                         >
-                            <SearchIcon sx={{
-                                fontSize: '1rem',
-                                color: isDark ? '#a0c4d4' : '#1a5a7a',
-                            }} />
+                            <SearchIcon sx={{ fontSize: '1.15rem', color: 'text.secondary' }} />
                             <Typography
                                 variant="body2"
                                 sx={{
-                                    color: isDark ? 'rgba(160, 196, 212, 0.75)' : 'rgba(26, 74, 110, 0.55)',
-                                    fontSize: '0.8125rem',
+                                    color: 'text.secondary',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
                                 }}
                             >
-                                Search cards…
+                                Search cards to add…
                             </Typography>
                         </Box>
                     ) : (
                         <SearchInput
                             label=""
-                            placeholder="Search cards…"
+                            placeholder="Search cards to add…"
                             items={cardOptions || []}
                             value={inputValue || ''}
                             onChange={onInputChange}
@@ -161,14 +146,16 @@ const CardPanel = ({
                 </Box>
             </Box>
             
-            <CardList
-                cards={cards}
-                onRemoveCard={onRemoveCard}
-                onUpdateQuantity={onUpdateQuantity}
-                disabled={disabled}
-                viewMode={viewMode}
-                isLandscape={isLandscape}
-            />
+            <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', px: 1, pb: 1 }}>
+                <CardList
+                    cards={cards}
+                    onRemoveCard={onRemoveCard}
+                    onUpdateQuantity={onUpdateQuantity}
+                    disabled={disabled}
+                    viewMode={viewMode}
+                    isLandscape={isLandscape}
+                />
+            </Box>
 
             <SearchDialog
                 open={searchDialogOpen}

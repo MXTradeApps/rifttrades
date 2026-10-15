@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/theme.dart';
 import '../../app/widgets.dart';
 import '../../core/logic/binder_cover.dart';
 import '../../core/logic/binder_value_snapshot.dart';
@@ -14,11 +16,11 @@ import '../../core/providers.dart';
 List<BinderEntry> ownedInBinder(
   Iterable<BinderEntry> entries,
   String binderId,
-) =>
-    entries
-        .where((e) =>
-            !e.isWanted && e.resolvedBinderId == binderId && e.quantity > 0)
-        .toList(growable: false);
+) => entries
+    .where(
+      (e) => !e.isWanted && e.resolvedBinderId == binderId && e.quantity > 0,
+    )
+    .toList(growable: false);
 
 int binderCopyCount(Iterable<BinderEntry> entries, String binderId) =>
     ownedInBinder(entries, binderId).fold<int>(0, (s, e) => s + e.quantity);
@@ -44,12 +46,7 @@ String binderTileValueLabel(
 
 /// Grid of live Binders. Want List is not a tile.
 class BinderGrid extends ConsumerWidget {
-  const BinderGrid({
-    super.key,
-    this.onOpen,
-    this.onRename,
-    this.onDelete,
-  });
+  const BinderGrid({super.key, this.onOpen, this.onRename, this.onDelete});
 
   final ValueChanged<String>? onOpen;
   final ValueChanged<String>? onRename;
@@ -64,7 +61,7 @@ class BinderGrid extends ConsumerWidget {
 
     return CustomScrollView(
       key: const Key('binderGrid'),
-      cacheExtent: 1200,
+      scrollCacheExtent: const ScrollCacheExtent.pixels(1200),
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
@@ -73,27 +70,24 @@ class BinderGrid extends ConsumerWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 0.92,
+              childAspectRatio: 0.86,
             ),
-            delegate: SliverChildBuilderDelegate(
-              (context, i) {
-                final binder = binders[i];
-                return BinderTile(
-                  binder: binder,
-                  entries: entries,
-                  pricing: pricing,
-                  source: source,
-                  onOpen: () => onOpen?.call(binder.clientId),
-                  onRename: onRename == null
-                      ? null
-                      : () => onRename!(binder.clientId),
-                  onDelete: binder.isTrade || onDelete == null
-                      ? null
-                      : () => onDelete!(binder.clientId),
-                );
-              },
-              childCount: binders.length,
-            ),
+            delegate: SliverChildBuilderDelegate((context, i) {
+              final binder = binders[i];
+              return BinderTile(
+                binder: binder,
+                entries: entries,
+                pricing: pricing,
+                source: source,
+                onOpen: () => onOpen?.call(binder.clientId),
+                onRename: onRename == null
+                    ? null
+                    : () => onRename!(binder.clientId),
+                onDelete: binder.isTrade || onDelete == null
+                    ? null
+                    : () => onDelete!(binder.clientId),
+              );
+            }, childCount: binders.length),
           ),
         ),
       ],
@@ -142,83 +136,126 @@ class BinderTile extends StatelessWidget {
       }
     }
 
+    final t = context.tokens;
     return Card(
       key: Key('binderTile-$id'),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
         onLongPress: onRename,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: t.sunken,
+                  border: Border(bottom: BorderSide(color: t.border)),
+                ),
                 child: cover.printingId == null
-                    ? const SizedBox.expand()
+                    ? Center(
+                        child: Icon(
+                          Icons.collections_bookmark_outlined,
+                          size: 30,
+                          color: t.textFaint,
+                        ),
+                      )
                     : Center(
-                        child: CardThumbnail(
-                          key: Key('binderTileCover-$id'),
-                          url: imageUrl,
-                          width: 72,
-                          height: 100,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: CardThumbnail(
+                            key: Key('binderTileCover-$id'),
+                            url: imageUrl,
+                            width: 76,
+                            height: 106,
+                          ),
                         ),
                       ),
               ),
-              const SizedBox(height: 8),
-              Row(
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 4, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      binder.name,
-                      key: Key('binderTileName-$id'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          binder.name,
+                          key: Key('binderTileName-$id'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall,
+                        ),
+                      ),
+                      if (onRename != null || onDelete != null)
+                        PopupMenuButton<String>(
+                          key: Key('binderTileMenu-$id'),
+                          onSelected: (action) {
+                            if (action == 'rename') onRename?.call();
+                            if (action == 'delete') onDelete?.call();
+                          },
+                          itemBuilder: (_) => [
+                            if (onRename != null)
+                              const PopupMenuItem(
+                                value: 'rename',
+                                child: Text('Rename'),
+                              ),
+                            if (onDelete != null)
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text(
+                                  'Delete',
+                                  key: Key('deleteBinder-$id'),
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
                   ),
-                  if (onRename != null || onDelete != null)
-                    PopupMenuButton<String>(
-                      key: Key('binderTileMenu-$id'),
-                      onSelected: (action) {
-                        if (action == 'rename') onRename?.call();
-                        if (action == 'delete') onDelete?.call();
-                      },
-                      itemBuilder: (_) => [
-                        if (onRename != null)
-                          const PopupMenuItem(
-                            value: 'rename',
-                            child: Text('Rename'),
-                          ),
-                        if (onDelete != null)
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text(
-                              'Delete',
-                              key: Key('deleteBinder-$id'),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '$copies',
+                          key: Key('binderTileCount-$id'),
+                          style: AppType.tabular(
+                            theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
+                        ),
+                        Text(
+                          copies == 1 ? ' card' : ' cards',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              value,
+                              key: Key('binderTileValue-$id'),
+                              style: AppType.tabular(
+                                theme.textTheme.titleSmall,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                '$copies',
-                key: Key('binderTileCount-$id'),
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              Text(
-                value,
-                key: Key('binderTileValue-$id'),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

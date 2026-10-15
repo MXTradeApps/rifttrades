@@ -241,7 +241,7 @@ describe('BinderCollection entry', () => {
 
     test('/wants total is not the Binder value control', async () => {
         renderCollection(true);
-        await waitFor(() => screen.getByText('Want List'));
+        await waitFor(() => screen.getByRole('heading', { name: 'Want List' }));
         expect(screen.queryByTestId('binder-value-total')).not.toBeInTheDocument();
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });

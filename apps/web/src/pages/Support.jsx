@@ -4,15 +4,12 @@ import {
     Box,
     Button,
     CircularProgress,
-    Container,
     Link as MuiLink,
-    Paper,
     TextField,
-    Typography,
 } from '@mui/material';
 import Header from '../components/elements/Header.jsx';
+import { Page, PageHeader, Panel } from '../components/layout/Page.jsx';
 import { useCardData } from '../hooks/useCardData.jsx';
-import { useThemeMode } from '../contexts/ThemeContext.jsx';
 
 const SUPPORT_EMAIL = 'mxbloombusiness@gmail.com';
 const FORM_NAME = 'support';
@@ -23,7 +20,6 @@ const encodeFormBody = (data) =>
         .join('&');
 
 const Support = () => {
-    const { isDark } = useThemeMode();
     const { metadata } = useCardData();
     const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
 
@@ -41,31 +37,7 @@ const Support = () => {
         };
     }, []);
 
-    const bgGradient = isDark
-        ? 'linear-gradient(135deg, #061825 0%, #0a2540 50%, #0d3050 100%)'
-        : 'linear-gradient(135deg, #e8f4f8 0%, #d0e8f0 50%, #c0dce8 100%)';
-
-    const titleColor = isDark ? '#e8f4f8' : '#0a2540';
-    const subtle = isDark ? 'rgba(160, 196, 212, 0.85)' : 'rgba(26, 74, 110, 0.85)';
-    const accent = isDark ? '#d4a853' : '#1a5a7a';
-
-    const fieldSx = {
-        '& .MuiOutlinedInput-root': {
-            backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.9)',
-            '& fieldset': {
-                borderColor: isDark ? 'rgba(212, 168, 83, 0.35)' : 'rgba(26, 90, 122, 0.25)',
-            },
-            '&:hover fieldset': {
-                borderColor: isDark ? 'rgba(212, 168, 83, 0.55)' : 'rgba(26, 90, 122, 0.4)',
-            },
-            '&.Mui-focused fieldset': {
-                borderColor: accent,
-            },
-        },
-        '& .MuiInputLabel-root': { color: subtle },
-        '& .MuiInputLabel-root.Mui-focused': { color: accent },
-        '& .MuiOutlinedInput-input, & .MuiInputBase-inputMultiline': { color: titleColor },
-    };
+    const linkColor = 'primary.main';
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -102,59 +74,27 @@ const Support = () => {
     };
 
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100vh',
-                background: bgGradient,
-                backgroundAttachment: 'fixed',
-            }}
-        >
+        <>
             <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
 
-            <Container maxWidth="sm" sx={{ py: { xs: 2, md: 4 }, pb: { xs: 8, md: 10 } }}>
-                <Box sx={{ mb: 3 }}>
-                    <Typography
-                        variant="h4"
-                        component="h1"
-                        sx={{
-                            fontWeight: 700,
-                            color: titleColor,
-                            mb: 0.5,
-                            fontSize: { xs: '1.5rem', md: '2rem' },
-                        }}
-                    >
-                        Support
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: subtle, lineHeight: 1.6 }}>
-                        Tell us what&apos;s going on and we&apos;ll get back to you at the email you
-                        provide. You can also reach us directly at{' '}
-                        <MuiLink href={`mailto:${SUPPORT_EMAIL}`} sx={{ color: accent }}>
-                            {SUPPORT_EMAIL}
-                        </MuiLink>
-                        .
-                    </Typography>
-                </Box>
+            <Page maxWidth={680}>
+                <PageHeader
+                    title="Support"
+                    subtitle={(
+                        <>
+                            Tell us what&apos;s going on and we&apos;ll get back to you at the
+                            email you provide. You can also reach us directly at{' '}
+                            <MuiLink href={`mailto:${SUPPORT_EMAIL}`} sx={{ color: linkColor }}>
+                                {SUPPORT_EMAIL}
+                            </MuiLink>
+                            .
+                        </>
+                    )}
+                />
 
-                <Paper
-                    elevation={0}
-                    sx={{
-                        backgroundColor: isDark ? 'rgba(13, 48, 80, 0.7)' : '#ffffff',
-                        border: `1px solid ${isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)'}`,
-                        borderTop: `4px solid ${accent}`,
-                        borderRadius: 2,
-                        p: { xs: 2.5, md: 4 },
-                    }}
-                >
+                <Panel sx={{ p: { xs: 2.5, md: 4 } }}>
                     {status === 'success' ? (
-                        <Alert
-                            severity="success"
-                            sx={{
-                                backgroundColor: isDark ? 'rgba(46, 125, 50, 0.2)' : undefined,
-                                color: titleColor,
-                            }}
-                        >
+                        <Alert severity="success">
                             Thanks — your message was sent. We&apos;ll reply as soon as we can.
                         </Alert>
                     ) : (
@@ -201,7 +141,6 @@ const Support = () => {
                                 margin="normal"
                                 autoComplete="name"
                                 disabled={status === 'submitting'}
-                                sx={fieldSx}
                             />
 
                             <TextField
@@ -216,7 +155,6 @@ const Support = () => {
                                 margin="normal"
                                 autoComplete="email"
                                 disabled={status === 'submitting'}
-                                sx={fieldSx}
                             />
 
                             <TextField
@@ -231,13 +169,12 @@ const Support = () => {
                                 multiline
                                 minRows={5}
                                 disabled={status === 'submitting'}
-                                sx={fieldSx}
                             />
 
                             {status === 'error' && (
-                                <Alert severity="error" sx={{ mt: 2, mb: 1, color: titleColor }}>
+                                <Alert severity="error" sx={{ mt: 2, mb: 1 }}>
                                     {errorMessage}{' '}
-                                    <MuiLink href={`mailto:${SUPPORT_EMAIL}`} sx={{ color: accent }}>
+                                    <MuiLink href={`mailto:${SUPPORT_EMAIL}`} sx={{ color: linkColor }}>
                                         {SUPPORT_EMAIL}
                                     </MuiLink>
                                 </Alert>
@@ -253,38 +190,20 @@ const Support = () => {
                                     !email.trim() ||
                                     !message.trim()
                                 }
-                                sx={{
-                                    mt: 2.5,
-                                    py: 1.25,
-                                    fontWeight: 700,
-                                    textTransform: 'none',
-                                    fontSize: '1rem',
-                                    backgroundColor: isDark ? '#d4a853' : '#1a5a7a',
-                                    color: isDark ? '#0a2540' : '#fff',
-                                    '&:hover': {
-                                        backgroundColor: isDark ? '#e5c078' : '#0d4560',
-                                    },
-                                    '&.Mui-disabled': {
-                                        backgroundColor: isDark
-                                            ? 'rgba(212, 168, 83, 0.35)'
-                                            : 'rgba(26, 90, 122, 0.35)',
-                                        color: isDark
-                                            ? 'rgba(10, 37, 64, 0.7)'
-                                            : 'rgba(255, 255, 255, 0.7)',
-                                    },
-                                }}
+                                size="large"
+                                sx={{ mt: 3 }}
                             >
                                 {status === 'submitting' ? (
-                                    <CircularProgress size={22} sx={{ color: isDark ? '#0a2540' : '#fff' }} />
+                                    <CircularProgress size={22} color="inherit" />
                                 ) : (
                                     'Send message'
                                 )}
                             </Button>
                         </Box>
                     )}
-                </Paper>
-            </Container>
-        </Box>
+                </Panel>
+            </Page>
+        </>
     );
 };
 

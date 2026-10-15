@@ -38,8 +38,8 @@ class _TradeCard extends ConsumerWidget {
     final delta = trade.delta;
     final balanced = delta.abs() < 0.01;
     final color = balanced
-        ? AppTheme.positive
-        : (delta > 0 ? AppTheme.negative : AppTheme.positive);
+        ? context.tokens.gain
+        : (delta > 0 ? context.tokens.loss : context.tokens.gain);
     final dateStr = DateFormat.yMMMd().add_jm().format(trade.createdAt);
 
     return Card(
@@ -76,14 +76,14 @@ class _TradeCard extends ConsumerWidget {
                 Expanded(
                   child: _sideSummary(theme, 'Gave',
                       '${trade.haveCount} cards', trade.haveTotal, symbol,
-                      AppTheme.haveAccent),
+                      context.tokens.text),
                 ),
                 Icon(Icons.arrow_forward,
                     color: theme.colorScheme.onSurfaceVariant),
                 Expanded(
                   child: _sideSummary(theme, 'Got',
                       '${trade.wantCount} cards', trade.wantTotal, symbol,
-                      AppTheme.wantAccent, alignEnd: true),
+                      context.tokens.text, alignEnd: true),
                 ),
               ],
             ),
@@ -99,7 +99,7 @@ class _TradeCard extends ConsumerWidget {
                   label: 'Gave',
                   items: trade.haveItems,
                   symbol: symbol,
-                  accent: AppTheme.haveAccent,
+                  accent: context.tokens.accent,
                 ),
                 if (trade.haveCash > 0)
                   _CashRow(amount: trade.haveCash, symbol: symbol),
@@ -112,7 +112,7 @@ class _TradeCard extends ConsumerWidget {
                   label: 'Got',
                   items: trade.wantItems,
                   symbol: symbol,
-                  accent: AppTheme.wantAccent,
+                  accent: context.tokens.gain,
                 ),
                 if (trade.wantCash > 0)
                   _CashRow(amount: trade.wantCash, symbol: symbol),

@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../app/app.dart';
 import '../../app/card_filter_bar.dart';
+import '../../app/theme.dart';
+import '../../app/ui.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/data/set_logo_cache.dart';
@@ -16,9 +17,11 @@ import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
 import '../scan/scan_screen.dart';
+import 'home_dashboard.dart';
+import 'trends_screen.dart';
 
-/// Top-level Browse tab: a global search bar over every set, then a list of
-/// sets to drill into. Searching short-circuits the set list and shows every
+/// Top-level Browse tab: a global search bar over every set, the personal
+/// dashboard, then a grid of sets to drill into. Searching short-circuits the set list and shows every
 /// printing (finish / art / set variant) as its own row across the catalog.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
@@ -66,11 +69,10 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan a card',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ScanScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ScanScreen())),
           ),
-          const AppMenuAction(),
         ],
       ),
       body: Column(
@@ -134,10 +136,11 @@ class _SetListState extends ConsumerState<_SetList> {
   @override
   Widget build(BuildContext context) {
     final catalog = ref.watch(catalogProvider);
-    final logos = ref.watch(setLogoMapProvider).asData?.value ?? SetLogoMap.empty;
+    final logos =
+        ref.watch(setLogoMapProvider).asData?.value ?? SetLogoMap.empty;
     final publishedOn =
         ref.watch(setPublishedOnMapProvider).asData?.value ??
-            SetPublishedOnMap.empty;
+        SetPublishedOnMap.empty;
     _precacheLogosIfNeeded(logos);
     return catalog.when(
       loading: () => const Center(child: CircularProgressIndicator.adaptive()),
@@ -164,15 +167,16 @@ class _SetListState extends ConsumerState<_SetList> {
           return const _ScrollableCenter(child: _EmptyView());
         }
 
-        final entries = <_BrowseEntry>[];
+        // Group sets by browse tier, each tier a grid of logo tiles.
+        final groups = <({String label, List<_BrowseSetRow> sets})>[];
         int? lastTier;
         for (final set in sets) {
           final tier = setBrowseTier(set);
           if (tier != lastTier) {
-            entries.add(_BrowseSectionHeader(browseTierLabel(tier)));
+            groups.add((label: browseTierLabel(tier), sets: <_BrowseSetRow>[]));
             lastTier = tier;
           }
-          entries.add(
+          groups.last.sets.add(
             _BrowseSetRow(
               setName: set,
               logoUrl: logos.urlForGroupId(setIds[set]),
@@ -181,83 +185,53 @@ class _SetListState extends ConsumerState<_SetList> {
         }
 
         final bottomPad = 16 + MediaQuery.paddingOf(context).bottom + 80;
-        return ListView.builder(
+        return CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(0, 8, 0, bottomPad),
-          itemCount: entries.length,
-          itemBuilder: (context, i) {
-            final entry = entries[i];
-            return switch (entry) {
-              _BrowseSectionHeader(:final label) => _SetSectionHeader(
-                  label: label,
-                  isFirst: i == 0,
+          slivers: [
+            const SliverToBoxAdapter(child: HomeDashboard()),
+            const SliverToBoxAdapter(child: SeeTrendingTile()),
+            for (final group in groups) ...[
+              SliverToBoxAdapter(
+                child: SectionTitle(group.label, count: group.sets.length),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverGrid.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 220,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    mainAxisExtent: 116,
+                  ),
+                  itemCount: group.sets.length,
+                  itemBuilder: (context, i) {
+                    final row = group.sets[i];
+                    return _SetTile(
+                      key: ValueKey<String>(row.setName),
+                      setName: row.setName,
+                      logoUrl: row.logoUrl,
+                    );
+                  },
                 ),
-              _BrowseSetRow(:final setName, :final logoUrl) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _SetTile(
-                      key: ValueKey<String>(setName),
-                      setName: setName,
-                      logoUrl: logoUrl,
-                    ),
-                    if (i < entries.length - 1 && entries[i + 1] is _BrowseSetRow)
-                      const Divider(height: 1, indent: 16),
-                  ],
-                ),
-            };
-          },
+              ),
+            ],
+            SliverToBoxAdapter(child: SizedBox(height: bottomPad)),
+          ],
         );
       },
     );
   }
 }
 
-sealed class _BrowseEntry {
-  const _BrowseEntry();
-}
-
-class _BrowseSectionHeader extends _BrowseEntry {
-  const _BrowseSectionHeader(this.label);
-  final String label;
-}
-
-class _BrowseSetRow extends _BrowseEntry {
+class _BrowseSetRow {
   const _BrowseSetRow({required this.setName, required this.logoUrl});
   final String setName;
   final String? logoUrl;
 }
 
-class _SetSectionHeader extends StatelessWidget {
-  const _SetSectionHeader({required this.label, required this.isFirst});
-
-  final String label;
-  final bool isFirst;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, isFirst ? 4 : 16, 16, 6),
-      child: Text(
-        label.toUpperCase(),
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: scheme.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-}
-
 /// One browsable set row. Kept alive so logos stay mounted while scrolling.
 class _SetTile extends ConsumerStatefulWidget {
-  const _SetTile({
-    super.key,
-    required this.setName,
-    required this.logoUrl,
-  });
+  const _SetTile({super.key, required this.setName, required this.logoUrl});
 
   final String setName;
   final String? logoUrl;
@@ -274,10 +248,9 @@ class _SetTileState extends ConsumerState<_SetTile>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      title: SetLogoTitle(setName: widget.setName, logoUrl: widget.logoUrl),
-      trailing: const Icon(Icons.chevron_right),
+    final theme = Theme.of(context);
+    final t = context.tokens;
+    return Panel(
       onTap: () {
         ref.read(searchFiltersProvider.notifier).enterSet(widget.setName);
         Navigator.of(context).push(
@@ -286,6 +259,52 @@ class _SetTileState extends ConsumerState<_SetTile>
           ),
         );
       },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 64,
+            color: t.sunken,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.center,
+            child: widget.logoUrl == null || widget.logoUrl!.isEmpty
+                ? Text(
+                    widget.setName
+                        .substring(0, widget.setName.length.clamp(0, 3))
+                        .toUpperCase(),
+                    style: AppType.display(
+                      TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: t.textFaint,
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: SetLogoTitle(
+                      setName: widget.setName,
+                      logoUrl: widget.logoUrl,
+                    ),
+                  ),
+          ),
+          Divider(height: 1, color: t.border),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  widget.setName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -358,10 +377,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
     final filters = ref.watch(searchFiltersProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.setName),
-        actions: const [AppMenuAction()],
-      ),
+      appBar: AppBar(title: Text(widget.setName)),
       body: Column(
         children: [
           Padding(
@@ -379,9 +395,7 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _controller.clear();
-                          ref
-                              .read(searchFiltersProvider.notifier)
-                              .setQuery('');
+                          ref.read(searchFiltersProvider.notifier).setQuery('');
                           setState(() {});
                         },
                       ),
@@ -426,10 +440,12 @@ Future<void> refreshPricesWithToast(BuildContext context, WidgetRef ref) async {
     if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
-        ..showSnackBar(const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Could not refresh prices. Check your connection.'),
-        ));
+        ..showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Could not refresh prices. Check your connection.'),
+          ),
+        );
     }
     return;
   }
@@ -444,7 +460,11 @@ Future<void> refreshPricesWithToast(BuildContext context, WidgetRef ref) async {
         duration: const Duration(seconds: 3),
         content: Row(
           children: [
-            const Icon(Icons.schedule, size: 18, color: Colors.white),
+            Icon(
+              Icons.schedule,
+              size: 18,
+              color: Theme.of(context).colorScheme.onInverseSurface,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text('${_priceUpdatedLabel(updatedAt)} · $source pricing'),
@@ -488,15 +508,49 @@ class _CardList extends StatelessWidget {
     // Clear the system home indicator, and when this list sits under the shell
     // NavigationBar (global search) also clear that chrome.
     final underShellNav = !Navigator.of(context).canPop();
-    final bottomPad = 16 +
-        MediaQuery.paddingOf(context).bottom +
-        (underShellNav ? 80 : 0);
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.only(bottom: bottomPad),
-      itemCount: cards.length,
-      separatorBuilder: (_, _) => const Divider(height: 1, indent: 14),
-      itemBuilder: (context, i) => _CardTile(card: cards[i]),
+    final bottomPad =
+        16 + MediaQuery.paddingOf(context).bottom + (underShellNav ? 80 : 0);
+    return Column(
+      children: [
+        const _PriceColumnsHeader(),
+        Expanded(
+          child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(bottom: bottomPad),
+            itemCount: cards.length,
+            separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
+            itemBuilder: (context, i) => _CardTile(card: cards[i]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Column headings over a printing list, like the web set table: the card
+/// on the left, the marketplace the prices come from on the right.
+class _PriceColumnsHeader extends ConsumerWidget {
+  const _PriceColumnsHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.tokens;
+    final source = ref.watch(pricingProvider).sourceLabel;
+    final style = Theme.of(
+      context,
+    ).textTheme.labelSmall?.copyWith(color: t.textMuted, letterSpacing: 0.6);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 48, 8),
+      decoration: BoxDecoration(
+        color: t.sunken,
+        border: Border.symmetric(horizontal: BorderSide(color: t.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text('CARD', style: style)),
+          Text('${source.toUpperCase()} PRICE', style: style),
+        ],
+      ),
     );
   }
 }
@@ -511,20 +565,21 @@ class _CardTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pricing = ref.watch(pricingProvider);
 
-    void openDetail() => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => CardDetailScreen(card: card)),
-        );
+    void openDetail() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => CardDetailScreen(card: card)));
 
     return CardRow(
       card: card,
       priceLabel: pricing.priceLabel(card),
       secondaryLabel: pricing.lowPriceLabel(card),
-      priceSource: pricing.sourceLabel,
       showThumbnail: false,
       inlineBadges: true,
       onTap: openDetail,
-      trailing: Icon(Icons.chevron_right,
-          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -594,8 +649,7 @@ class _ErrorView extends StatelessWidget {
         children: [
           const Icon(Icons.cloud_off, size: 44),
           const SizedBox(height: 12),
-          Text('Could not load cards.\n$message',
-              textAlign: TextAlign.center),
+          Text('Could not load cards.\n$message', textAlign: TextAlign.center),
           const SizedBox(height: 16),
           FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
         ],

@@ -191,6 +191,21 @@ class BinderValueRow {
   }
 }
 
+/// Chosen-source headline total. Null when every copy is unpriced — display
+/// as `—`, never `$0.00` / `€0.00`.
+double? chosenSourceHeadlineAmount(
+  Iterable<BinderEntry> entries, {
+  required PriceSource source,
+  BinderValueHeadline headline = BinderValueHeadline.pricingValue,
+}) {
+  final rows = [
+    for (final entry in entries)
+      if (!entry.isWanted && entry.quantity >= 1)
+        BinderValueRow.fromBinderEntry(entry),
+  ];
+  return _sumField(rows, (r) => r.sourceValue(source, headline)).amount;
+}
+
 MoneyTotal _sumField(List<BinderValueRow> rows, double? Function(BinderValueRow) field) {
   var amount = 0.0;
   var pricedCopies = 0;

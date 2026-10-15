@@ -1,398 +1,383 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
 import {
-    AppBar,
-    Toolbar,
-    Typography,
-    Box,
-    IconButton,
-    Button,
-    Tooltip,
-    Drawer,
-    List,
-    ListItemButton,
-    ListItemText,
-    ListItemIcon,
+    Box, Typography, IconButton, Drawer, List, ListItemButton, ListItemIcon,
+    ListItemText, Tooltip, ButtonBase,
 } from '@mui/material';
 import {
-    DarkMode,
-    LightMode,
-    Menu as MenuIcon,
-    Close as CloseIcon,
-    Home as HomeIcon,
-    Style as BrowseIcon,
-    PrivacyTip as PrivacyIcon,
-    Gavel as TermsIcon,
-    SupportAgent as SupportIcon,
-    CollectionsBookmark as BinderIcon,
-    FavoriteBorder as WantIcon,
-    History as HistoryIcon,
+    DarkModeOutlined,
+    LightModeOutlined,
+    SwapHorizRounded,
+    CollectionsBookmarkOutlined,
+    HistoryRounded,
+    BookmarkBorderRounded,
+    StyleOutlined,
+    TrendingUpRounded,
+    PrivacyTipOutlined,
+    DescriptionOutlined,
+    SupportAgentOutlined,
+    MoreHorizRounded,
 } from '@mui/icons-material';
+import { Link, useLocation } from 'react-router-dom';
 import { formatTimestamp } from "../../utils/helpers.js";
 import { useThemeMode } from "../../contexts/ThemeContext.jsx";
-import LoginButton from "../auth/LoginButton.jsx";
+import { shell } from "../../theme/tokens.js";
+import LoginButton from '../auth/LoginButton.jsx';
 
-const NAV_ITEMS = [
-    { label: 'Trade Calculator', to: '/', icon: HomeIcon, match: (path) => path === '/' },
-    { label: 'Browse Sets', to: '/sets', icon: BrowseIcon, match: (path) => path.startsWith('/sets') },
-    { label: 'My Binders', to: '/binder', icon: BinderIcon, match: (path) => path === '/binder' },
-    { label: 'Want List', to: '/wants', icon: WantIcon, match: (path) => path === '/wants' },
-    { label: 'Trade History', to: '/history', icon: HistoryIcon, match: (path) => path === '/history' },
+// Grouped the way people think about the app: the trade at the table, the
+// cards they own or want, and the market.
+const NAV_SECTIONS = [
+    {
+        label: 'Trade',
+        items: [
+            { label: 'Trade Calculator', short: 'Trade', to: '/', icon: SwapHorizRounded, match: (path) => path === '/' },
+            { label: 'Trade History', short: 'History', to: '/history', icon: HistoryRounded, match: (path) => path === '/history' },
+        ],
+    },
+    {
+        label: 'Collection',
+        items: [
+            { label: 'My Binders', short: 'Binders', to: '/binder', icon: CollectionsBookmarkOutlined, match: (path) => path.startsWith('/binder') },
+            { label: 'Want List', short: 'Wants', to: '/wants', icon: BookmarkBorderRounded, match: (path) => path === '/wants' },
+        ],
+    },
+    {
+        label: 'Market',
+        items: [
+            { label: 'Browse Sets', short: 'Sets', to: '/sets', icon: StyleOutlined, match: (path) => path.startsWith('/sets') },
+            { label: 'Trends', short: 'Trends', to: '/trends', icon: TrendingUpRounded, match: (path) => path === '/trends' },
+        ],
+    },
 ];
 
-const Header = ({ lastUpdatedTimestamp }) => {
-    const { isDark, toggleMode } = useThemeMode();
-    const [drawerOpen, setDrawerOpen] = useState(false);
-    const location = useLocation();
+const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items);
+const navItem = (to) => NAV_ITEMS.find((item) => item.to === to);
 
-    const navButtonSx = (active) => ({
-        display: { xs: 'none', sm: 'inline-flex' },
-        color: active ? '#ffffff' : '#d4a853',
-        fontWeight: active ? 700 : 600,
-        fontSize: '0.875rem',
-        textTransform: 'none',
-        minWidth: 0,
-        px: 1,
-        py: 0.35,
-        whiteSpace: 'nowrap',
-        backgroundColor: active ? 'rgba(212, 168, 83, 0.25)' : 'transparent',
-        '&:hover': {
-            backgroundColor: 'rgba(212, 168, 83, 0.15)',
-        },
-    });
+// The four destinations people hit most on a phone; everything else is under More.
+const BOTTOM_NAV = ['/', '/binder', '/wants', '/sets'].map(navItem);
+
+const LEGAL_ITEMS = [
+    { label: 'Support', to: '/support', icon: SupportAgentOutlined, match: (path) => path === '/support' },
+    { label: 'Privacy Policy', to: '/privacy', icon: PrivacyTipOutlined, match: (path) => path === '/privacy' },
+    { label: 'Terms of Use', to: '/terms', icon: DescriptionOutlined, match: (path) => path === '/terms' },
+];
+
+const Brand = ({ size = 30 }) => (
+    <Box
+        component={Link}
+        to="/"
+        sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.25,
+            minWidth: 0,
+            textDecoration: 'none',
+            color: 'text.primary',
+            borderRadius: 2,
+        }}
+    >
+        <Box
+            component="img"
+            src="/app_icon.png"
+            alt=""
+            sx={{ width: size, height: size, borderRadius: '9px', flexShrink: 0 }}
+        />
+        <Typography
+            component="span"
+            sx={{
+                fontFamily: (t) => t.typography.h1.fontFamily,
+                fontWeight: 800,
+                fontStretch: '115%',
+                fontSize: '1.0625rem',
+                letterSpacing: '-0.01em',
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
+            }}
+        >
+            RiftTrades
+        </Typography>
+    </Box>
+);
+
+const PriceStamp = ({ lastUpdatedTimestamp, sx }) => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, ...sx }}>
+        <Box
+            aria-hidden
+            sx={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                flexShrink: 0,
+                bgcolor: lastUpdatedTimestamp ? 'success.main' : 'text.disabled',
+                boxShadow: (t) => lastUpdatedTimestamp ? `0 0 0 3px ${t.palette.mode === 'dark' ? 'rgba(70,194,133,0.18)' : 'rgba(29,138,85,0.14)'}` : 'none',
+            }}
+        />
+        <Typography
+            sx={{
+                fontSize: '0.72rem',
+                color: 'text.secondary',
+                lineHeight: 1.3,
+                minWidth: 0,
+            }}
+        >
+            Prices updated {lastUpdatedTimestamp ? formatTimestamp(lastUpdatedTimestamp) : '…'}
+        </Typography>
+    </Box>
+);
+
+const ThemeToggle = () => {
+    const { isDark, toggleMode } = useThemeMode();
+    return (
+        <Tooltip title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <IconButton
+                onClick={toggleMode}
+                size="small"
+                aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                sx={{ color: 'text.secondary', width: 36, height: 36 }}
+            >
+                {isDark ? <LightModeOutlined fontSize="small" /> : <DarkModeOutlined fontSize="small" />}
+            </IconButton>
+        </Tooltip>
+    );
+};
+
+const SidebarLink = ({ item, active, dense = false, onClick }) => {
+    const { label, to, icon: Icon } = item;
+    return (
+        <ListItemButton
+            component={Link}
+            to={to}
+            selected={active}
+            onClick={onClick}
+            aria-current={active ? 'page' : undefined}
+            sx={{
+                minHeight: dense ? 34 : 40,
+                px: 1.25,
+                py: 0,
+                mb: 0.25,
+                color: active ? 'text.primary' : 'text.secondary',
+                '&:hover': { color: 'text.primary' },
+                '&.Mui-selected': { bgcolor: 'action.selected' },
+            }}
+        >
+            <ListItemIcon sx={{ minWidth: 32, color: active ? 'primary.main' : 'inherit' }}>
+                <Icon sx={{ fontSize: dense ? '1.05rem' : '1.2rem' }} />
+            </ListItemIcon>
+            <ListItemText
+                primary={label}
+                primaryTypographyProps={{
+                    fontSize: dense ? '0.8125rem' : '0.875rem',
+                    fontWeight: active ? 650 : 500,
+                    noWrap: true,
+                }}
+            />
+        </ListItemButton>
+    );
+};
+
+const SectionLabel = ({ children }) => (
+    <Typography
+        variant="overline"
+        component="div"
+        sx={{ color: 'text.disabled', px: 1.25, pt: 2, pb: 0.5, lineHeight: 1.4 }}
+    >
+        {children}
+    </Typography>
+);
+
+const Sidebar = ({ lastUpdatedTimestamp, pathname }) => (
+    <Box
+        component="aside"
+        sx={{
+            display: { xs: 'none', md: 'flex' },
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: shell.sidebarWidth,
+            flexDirection: 'column',
+            bgcolor: 'background.paper',
+            borderRight: 1,
+            borderColor: 'divider',
+            zIndex: (t) => t.zIndex.appBar,
+        }}
+    >
+        <Box sx={{ px: 2.25, pt: 2.5, pb: 1 }}>
+            <Brand />
+        </Box>
+
+        <Box component="nav" aria-label="Main" sx={{ flex: 1, overflowY: 'auto', px: 1.25 }}>
+            {NAV_SECTIONS.map((section) => (
+                <Box key={section.label}>
+                    <SectionLabel>{section.label}</SectionLabel>
+                    <List disablePadding>
+                        {section.items.map((item) => (
+                            <SidebarLink key={item.to} item={item} active={item.match(pathname)} />
+                        ))}
+                    </List>
+                </Box>
+            ))}
+            <SectionLabel>Help</SectionLabel>
+            <List disablePadding>
+                {LEGAL_ITEMS.map((item) => (
+                    <SidebarLink key={item.to} item={item} active={item.match(pathname)} dense />
+                ))}
+            </List>
+        </Box>
+
+        <Box sx={{ px: 2, pt: 1.5, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.5, borderTop: 1, borderColor: 'divider' }}>
+            <PriceStamp lastUpdatedTimestamp={lastUpdatedTimestamp} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'space-between' }}>
+                <LoginButton variant="sidebar" />
+                <ThemeToggle />
+            </Box>
+        </Box>
+    </Box>
+);
+
+const MobileTopBar = () => (
+    <Box
+        component="header"
+        sx={{
+            display: { xs: 'flex', md: 'none' },
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: `calc(${shell.topBarHeight}px + env(safe-area-inset-top, 0px))`,
+            pt: 'env(safe-area-inset-top, 0px)',
+            px: 2,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(8,19,30,0.86)' : 'rgba(242,245,247,0.88)',
+            backdropFilter: 'saturate(160%) blur(14px)',
+            borderBottom: 1,
+            borderColor: 'divider',
+            zIndex: (t) => t.zIndex.appBar,
+        }}
+    >
+        <Brand size={28} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ThemeToggle />
+            <LoginButton variant="compact" />
+        </Box>
+    </Box>
+);
+
+const BottomTab = ({ label, icon: Icon, active, ...rest }) => (
+    <ButtonBase
+        aria-current={active ? 'page' : undefined}
+        sx={{
+            flex: 1,
+            flexDirection: 'column',
+            gap: 0.35,
+            height: shell.bottomNavHeight,
+            color: active ? 'text.primary' : 'text.secondary',
+            fontSize: '0.6875rem',
+            fontWeight: active ? 650 : 500,
+            borderRadius: 2,
+        }}
+        {...rest}
+    >
+        <Box
+            sx={{
+                width: 52,
+                height: 28,
+                borderRadius: 999,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: active ? 'action.selected' : 'transparent',
+                color: active ? 'primary.main' : 'inherit',
+                transition: 'background-color 160ms ease',
+            }}
+        >
+            <Icon sx={{ fontSize: '1.3rem' }} />
+        </Box>
+        {label}
+    </ButtonBase>
+);
+
+const MobileBottomNav = ({ pathname, onMore, moreActive }) => (
+    <Box
+        component="nav"
+        aria-label="Main"
+        sx={{
+            display: { xs: 'flex', md: 'none' },
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            px: 0.5,
+            pb: 'env(safe-area-inset-bottom, 0px)',
+            bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(14,28,41,0.92)' : 'rgba(255,255,255,0.92)',
+            backdropFilter: 'saturate(160%) blur(14px)',
+            borderTop: 1,
+            borderColor: 'divider',
+            zIndex: (t) => t.zIndex.appBar,
+        }}
+    >
+        {BOTTOM_NAV.map((item) => (
+            <BottomTab
+                key={item.to}
+                component={Link}
+                to={item.to}
+                label={item.short}
+                icon={item.icon}
+                active={item.match(pathname)}
+            />
+        ))}
+        <BottomTab label="More" icon={MoreHorizRounded} active={moreActive} onClick={onMore} />
+    </Box>
+);
+
+const MoreSheet = ({ open, onClose, pathname, lastUpdatedTimestamp }) => {
+    const items = [...NAV_ITEMS.filter((item) => !BOTTOM_NAV.includes(item)), ...LEGAL_ITEMS];
+    return (
+        <Drawer
+            anchor="bottom"
+            open={open}
+            onClose={onClose}
+            PaperProps={{
+                sx: {
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                    pb: 'env(safe-area-inset-bottom, 0px)',
+                    maxHeight: '85vh',
+                },
+            }}
+        >
+            <Box sx={{ px: 2, pt: 1, pb: 2.5 }}>
+                <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'divider', mx: 'auto', mb: 1.5 }} />
+                <List disablePadding>
+                    {items.map((item) => (
+                        <SidebarLink key={item.to} item={item} active={item.match(pathname)} onClick={onClose} />
+                    ))}
+                </List>
+                <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <PriceStamp lastUpdatedTimestamp={lastUpdatedTimestamp} sx={{ px: 0.5 }} />
+                </Box>
+            </Box>
+        </Drawer>
+    );
+};
+
+const Header = ({ lastUpdatedTimestamp }) => {
+    const { pathname } = useLocation();
+    const [moreOpen, setMoreOpen] = useState(false);
+    const moreActive = [...NAV_ITEMS.filter((item) => !BOTTOM_NAV.includes(item)), ...LEGAL_ITEMS]
+        .some((item) => item.match(pathname));
 
     return (
         <>
-            <AppBar
-                position="static"
-                elevation={0}
-                sx={{
-                    background: 'linear-gradient(135deg, #0a2540 0%, #0d3050 50%, #1a4a6e 100%)',
-                    borderBottom: '2px solid #d4a853',
-                    boxShadow: '0 2px 10px rgba(10, 37, 64, 0.45)'
-                }}
-            >
-                <Toolbar
-                    variant="dense"
-                    sx={{
-                        position: 'relative',
-                        px: { xs: 0.75, sm: 1.5, md: 2 },
-                        py: 0.5,
-                        minHeight: { xs: 48, sm: 52 },
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 1,
-                    }}
-                >
-                    <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.25,
-                        minWidth: 0,
-                        flexShrink: 1,
-                        zIndex: 1,
-                    }}>
-                        <Tooltip title="Menu">
-                            <IconButton
-                                onClick={() => setDrawerOpen(true)}
-                                size="small"
-                                aria-label="Menu"
-                                sx={{
-                                    color: '#d4a853',
-                                    p: 0.75,
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(212, 168, 83, 0.15)',
-                                    }
-                                }}
-                            >
-                                <MenuIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Button
-                            component={Link}
-                            to="/"
-                            size="small"
-                            sx={navButtonSx(location.pathname === '/')}
-                        >
-                            Trade Calculator
-                        </Button>
-                        <Button
-                            component={Link}
-                            to="/binder"
-                            size="small"
-                            sx={navButtonSx(location.pathname === '/binder')}
-                        >
-                            My Binders
-                        </Button>
-                    </Box>
-
-                    <Box
-                        component={Link}
-                        to="/"
-                        sx={{
-                            position: 'absolute',
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.75,
-                            zIndex: 0,
-                            textDecoration: 'none',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <Box
-                            component="img"
-                            src="/app_icon.png"
-                            alt="RiftTrades"
-                            sx={{
-                                width: { xs: 24, sm: 28 },
-                                height: { xs: 24, sm: 28 },
-                                borderRadius: 1,
-                                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.25)',
-                                flexShrink: 0,
-                            }}
-                        />
-                        <Typography
-                            variant="h4"
-                            sx={{
-                                fontWeight: 800,
-                                fontSize: { xs: '1.1rem', sm: '1.35rem', md: '1.6rem' },
-                                background: 'linear-gradient(135deg, #e5c078 0%, #d4a853 50%, #b8892e 100%)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                                letterSpacing: '0.02em',
-                                lineHeight: 1.2,
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            RiftTrades
-                        </Typography>
-                    </Box>
-
-                    <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        flexShrink: 0,
-                        zIndex: 1,
-                        ml: 'auto',
-                    }}>
-                        <Tooltip title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-                            <IconButton
-                                onClick={toggleMode}
-                                size="small"
-                                sx={{
-                                    color: '#d4a853',
-                                    p: 0.75,
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(212, 168, 83, 0.15)',
-                                    }
-                                }}
-                            >
-                                {isDark ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
-                            </IconButton>
-                        </Tooltip>
-                        <LoginButton />
-                    </Box>
-                </Toolbar>
-            </AppBar>
-
-            <Box
-                component="footer"
-                sx={{
-                    position: 'fixed',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    zIndex: (theme) => theme.zIndex.appBar,
-                    py: 0.5,
-                    px: 1.5,
-                    textAlign: 'center',
-                    borderTop: '1px solid',
-                    borderColor: isDark ? 'rgba(212, 168, 83, 0.25)' : 'rgba(26, 90, 122, 0.2)',
-                    background: isDark
-                        ? 'rgba(6, 24, 37, 0.92)'
-                        : 'rgba(232, 244, 248, 0.94)',
-                    backdropFilter: 'blur(8px)',
-                }}
-            >
-                <Typography
-                    sx={{
-                        fontSize: '0.7rem',
-                        fontWeight: 500,
-                        color: isDark ? '#a0c4d4' : '#1a4a6e',
-                        opacity: 0.9,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
-                >
-                    Prices last updated: {lastUpdatedTimestamp ? formatTimestamp(lastUpdatedTimestamp) : 'Loading...'}
-                </Typography>
-            </Box>
-
-            <Drawer
-                anchor="left"
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                PaperProps={{
-                    sx: {
-                        width: { xs: 280, sm: 320 },
-                        background: isDark
-                            ? 'linear-gradient(180deg, #0d3050 0%, #0a2540 100%)'
-                            : 'linear-gradient(180deg, #ffffff 0%, #e8f4f8 100%)',
-                        borderRight: `3px solid ${isDark ? '#d4a853' : '#1a5a7a'}`
-                    }
-                }}
-            >
-                <Box sx={{
-                    px: 2.5,
-                    py: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    background: 'linear-gradient(135deg, #0a2540 0%, #0d3050 50%, #1a4a6e 100%)',
-                    borderBottom: '2px solid #d4a853'
-                }}>
-                    <Typography sx={{
-                        fontWeight: 700,
-                        fontSize: '1.1rem',
-                        background: 'linear-gradient(135deg, #e5c078 0%, #d4a853 50%, #b8892e 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text'
-                    }}>
-                        Menu
-                    </Typography>
-                    <IconButton
-                        onClick={() => setDrawerOpen(false)}
-                        sx={{ color: '#d4a853', p: 0.5 }}
-                        size="small"
-                    >
-                        <CloseIcon fontSize="small" />
-                    </IconButton>
-                </Box>
-
-                <List sx={{ py: 1 }}>
-                    {NAV_ITEMS.map(({ label, to, icon: Icon, match }) => {
-                        const selected = match(location.pathname);
-                        return (
-                            <ListItemButton
-                                key={to}
-                                component={Link}
-                                to={to}
-                                selected={selected}
-                                onClick={() => setDrawerOpen(false)}
-                                sx={{
-                                    mx: 1,
-                                    borderRadius: 2,
-                                    '&.Mui-selected': {
-                                        backgroundColor: isDark
-                                            ? 'rgba(212, 168, 83, 0.15)'
-                                            : 'rgba(26, 90, 122, 0.1)',
-                                    }
-                                }}
-                            >
-                                <ListItemIcon sx={{ color: isDark ? '#d4a853' : '#1a5a7a', minWidth: 40 }}>
-                                    <Icon />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary={label}
-                                    primaryTypographyProps={{
-                                        fontWeight: 600,
-                                        color: isDark ? '#e8f4f8' : '#0a2540'
-                                    }}
-                                />
-                            </ListItemButton>
-                        );
-                    })}
-
-                    <ListItemButton
-                        component={Link}
-                        to="/support"
-                        selected={location.pathname === '/support'}
-                        onClick={() => setDrawerOpen(false)}
-                        sx={{
-                            mx: 1,
-                            borderRadius: 2,
-                            '&.Mui-selected': {
-                                backgroundColor: isDark
-                                    ? 'rgba(212, 168, 83, 0.15)'
-                                    : 'rgba(26, 90, 122, 0.1)',
-                            },
-                        }}
-                    >
-                        <ListItemIcon sx={{ color: isDark ? '#d4a853' : '#1a5a7a', minWidth: 40 }}>
-                            <SupportIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                            primary="Support"
-                            primaryTypographyProps={{
-                                fontWeight: 600,
-                                color: isDark ? '#e8f4f8' : '#0a2540'
-                            }}
-                        />
-                    </ListItemButton>
-
-                    <ListItemButton
-                        component={Link}
-                        to="/privacy"
-                        selected={location.pathname === '/privacy'}
-                        onClick={() => setDrawerOpen(false)}
-                        sx={{
-                            mx: 1,
-                            borderRadius: 2,
-                            '&.Mui-selected': {
-                                backgroundColor: isDark
-                                    ? 'rgba(212, 168, 83, 0.15)'
-                                    : 'rgba(26, 90, 122, 0.1)',
-                            },
-                        }}
-                    >
-                        <ListItemIcon sx={{ color: isDark ? '#d4a853' : '#1a5a7a', minWidth: 40 }}>
-                            <PrivacyIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                            primary="Privacy Policy"
-                            primaryTypographyProps={{
-                                fontWeight: 600,
-                                color: isDark ? '#e8f4f8' : '#0a2540'
-                            }}
-                        />
-                    </ListItemButton>
-
-                    <ListItemButton
-                        component={Link}
-                        to="/terms"
-                        selected={location.pathname === '/terms'}
-                        onClick={() => setDrawerOpen(false)}
-                        sx={{
-                            mx: 1,
-                            borderRadius: 2,
-                            '&.Mui-selected': {
-                                backgroundColor: isDark
-                                    ? 'rgba(212, 168, 83, 0.15)'
-                                    : 'rgba(26, 90, 122, 0.1)',
-                            },
-                        }}
-                    >
-                        <ListItemIcon sx={{ color: isDark ? '#d4a853' : '#1a5a7a', minWidth: 40 }}>
-                            <TermsIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                            primary="Terms of Use"
-                            primaryTypographyProps={{
-                                fontWeight: 600,
-                                color: isDark ? '#e8f4f8' : '#0a2540'
-                            }}
-                        />
-                    </ListItemButton>
-                </List>
-            </Drawer>
+            <Sidebar lastUpdatedTimestamp={lastUpdatedTimestamp} pathname={pathname} />
+            <MobileTopBar />
+            <MobileBottomNav pathname={pathname} moreActive={moreActive} onMore={() => setMoreOpen(true)} />
+            <MoreSheet
+                open={moreOpen}
+                onClose={() => setMoreOpen(false)}
+                pathname={pathname}
+                lastUpdatedTimestamp={lastUpdatedTimestamp}
+            />
         </>
     );
 };

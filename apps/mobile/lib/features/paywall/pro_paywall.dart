@@ -62,6 +62,7 @@ Future<bool> presentProPaywall(
   // iOS 17+: Apple's SubscriptionStoreView, so Privacy, Terms, price, period,
   // and auto-renewal copy are attached by StoreKit rather than a custom paywall.
   if (subscriptionStore.isSupported) {
+    if (!context.mounted) return ref.read(isProProvider);
     return _presentNativeSubscriptionStore(
       context,
       ref,
@@ -86,6 +87,9 @@ Future<bool> presentProPaywall(
     return ref.read(isProProvider);
   }
 
+  // _finishPaywall syncs the entitlement even when the screen has gone, and
+  // checks context.mounted itself before any UI.
+  // ignore: use_build_context_synchronously
   return _finishPaywall(context, ref, result: result, wasPro: wasPro);
 }
 
@@ -104,7 +108,10 @@ Future<bool> _presentNativeSubscriptionStore(
     // RevenueCat paywall so the customer can still buy.
     try {
       final result = await RevenueCatUI.presentPaywall();
-      return _finishPaywall(context, ref, result: result, wasPro: wasPro);
+      // _finishPaywall checks context.mounted itself before any UI.
+      // ignore: use_build_context_synchronously
+      return await _finishPaywall(context, ref,
+          result: result, wasPro: wasPro);
     } catch (e) {
       debugPrint('RevenueCat: failed to present paywall — $e');
       if (context.mounted) {

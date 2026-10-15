@@ -50,12 +50,13 @@ void main() {
     return container;
   }
 
-  testWidgets('boots with the four main tabs', (tester) async {
+  testWidgets('boots with the four main tabs and More', (tester) async {
     await launch(tester);
     expect(find.text('Browse'), findsWidgets);
     expect(find.text('Trade'), findsWidgets);
     expect(find.text('Binder'), findsWidgets);
     expect(find.text('Lend'), findsWidgets);
+    expect(find.text('More'), findsWidgets);
   });
 
   testWidgets('navigating to the Trade tab shows its add rows', (tester) async {

@@ -104,7 +104,7 @@ void main() {
     expect(find.text('Vex - Apathetic'), findsOneWidget);
   });
 
-  testWidgets('opening settings from the trade tab changes the price source',
+  testWidgets('opening settings from More changes the price source',
       (tester) async {
     final container = await launch(tester);
 

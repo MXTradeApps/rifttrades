@@ -5,7 +5,6 @@ import {
     Button,
     Chip,
     CircularProgress,
-    Container,
     Dialog,
     DialogActions,
     DialogContent,
@@ -14,27 +13,34 @@ import {
     FormControlLabel,
     IconButton,
     MenuItem,
-    Paper,
     Select,
     Snackbar,
     Switch,
     TextField,
+    Tooltip,
     Typography,
 } from '@mui/material';
 import {
+    BookmarkBorderRounded,
+    CollectionsBookmarkOutlined,
+    SortRounded,
+    StyleOutlined,
     Add as AddIcon,
     ArrowBack as ArrowBackIcon,
     ContentCopy as ContentCopyIcon,
-    Delete as DeleteIcon,
+    DeleteOutline as DeleteIcon,
+    InsightsOutlined,
     Remove as RemoveIcon,
+    Search as SearchIcon,
     Share as ShareIcon,
 } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEntitlement } from '../contexts/EntitlementContext.jsx';
-import { useThemeMode } from '../contexts/ThemeContext.jsx';
 import { useCardData } from '../hooks/useCardData.jsx';
 import Header from '../components/elements/Header.jsx';
+import { Page, Panel, EmptyState } from '../components/layout/Page.jsx';
+import { tk } from '../theme/tokens.js';
 import BinderGrid from '../components/binder/BinderGrid.jsx';
 import { SearchInput } from '../components/search/index.js';
 import SignInDialog from '../components/auth/SignInDialog.jsx';
@@ -58,6 +64,7 @@ import {
 import { canAddDistinctCard, canCreateBinder, cardsFor, distinctOwnedCount } from '../utils/freeLimits.js';
 import { formatCurrency } from '../utils/helpers.js';
 import BinderValueDialog from '../components/binder/BinderValueDialog.jsx';
+import FoilTag from '../components/ui/FoilTag.jsx';
 import { setOpenBinderId } from '../utils/openBinder.js';
 
 /** Matches mobile `CardSort` labels / ordering. */
@@ -100,7 +107,7 @@ function compareBinderEntries(a, b, sort, resolveCard) {
 /**
  * Card art using catalog / stub image URLs (Riftbound art is on TCGPlayer CDN).
  */
-function BinderCardArt({ imageUrl, fallbackUrl, alt, onClick, qty, mutedColor }) {
+function BinderCardArt({ imageUrl, fallbackUrl, alt, onClick, qty }) {
     const [src, setSrc] = useState(imageUrl || fallbackUrl || '');
     const [failed, setFailed] = useState(false);
 
@@ -126,12 +133,15 @@ function BinderCardArt({ imageUrl, fallbackUrl, alt, onClick, qty, mutedColor })
             sx={{
                 position: 'relative',
                 width: '100%',
-                height: 112,
+                aspectRatio: '5 / 4',
                 p: 0,
                 border: 0,
-                cursor: 'pointer',
-                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                borderBottom: 1,
+                borderColor: 'divider',
+                cursor: 'zoom-in',
+                bgcolor: 'surface.sunken',
                 overflow: 'hidden',
+                display: 'block',
             }}
         >
             {!failed && src ? (
@@ -161,28 +171,34 @@ function BinderCardArt({ imageUrl, fallbackUrl, alt, onClick, qty, mutedColor })
                     }}
                 >
                     <Typography
-                        sx={{ color: mutedColor, fontSize: '0.65rem', textAlign: 'center' }}
+                        sx={{ color: 'text.disabled', fontSize: '0.65rem', textAlign: 'center' }}
                     >
                         {alt || 'No image'}
                     </Typography>
                 </Box>
             )}
-            <Box
-                sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    px: 0.6,
-                    py: 0.15,
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
-                    color: '#fff',
-                    backgroundColor: 'rgba(0, 0, 0, 0.78)',
-                    borderBottomRightRadius: 5,
-                }}
-            >
-                {qty}x
-            </Box>
+            {qty > 1 && (
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        px: 0.75,
+                        height: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderRadius: 999,
+                        fontSize: '0.6875rem',
+                        fontWeight: 750,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: '#fff',
+                        bgcolor: 'rgba(0, 0, 0, 0.72)',
+                        backdropFilter: 'blur(4px)',
+                    }}
+                >
+                    {qty}×
+                </Box>
+            )}
         </Box>
     );
 }
@@ -195,7 +211,6 @@ const BinderCollection = ({ isWanted = false }) => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { isPro, loading: entitlementLoading } = useEntitlement();
-    const { isDark } = useThemeMode();
     const { cards, cardGroups, metadata } = useCardData();
     const { openDetail } = useCardDetail();
     const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
@@ -237,14 +252,8 @@ const BinderCollection = ({ isWanted = false }) => {
     const targetBinderId = isWanted ? undefined : (openBinderId || TRADE_BINDER_ID);
     const showingGrid = !isWanted && !openBinderId;
 
-    const bgGradient = isDark
-        ? 'linear-gradient(135deg, #061820 0%, #0a2540 50%, #0d3050 100%)'
-        : 'linear-gradient(135deg, #e8f4f8 0%, #d4e8f0 50%, #eef6f9 100%)';
-    const textColor = isDark ? '#e8f4f8' : '#0a2540';
-    const mutedColor = isDark ? '#d4a853' : '#1a4a6e';
-    const accentColor = isDark ? '#e5c078' : '#1a5a7a';
-    const paperBg = isDark ? 'rgba(13, 48, 80, 0.6)' : '#ffffff';
-    const paperBorder = isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)';
+    const textColor = 'text.primary';
+    const mutedColor = 'text.secondary';
 
     const loadEntries = useCallback(async () => {
         setLoading(true);
@@ -767,611 +776,522 @@ const BinderCollection = ({ isWanted = false }) => {
 
     if (!user) {
         return (
-            <Box
-                sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: '100vh',
-                    pb: '28px',
-                    background: bgGradient,
-                    backgroundAttachment: 'fixed',
-                }}
-            >
+            <>
                 <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
-                <Container maxWidth="sm" sx={{ mt: 8 }}>
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            p: 4,
-                            textAlign: 'center',
-                            backgroundColor: paperBg,
-                            border: `1px solid ${paperBorder}`,
-                            borderRadius: 3,
-                        }}
-                    >
-                        <Typography variant="h5" sx={{ mb: 2, color: accentColor, fontWeight: 700 }}>
-                            Sign In Required
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 3, color: mutedColor }}>
+                <Page maxWidth={720}>
+                    <Panel sx={{ mt: { xs: 2, md: 6 } }}>
+                        <EmptyState
+                            icon={isWanted ? <BookmarkBorderRounded /> : <CollectionsBookmarkOutlined />}
+                            title="Sign In Required"
+                            actions={(
+                                <>
+                                    <Button variant="contained" size="large" onClick={() => setSignInOpen(true)}>
+                                        Sign in
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        color="inherit"
+                                        size="large"
+                                        startIcon={<ArrowBackIcon />}
+                                        onClick={() => navigate('/')}
+                                    >
+                                        Back to Trading
+                                    </Button>
+                                </>
+                            )}
+                        >
                             Sign in to sync your {listLabel.toLowerCase()} across devices.
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <Button variant="contained" onClick={() => setSignInOpen(true)}>
-                                Sign in
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                startIcon={<ArrowBackIcon />}
-                                onClick={() => navigate('/')}
-                                sx={{
-                                    color: accentColor,
-                                    borderColor: paperBorder,
-                                    '&:hover': {
-                                        borderColor: accentColor,
-                                        backgroundColor: isDark
-                                            ? 'rgba(200, 113, 55, 0.12)'
-                                            : 'rgba(200, 113, 55, 0.08)',
-                                    },
-                                }}
-                            >
-                                Back to Trading
-                            </Button>
-                        </Box>
-                    </Paper>
-                </Container>
+                        </EmptyState>
+                    </Panel>
+                </Page>
                 <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
-            </Box>
+            </>
         );
     }
 
+    const openCount = entries.reduce((sum, entry) => sum + (entry.quantity || 1), 0);
+    const showBreadcrumb = !isWanted && Boolean(openBinderId);
+    const headerTitle = showBreadcrumb ? (openBinder?.name || 'Binder') : pageTitle;
+    const totalLabel = formatCurrency(totalValue.toFixed(2));
+
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100vh',
-                pb: '28px',
-                background: bgGradient,
-                backgroundAttachment: 'fixed',
-            }}
-        >
+        <>
             <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
 
-            <Container maxWidth="xl" sx={{ flexGrow: 1, py: { xs: 1.5, sm: 2 } }}>
-                <Paper
-                    elevation={0}
+            <Page>
+                <Box
                     sx={{
-                        p: { xs: 1, sm: 1.5 },
-                        borderRadius: 1.5,
-                        backgroundColor: paperBg,
-                        border: `1px solid ${paperBorder}`,
-                        minHeight: '60vh',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'flex-end',
+                        justifyContent: 'space-between',
+                        gap: 2,
+                        mb: 3,
                     }}
                 >
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            mb: 1.25,
-                            pb: 1,
-                            borderBottom: `1px solid ${paperBorder}`,
-                            gap: 1,
-                            flexWrap: 'wrap',
-                        }}
-                    >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-                            <Typography
-                                component={!isWanted && openBinderId ? 'button' : 'h1'}
-                                type={!isWanted && openBinderId ? 'button' : undefined}
-                                data-testid="binder-home-title"
-                                onClick={
-                                    !isWanted && openBinderId
-                                        ? () => setOpenBinder(null)
-                                        : undefined
-                                }
-                                sx={{
-                                    fontWeight: 700,
-                                    fontSize: '1rem',
-                                    color: accentColor,
-                                    lineHeight: 1.2,
-                                    border: 'none',
-                                    background: 'transparent',
-                                    cursor: !isWanted && openBinderId ? 'pointer' : 'default',
-                                    p: 0,
-                                    fontFamily: 'inherit',
-                                    textAlign: 'left',
-                                }}
-                            >
-                                {pageTitle}
-                            </Typography>
-                            {!isWanted && openBinder?.name && (
-                                <Typography
-                                    data-testid="binder-open-name"
-                                    noWrap
-                                    sx={{
-                                        fontWeight: 600,
-                                        fontSize: '0.9rem',
-                                        color: mutedColor,
-                                        lineHeight: 1.2,
-                                    }}
-                                >
-                                    {openBinder.name}
-                                </Typography>
-                            )}
-                            {isPro && (
-                                <Chip
+                    <Box sx={{ minWidth: 0, flex: '1 1 300px' }}>
+                        {showBreadcrumb && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1, ml: -0.75 }}>
+                                <IconButton
                                     size="small"
-                                    label="PRO"
-                                    sx={{
-                                        height: 20,
-                                        fontSize: '0.65rem',
-                                        fontWeight: 700,
-                                        letterSpacing: 0.5,
-                                        color: isDark ? '#1a0f0a' : '#ffffff',
-                                        backgroundColor: accentColor,
-                                        '& .MuiChip-label': { px: 0.75 },
-                                    }}
-                                />
-                            )}
-                            <Chip
-                                size="small"
-                                label={`${entries.length}`}
-                                sx={{
-                                    height: 20,
-                                    fontSize: '0.7rem',
-                                    color: mutedColor,
-                                    borderColor: paperBorder,
-                                    '& .MuiChip-label': { px: 0.75 },
-                                }}
-                                variant="outlined"
-                            />
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                            {!isWanted && !showingGrid && entries.length > 0 ? (
+                                    data-testid="binder-back"
+                                    aria-label="Back to all binders"
+                                    onClick={() => setOpenBinder(null)}
+                                    sx={{ color: 'text.secondary' }}
+                                >
+                                    <ArrowBackIcon sx={{ fontSize: '1.1rem' }} />
+                                </IconButton>
                                 <Typography
                                     component="button"
                                     type="button"
-                                    data-testid="binder-value-total"
-                                    onClick={() => setValueOpen(true)}
+                                    data-testid="binder-home-title"
+                                    onClick={() => setOpenBinder(null)}
                                     sx={{
-                                        color: mutedColor,
-                                        fontWeight: 600,
-                                        fontSize: '0.8rem',
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: 'pointer',
+                                        border: 0,
+                                        background: 'none',
                                         p: 0,
                                         fontFamily: 'inherit',
+                                        fontSize: '0.84375rem',
+                                        fontWeight: 600,
+                                        color: 'text.secondary',
+                                        cursor: 'pointer',
+                                        '&:hover': { color: 'text.primary' },
                                     }}
                                 >
-                                    {formatCurrency(totalValue.toFixed(2))}
+                                    {pageTitle}
                                 </Typography>
-                            ) : (
-                                <Typography
-                                    sx={{ color: mutedColor, fontWeight: 600, fontSize: '0.8rem' }}
-                                >
-                                    {formatCurrency(totalValue.toFixed(2))}
-                                </Typography>
-                            )}
-                            {showingGrid && (
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    data-testid="binder-create"
-                                    onClick={handleCreateBinder}
-                                    sx={{
-                                        color: accentColor,
-                                        borderColor: paperBorder,
-                                        fontSize: '0.75rem',
-                                        minHeight: 28,
-                                        px: 0.75,
-                                    }}
-                                >
-                                    New Binder
-                                </Button>
-                            )}
-                            {!isWanted && openBinderId === TRADE_BINDER_ID && (
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    startIcon={<ShareIcon sx={{ fontSize: '1rem !important' }} />}
-                                    onClick={openShareDialog}
-                                    sx={{
-                                        color: accentColor,
-                                        borderColor: paperBorder,
-                                        fontSize: '0.75rem',
-                                        minHeight: 28,
-                                        px: 0.75,
-                                        '&:hover': {
-                                            borderColor: accentColor,
-                                            backgroundColor: isDark
-                                                ? 'rgba(200, 113, 55, 0.12)'
-                                                : 'rgba(139, 69, 19, 0.06)',
-                                        },
-                                    }}
-                                >
-                                    Share
-                                </Button>
-                            )}
-                            <Button
-                                variant="text"
-                                size="small"
-                                data-testid="binder-back"
-                                startIcon={<ArrowBackIcon sx={{ fontSize: '1rem !important' }} />}
-                                onClick={() => {
-                                    if (openBinderId) {
-                                        setOpenBinder(null);
-                                        return;
-                                    }
-                                    navigate('/');
-                                }}
-                                sx={{
-                                    color: accentColor,
-                                    fontSize: '0.75rem',
-                                    minHeight: 28,
-                                    px: 0.75,
-                                }}
+                                <Typography component="span" sx={{ color: 'text.disabled', fontSize: '0.84375rem' }}>/</Typography>
+                            </Box>
+                        )}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                            <Typography
+                                variant="h1"
+                                data-testid={showBreadcrumb ? 'binder-open-name' : 'binder-home-title'}
+                                noWrap={showBreadcrumb}
+                                sx={{ fontSize: { xs: '1.75rem', md: '2.25rem' }, color: 'text.primary', minWidth: 0 }}
                             >
-                                Back
-                            </Button>
-                        </Box>
-                    </Box>
-
-                    {showingGrid && (
-                        <BinderGrid
-                            binders={binders}
-                            entries={allOwned}
-                            resolveCard={resolveCard}
-                            onOpen={(binder) => setOpenBinder(binder.clientId)}
-                            onRename={handleRenameBinder}
-                            onDelete={handleDeleteBinder}
-                            mutedColor={mutedColor}
-                            accentColor={accentColor}
-                            paperBg={paperBg}
-                            paperBorder={paperBorder}
-                        />
-                    )}
-
-                    {!showingGrid && (
-                    <>
-                    {!entitlementLoading && !isPro && entries.length / limit >= 0.7 && (
-                        <Alert severity="info" icon={false} sx={{ mb: 1, py: 0.25, fontSize: '0.8rem' }}>
-                            Free plan — {listLabel.toLowerCase()} holds {limit} cards
-                            ({entries.length}/{limit}). Subscribe in the RiftTrades app for unlimited.
-                        </Alert>
-                    )}
-
-                    {atFreeLimit && (
-                        <Alert severity="warning" sx={{ mb: 1, py: 0.25, fontSize: '0.8rem' }}>
-                            {isWanted ? 'Want lists' : 'Binders'} hold {limit} cards on the free plan.
-                            You can still change quantity on cards you already have. Subscribe in the
-                            RiftTrades app to add more.
-                        </Alert>
-                    )}
-
-                    <Box
-                        sx={{
-                            mb: 1.25,
-                            position: 'relative',
-                            zIndex: 2,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.75,
-                            flexWrap: { xs: 'wrap', sm: 'nowrap' },
-                        }}
-                    >
-                        <Box sx={{ flexGrow: 1, minWidth: { xs: '100%', sm: 0 } }}>
-                            <SearchInput
-                                label=""
-                                size="small"
-                                placeholder={`Search to add cards…`}
-                                items={cardOptions}
-                                value={searchQuery}
-                                onChange={(_e, value) => setSearchQuery(value || '')}
-                                onSelect={handleAddCard}
-                                keepOpenOnSelect
-                                keepInputOnSelect
-                            />
-                        </Box>
-                        <FormControl
-                            size="small"
-                            sx={{
-                                minWidth: { xs: '100%', sm: 150 },
-                                flexShrink: 0,
-                                '& .MuiOutlinedInput-root': {
-                                    backgroundColor: isDark
-                                        ? 'rgba(26, 15, 10, 0.6)'
-                                        : 'rgba(255, 255, 255, 0.7)',
-                                    color: textColor,
-                                    fontSize: '0.8125rem',
-                                    minHeight: 36,
-                                    '& fieldset': { borderColor: paperBorder },
-                                    '&:hover fieldset': { borderColor: accentColor },
-                                    '& .MuiSelect-select': { py: 0.75 },
-                                },
-                            }}
-                        >
-                            <Select
-                                value={sort}
-                                displayEmpty
-                                onChange={(e) => setSort(e.target.value)}
-                                aria-label="Sort binder"
-                                renderValue={(value) => {
-                                    const opt = SORT_OPTIONS.find((o) => o.id === value);
-                                    return opt?.label || 'Sort';
-                                }}
-                            >
-                                {SORT_OPTIONS.map((option) => (
-                                    <MenuItem key={option.id} value={option.id} dense>
-                                        {option.label}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Box>
-
-                    {loading && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-                            <CircularProgress sx={{ color: accentColor }} />
-                        </Box>
-                    )}
-
-                    {error && !loading && (
-                        <Alert severity="error" sx={{ mb: 3 }}>
-                            {error}
-                        </Alert>
-                    )}
-
-                    {!loading && !error && filtered.length === 0 && (
-                        <Box sx={{ textAlign: 'center', py: 6 }}>
-                            <Typography variant="h6" sx={{ color: textColor, mb: 1 }}>
-                                {searchQuery.trim()
-                                    ? 'No matching cards in this list'
-                                    : `${listLabel} is empty`}
+                                {headerTitle}
                             </Typography>
-                            <Typography variant="body2" sx={{ color: mutedColor }}>
-                                {searchQuery.trim()
-                                    ? 'Pick a result above to add it, or clear the search.'
-                                    : `Type in the search box above to add cards.`}
-                            </Typography>
+                            {isPro && (
+                                <Chip size="small" color="primary" label="PRO" sx={{ height: 24, letterSpacing: 0.5 }} />
+                            )}
+                            {isWanted && (
+                                <Chip
+                                    data-testid="binder-count-chip"
+                                    size="small"
+                                    label={`${entries.length}`}
+                                    sx={{ height: 24, fontSize: '0.75rem' }}
+                                />
+                            )}
                         </Box>
-                    )}
-
-                    {!loading && filtered.length > 0 && (
-                        <Box
-                            sx={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                                gap: 1,
-                            }}
-                        >
-                            {filtered.map((entry) => {
-                                const card = resolveCard(entry);
-                                const qty = entry.quantity || 1;
-                                const busy = busyCardId === entry.cardId;
-                                const editions = editionsByCardId.get(entry.cardId) || [];
-                                const canChangeVersion = editions.length >= 2;
-                                const idLine = [card.collectorNumber, card.rarity]
-                                    .filter(Boolean)
-                                    .join(' · ');
-                                const priceRows = [
-                                    ['Market', card.market],
-                                    ['Low', card.low],
-                                    ['Mid', card.mid],
-                                    ['High', card.high],
-                                ].filter(([, v]) => v != null && Number.isFinite(v) && v > 0);
-
-                                return (
-                                    <Box
-                                        key={entryRowKey(entry)}
-                                        sx={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            borderRadius: 1.5,
-                                            overflow: 'hidden',
-                                            backgroundColor: isDark
-                                                ? 'rgba(26, 15, 10, 0.55)'
-                                                : 'rgba(255, 255, 255, 0.92)',
-                                            border: `1px solid ${paperBorder}`,
-                                            fontSize: '0.75rem',
-                                        }}
-                                    >
-                                        <BinderCardArt
-                                            imageUrl={card.imageUrl}
-                                            fallbackUrl={card.imageUrlFallback}
-                                            alt={card.name}
-                                            qty={qty}
-                                            mutedColor={mutedColor}
-                                            onClick={() => openEntryDetail(entry)}
-                                        />
-
-                                        <Box
-                                            sx={{
-                                                px: 0.85,
-                                                py: 0.65,
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: 0.3,
-                                                flexGrow: 1,
-                                            }}
-                                        >
-                                            <Typography
+                        <Typography variant="body1" component="div" sx={{ color: 'text.secondary', mt: 0.75 }}>
+                            {showingGrid
+                                ? 'Organize your collection into binders. Open one to search, sort and edit its cards.'
+                                : `${openCount} ${openCount === 1 ? 'card' : 'cards'}`}
+                            {!showingGrid && (
+                                <>
+                                    {' · '}
+                                    {!isWanted && entries.length > 0 ? (
+                                        <Tooltip title="See what this binder is worth">
+                                            <Box
                                                 component="button"
                                                 type="button"
-                                                onClick={() => openEntryDetail(entry)}
-                                                aria-label={`View details for ${card.name}`}
+                                                data-testid="binder-value-total"
+                                                onClick={() => setValueOpen(true)}
                                                 sx={{
-                                                    fontWeight: 700,
-                                                    fontSize: '0.8rem',
-                                                    color: textColor,
-                                                    lineHeight: 1.2,
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
-                                                    overflow: 'hidden',
                                                     border: 0,
                                                     background: 'none',
                                                     p: 0,
-                                                    m: 0,
-                                                    textAlign: 'left',
-                                                    fontFamily: 'inherit',
+                                                    font: 'inherit',
+                                                    color: 'text.primary',
+                                                    fontWeight: 650,
+                                                    fontVariantNumeric: 'tabular-nums',
                                                     cursor: 'pointer',
+                                                    textDecoration: 'underline',
+                                                    textDecorationColor: 'transparent',
+                                                    '&:hover': { textDecorationColor: 'currentColor' },
                                                 }}
                                             >
-                                                {card.name}
-                                            </Typography>
+                                                {totalLabel}
+                                            </Box>
+                                        </Tooltip>
+                                    ) : (
+                                        <Box component="span" sx={{ color: 'text.primary', fontWeight: 650, fontVariantNumeric: 'tabular-nums' }}>
+                                            {totalLabel}
+                                        </Box>
+                                    )}
+                                </>
+                            )}
+                        </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        {!isWanted && !showingGrid && entries.length > 0 && (
+                            <Button
+                                data-testid="collection-stats"
+                                variant="outlined"
+                                color="inherit"
+                                startIcon={<InsightsOutlined />}
+                                onClick={() => navigate(`/binder/stats?b=${encodeURIComponent(openBinderId)}`)}
+                            >
+                                Collection Stats
+                            </Button>
+                        )}
+                        {!isWanted && openBinderId === TRADE_BINDER_ID && (
+                            <Button
+                                variant="outlined"
+                                color="inherit"
+                                startIcon={<ShareIcon />}
+                                onClick={openShareDialog}
+                            >
+                                Share
+                            </Button>
+                        )}
+                        {showingGrid && (
+                            <Button
+                                variant="contained"
+                                data-testid="binder-create"
+                                startIcon={<AddIcon />}
+                                onClick={handleCreateBinder}
+                            >
+                                New Binder
+                            </Button>
+                        )}
+                    </Box>
+                </Box>
 
+                {showingGrid && (
+                    <BinderGrid
+                        binders={binders}
+                        entries={allOwned}
+                        resolveCard={resolveCard}
+                        onOpen={(binder) => setOpenBinder(binder.clientId)}
+                        onRename={handleRenameBinder}
+                        onDelete={handleDeleteBinder}
+                    />
+                )}
+
+                {!showingGrid && (
+                <>
+                {!entitlementLoading && !isPro && entries.length / limit >= 0.7 && (
+                    <Alert severity="info" icon={false} sx={{ mb: 2 }}>
+                        Free plan — {listLabel.toLowerCase()} holds {limit} cards
+                        ({entries.length}/{limit}). Subscribe in the RiftTrades app for unlimited.
+                    </Alert>
+                )}
+
+                {atFreeLimit && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        {isWanted ? 'Want lists' : 'Binders'} hold {limit} cards on the free plan.
+                        You can still change quantity on cards you already have. Subscribe in the
+                        RiftTrades app to add more.
+                    </Alert>
+                )}
+
+                <Box
+                    sx={{
+                        mb: 2,
+                        position: 'relative',
+                        zIndex: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                    }}
+                >
+                    <Box sx={{ flexGrow: 1, minWidth: { xs: '100%', sm: 0 } }}>
+                        <SearchInput
+                            label=""
+                            size="small"
+                            placeholder={`Search to add cards…`}
+                            items={cardOptions}
+                            value={searchQuery}
+                            onChange={(_e, value) => setSearchQuery(value || '')}
+                            onSelect={handleAddCard}
+                            keepOpenOnSelect
+                            keepInputOnSelect
+                        />
+                    </Box>
+                    <FormControl
+                        size="small"
+                        sx={{
+                            minWidth: { xs: '100%', sm: 190 },
+                            flexShrink: 0,
+                            '& .MuiOutlinedInput-root': { minHeight: 40 },
+                        }}
+                    >
+                        <Select
+                            value={sort}
+                            displayEmpty
+                            onChange={(e) => setSort(e.target.value)}
+                            aria-label="Sort binder"
+                            startAdornment={<SortRounded sx={{ fontSize: '1.1rem', color: 'text.secondary', mr: 1 }} />}
+                            renderValue={(value) => {
+                                const opt = SORT_OPTIONS.find((o) => o.id === value);
+                                return opt?.label || 'Sort';
+                            }}
+                        >
+                            {SORT_OPTIONS.map((option) => (
+                                <MenuItem key={option.id} value={option.id} dense>
+                                    {option.label}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Box>
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                        <CircularProgress />
+                    </Box>
+                )}
+
+                {error && !loading && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                        {error}
+                    </Alert>
+                )}
+
+                {!loading && !error && filtered.length === 0 && (
+                    <Panel>
+                        <EmptyState
+                            icon={searchQuery.trim() ? <SearchIcon /> : <StyleOutlined />}
+                            title={searchQuery.trim()
+                                ? 'No matching cards in this list'
+                                : `${listLabel} is empty`}
+                        >
+                            {searchQuery.trim()
+                                ? 'Pick a result above to add it, or clear the search.'
+                                : `Type in the search box above to add cards.`}
+                        </EmptyState>
+                    </Panel>
+                )}
+
+                {!loading && filtered.length > 0 && (
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {
+                                xs: 'repeat(2, minmax(0, 1fr))',
+                                sm: 'repeat(auto-fill, minmax(168px, 1fr))',
+                            },
+                            gap: { xs: 1.25, sm: 1.5 },
+                        }}
+                    >
+                        {filtered.map((entry) => {
+                            const card = resolveCard(entry);
+                            const qty = entry.quantity || 1;
+                            const busy = busyCardId === entry.cardId;
+                            const editions = editionsByCardId.get(entry.cardId) || [];
+                            const canChangeVersion = editions.length >= 2;
+                            const idLine = [card.collectorNumber, card.rarity]
+                                .filter(Boolean)
+                                .join(' · ');
+                            const priceRows = [
+                                ['Market', card.market],
+                                ['Low', card.low],
+                                ['Mid', card.mid],
+                                ['High', card.high],
+                            ].filter(([, v]) => v != null && Number.isFinite(v) && v > 0);
+
+                            return (
+                                <Box
+                                    key={entryRowKey(entry)}
+                                    sx={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        minWidth: 0,
+                                        borderRadius: '14px',
+                                        overflow: 'hidden',
+                                        bgcolor: 'background.paper',
+                                        border: 1,
+                                        borderColor: 'divider',
+                                        boxShadow: (t) => tk(t).shadowSm,
+                                        transition: 'border-color 120ms ease, box-shadow 120ms ease',
+                                        '&:hover': { borderColor: 'text.disabled', boxShadow: (t) => tk(t).shadowMd },
+                                    }}
+                                >
+                                    <BinderCardArt
+                                        imageUrl={card.imageUrl}
+                                        fallbackUrl={card.imageUrlFallback}
+                                        alt={card.name}
+                                        qty={qty}
+                                        onClick={() => openEntryDetail(entry)}
+                                    />
+
+                                    <Box
+                                        sx={{
+                                            px: 1.25,
+                                            pt: 1,
+                                            pb: 0.75,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 0.4,
+                                            flexGrow: 1,
+                                        }}
+                                    >
+                                        <Typography
+                                            component="button"
+                                            type="button"
+                                            onClick={() => openEntryDetail(entry)}
+                                            aria-label={`View details for ${card.name}`}
+                                            sx={{
+                                                fontWeight: 600,
+                                                fontSize: '0.8125rem',
+                                                color: 'text.primary',
+                                                lineHeight: 1.25,
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                border: 0,
+                                                background: 'none',
+                                                p: 0,
+                                                m: 0,
+                                                textAlign: 'left',
+                                                fontFamily: 'inherit',
+                                                cursor: 'pointer',
+                                                '&:hover': { color: 'primary.main' },
+                                            }}
+                                        >
+                                            {card.name}
+                                        </Typography>
+
+                                        <Typography
+                                            sx={{
+                                                color: 'text.secondary',
+                                                fontSize: '0.7rem',
+                                                lineHeight: 1.3,
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                            }}
+                                        >
+                                            {idLine || card.setName || '—'}
+                                        </Typography>
+
+                                        {card.typeLine && (
                                             <Typography
                                                 sx={{
-                                                    color: mutedColor,
+                                                    color: 'text.secondary',
                                                     fontSize: '0.68rem',
-                                                    lineHeight: 1.2,
+                                                    lineHeight: 1.3,
                                                     whiteSpace: 'nowrap',
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis',
                                                 }}
                                             >
-                                                {idLine || card.setName || '—'}
+                                                {card.typeLine}
                                             </Typography>
+                                        )}
 
-                                            {card.typeLine && (
-                                                <Typography
-                                                    sx={{
-                                                        color: mutedColor,
-                                                        fontSize: '0.65rem',
-                                                        lineHeight: 1.2,
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                    }}
-                                                >
-                                                    {card.typeLine}
-                                                </Typography>
-                                            )}
-
-                                            <Box
-                                                component="dl"
-                                                sx={{
+                                        <Box
+                                            component="dl"
+                                            sx={{
+                                                m: 0,
+                                                mt: 0.4,
+                                                display: 'grid',
+                                                gridTemplateColumns: '1fr auto',
+                                                columnGap: 1,
+                                                rowGap: 0.15,
+                                                '& dt, & dd': {
                                                     m: 0,
-                                                    mt: 0.35,
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '1fr auto',
-                                                    columnGap: 1,
-                                                    rowGap: 0.15,
-                                                    '& dt, & dd': {
-                                                        m: 0,
-                                                        fontSize: '0.68rem',
-                                                        lineHeight: 1.25,
-                                                    },
-                                                    '& dt': { color: mutedColor },
-                                                    '& dd': {
-                                                        color: accentColor,
-                                                        fontWeight: 600,
-                                                        textAlign: 'right',
-                                                        fontVariantNumeric: 'tabular-nums',
-                                                    },
-                                                }}
-                                            >
-                                                {priceRows.map(([label, value]) => (
-                                                    <Box
-                                                        key={label}
-                                                        sx={{ display: 'contents' }}
-                                                    >
-                                                        <Box component="dt">{label}</Box>
-                                                        <Box component="dd">
-                                                            {formatCurrency(value.toFixed(2))}
-                                                        </Box>
-                                                    </Box>
-                                                ))}
-                                                {priceRows.length === 0 && (
-                                                    <>
-                                                        <Box component="dt">Market</Box>
-                                                        <Box component="dd">—</Box>
-                                                    </>
-                                                )}
-                                            </Box>
-
-                                            {canChangeVersion ? (
-                                                <FormControl
-                                                    size="small"
-                                                    fullWidth
-                                                    sx={{ mt: 0.5 }}
-                                                >
-                                                    <Select
-                                                        value={entry.cardId}
-                                                        disabled={busy}
-                                                        onChange={(e) =>
-                                                            changeVersion(entry, e.target.value)
-                                                        }
-                                                        aria-label={`Version of ${card.name}`}
-                                                        sx={{
-                                                            color: mutedColor,
-                                                            fontSize: '0.65rem',
-                                                            fontWeight: 600,
-                                                            backgroundColor: isDark
-                                                                ? 'rgba(212, 165, 116, 0.12)'
-                                                                : 'rgba(139, 69, 19, 0.08)',
-                                                            height: 26,
-                                                            '& .MuiSelect-select': {
-                                                                py: 0.35,
-                                                                px: 0.75,
-                                                                textAlign: 'center',
-                                                            },
-                                                            '& .MuiOutlinedInput-notchedOutline': {
-                                                                borderColor: 'transparent',
-                                                            },
-                                                            '&:hover .MuiOutlinedInput-notchedOutline': {
-                                                                borderColor: paperBorder,
-                                                            },
-                                                        }}
-                                                    >
-                                                        {editions.map((edition) => (
-                                                            <MenuItem
-                                                                key={edition.uniqueId}
-                                                                value={edition.uniqueId}
-                                                                dense
-                                                                sx={{ fontSize: '0.75rem' }}
-                                                            >
-                                                                {edition.subTypeName || 'Normal'}
-                                                                {edition.cardPrice
-                                                                    ? ` · ${formatCurrency(Number(edition.cardPrice).toFixed(2))}`
-                                                                    : ''}
-                                                            </MenuItem>
-                                                        ))}
-                                                    </Select>
-                                                </FormControl>
-                                            ) : (
+                                                    fontSize: '0.7rem',
+                                                    lineHeight: 1.35,
+                                                },
+                                                '& dt': { color: 'text.secondary' },
+                                                '& dd': {
+                                                    color: 'text.primary',
+                                                    fontWeight: 600,
+                                                    textAlign: 'right',
+                                                    fontVariantNumeric: 'tabular-nums',
+                                                },
+                                                '& dd:first-of-type': { fontWeight: 750, fontSize: '0.8125rem' },
+                                            }}
+                                        >
+                                            {priceRows.map(([label, value]) => (
                                                 <Box
+                                                    key={label}
+                                                    sx={{ display: 'contents' }}
+                                                >
+                                                    <Box component="dt">{label}</Box>
+                                                    <Box component="dd">
+                                                        {formatCurrency(value.toFixed(2))}
+                                                    </Box>
+                                                </Box>
+                                            ))}
+                                            {priceRows.length === 0 && (
+                                                <>
+                                                    <Box component="dt">Market</Box>
+                                                    <Box component="dd">—</Box>
+                                                </>
+                                            )}
+                                        </Box>
+
+                                        {canChangeVersion ? (
+                                            <FormControl
+                                                size="small"
+                                                fullWidth
+                                                sx={{ mt: 0.5 }}
+                                            >
+                                                <Select
+                                                    value={entry.cardId}
+                                                    disabled={busy}
+                                                    onChange={(e) =>
+                                                        changeVersion(entry, e.target.value)
+                                                    }
+                                                    aria-label={`Version of ${card.name}`}
                                                     sx={{
-                                                        mt: 0.5,
-                                                        px: 0.75,
-                                                        py: 0.35,
-                                                        borderRadius: 1,
-                                                        backgroundColor: isDark
-                                                            ? 'rgba(212, 165, 116, 0.12)'
-                                                            : 'rgba(139, 69, 19, 0.08)',
-                                                        color: mutedColor,
-                                                        fontSize: '0.65rem',
+                                                        color: 'text.secondary',
+                                                        fontSize: '0.7rem',
                                                         fontWeight: 600,
-                                                        textAlign: 'center',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
+                                                        height: 28,
+                                                        '& .MuiSelect-select': {
+                                                            py: 0.35,
+                                                            px: 0.75,
+                                                            textAlign: 'center',
+                                                        },
                                                     }}
                                                 >
-                                                    {card.finish}
-                                                </Box>
-                                            )}
+                                                    {editions.map((edition) => (
+                                                        <MenuItem
+                                                            key={edition.uniqueId}
+                                                            value={edition.uniqueId}
+                                                            dense
+                                                            sx={{ fontSize: '0.75rem' }}
+                                                        >
+                                                            {edition.subTypeName || 'Normal'}
+                                                            {edition.cardPrice
+                                                                ? ` · ${formatCurrency(Number(edition.cardPrice).toFixed(2))}`
+                                                                : ''}
+                                                        </MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                        ) : (
+                                            <Box sx={{ mt: 0.5, display: 'flex' }}>
+                                                <FoilTag
+                                                    subTypeName={card.finish}
+                                                    label={card.finish || 'Normal'}
+                                                />
+                                            </Box>
+                                        )}
 
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 0.5,
+                                                mt: 'auto',
+                                                pt: 0.75,
+                                            }}
+                                        >
                                             <Box
                                                 sx={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: 0.25,
-                                                    mt: 'auto',
-                                                    pt: 0.5,
-                                                    borderTop: `1px solid ${paperBorder}`,
+                                                    height: 28,
+                                                    borderRadius: '9px',
+                                                    bgcolor: 'surface.sunken',
                                                 }}
                                             >
                                                 <IconButton
@@ -1381,7 +1301,7 @@ const BinderCollection = ({ isWanted = false }) => {
                                                         updateQuantity(entry, qty - 1)
                                                     }
                                                     aria-label="decrease quantity"
-                                                    sx={{ p: 0.35 }}
+                                                    sx={{ p: 0.4, color: 'text.secondary' }}
                                                 >
                                                     <RemoveIcon sx={{ fontSize: 16 }} />
                                                 </IconButton>
@@ -1390,8 +1310,9 @@ const BinderCollection = ({ isWanted = false }) => {
                                                         minWidth: 18,
                                                         textAlign: 'center',
                                                         fontWeight: 700,
-                                                        fontSize: '0.8rem',
-                                                        color: textColor,
+                                                        fontSize: '0.8125rem',
+                                                        color: 'text.primary',
+                                                        fontVariantNumeric: 'tabular-nums',
                                                     }}
                                                 >
                                                     {qty}
@@ -1403,45 +1324,58 @@ const BinderCollection = ({ isWanted = false }) => {
                                                         updateQuantity(entry, qty + 1)
                                                     }
                                                     aria-label="increase quantity"
-                                                    sx={{ p: 0.35 }}
+                                                    sx={{ p: 0.4, color: 'text.secondary' }}
                                                 >
                                                     <AddIcon sx={{ fontSize: 16 }} />
                                                 </IconButton>
-
-                                                <IconButton
-                                                    size="small"
-                                                    disabled={busy}
-                                                    onClick={() => handleRemove(entry)}
-                                                    aria-label="remove card"
-                                                    sx={{ color: 'error.main', p: 0.35, ml: 'auto' }}
-                                                >
-                                                    {busy ? (
-                                                        <CircularProgress size={14} />
-                                                    ) : (
-                                                        <DeleteIcon sx={{ fontSize: 16 }} />
-                                                    )}
-                                                </IconButton>
-                                                {!isWanted && (
-                                                    <Button
-                                                        size="small"
-                                                        data-testid={`binder-move-${entry.cardId}`}
-                                                        onClick={() => handleMove(entry)}
-                                                        sx={{ fontSize: '0.7rem', minWidth: 0, px: 0.5 }}
-                                                    >
-                                                        Move
-                                                    </Button>
-                                                )}
                                             </Box>
+
+                                            {!isWanted && (
+                                                <Button
+                                                    size="small"
+                                                    color="inherit"
+                                                    data-testid={`binder-move-${entry.cardId}`}
+                                                    onClick={() => handleMove(entry)}
+                                                    sx={{
+                                                        fontSize: '0.72rem',
+                                                        minWidth: 0,
+                                                        minHeight: 28,
+                                                        px: 0.75,
+                                                        ml: 'auto',
+                                                        color: 'text.secondary',
+                                                    }}
+                                                >
+                                                    Move
+                                                </Button>
+                                            )}
+                                            <IconButton
+                                                size="small"
+                                                disabled={busy}
+                                                onClick={() => handleRemove(entry)}
+                                                aria-label="remove card"
+                                                sx={{
+                                                    color: 'text.disabled',
+                                                    p: 0.5,
+                                                    ml: isWanted ? 'auto' : 0,
+                                                    '&:hover': { color: 'error.main' },
+                                                }}
+                                            >
+                                                {busy ? (
+                                                    <CircularProgress size={14} />
+                                                ) : (
+                                                    <DeleteIcon sx={{ fontSize: 18 }} />
+                                                )}
+                                            </IconButton>
                                         </Box>
                                     </Box>
-                                );
-                            })}
-                        </Box>
-                    )}
-                    </>
-                    )}
-                </Paper>
-            </Container>
+                                </Box>
+                            );
+                        })}
+                    </Box>
+                )}
+                </>
+                )}
+            </Page>
 
             <Dialog
                 open={shareOpen}
@@ -1457,7 +1391,7 @@ const BinderCollection = ({ isWanted = false }) => {
                     </Typography>
                     {shareBusy && !share ? (
                         <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                            <CircularProgress size={28} sx={{ color: accentColor }} />
+                            <CircularProgress size={28} />
                         </Box>
                     ) : (
                         <>
@@ -1493,7 +1427,7 @@ const BinderCollection = ({ isWanted = false }) => {
                         </>
                     )}
                 </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
+                <DialogActions sx={{ justifyContent: 'space-between' }}>
                     <Button
                         onClick={handleRegenerateShare}
                         disabled={shareBusy || !share}
@@ -1546,10 +1480,9 @@ const BinderCollection = ({ isWanted = false }) => {
                     headline={formatCurrency(totalValue.toFixed(2))}
                     entries={entries}
                     catalogById={catalogById}
-                    isDark={isDark}
                 />
             )}
-        </Box>
+        </>
     );
 };
 
