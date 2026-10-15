@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
@@ -97,6 +98,7 @@ class _BinderListState extends ConsumerState<BinderList> {
 
     final filters = ref.watch(binderFiltersProvider);
     final visible = ref.watch(filteredBinderProvider);
+    final selection = ref.watch(binderSelectionProvider);
     final binders = ref.watch(bindersProvider);
     final hasQuery = filters.query.trim().isNotEmpty;
 
@@ -165,6 +167,8 @@ class _BinderListState extends ConsumerState<BinderList> {
                       pricing: pricing,
                       binderId: widget.binderId,
                       liveBinders: binders,
+                      selecting: selection.isNotEmpty,
+                      selected: selection.contains(binderRowKey(visible[i])),
                     ),
                   ),
           ),
@@ -336,11 +340,22 @@ class _EntryRow extends ConsumerWidget {
     required this.pricing,
     required this.binderId,
     required this.liveBinders,
+    this.selecting = false,
+    this.selected = false,
   });
   final BinderEntry entry;
   final Pricing pricing;
   final String binderId;
   final List<Binder> liveBinders;
+
+  /// Selection mode is on: a tap toggles the row instead of acting on it.
+  final bool selecting;
+  final bool selected;
+
+  void _toggle(WidgetRef ref) {
+    HapticFeedback.selectionClick();
+    ref.read(binderSelectionProvider.notifier).toggle(binderRowKey(entry));
+  }
 
   Future<void> _move(BuildContext context, WidgetRef ref) async {
     final dests = Binder.gridOrder(liveBinders)
@@ -442,11 +457,14 @@ class _EntryRow extends ConsumerWidget {
     final dests = Binder.gridOrder(liveBinders)
         .where((b) => b.isLive && b.clientId != binderId)
         .toList();
+    final t = context.tokens;
+    final rowKey = binderRowKey(entry);
 
     return Dismissible(
       key: ValueKey(
           '${card.id}_${entry.isWanted}_${entry.resolvedBinderId}_${entry.condition}'),
-      direction: DismissDirection.endToStart,
+      direction:
+          selecting ? DismissDirection.none : DismissDirection.endToStart,
       background: Container(
         color: context.tokens.loss,
         alignment: Alignment.centerRight,
@@ -454,13 +472,32 @@ class _EntryRow extends ConsumerWidget {
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) => _removeWithUndo(context, ref),
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => CardDetailScreen(card: card))),
-        child: Padding(
+      child: Material(
+        color: selected ? t.selected : Colors.transparent,
+        child: InkWell(
+          key: Key('binderSelectRow-$rowKey'),
+          // A long-press starts selecting with this row picked; while
+          // selecting, a tap toggles the row instead of opening it.
+          onTap: selecting
+              ? () => _toggle(ref)
+              : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CardDetailScreen(card: card))),
+          onLongPress: selecting ? null : () => _toggle(ref),
+          child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Row(
             children: [
+              if (selecting) ...[
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  key: Key('binderSelectMark-$rowKey'),
+                  size: 22,
+                  color: selected ? t.accent : t.textFaint,
+                ),
+                const SizedBox(width: 10),
+              ],
               CardThumbnail(url: card.imageUrl, foil: card.isFoil),
               const SizedBox(width: 12),
               Expanded(
@@ -483,7 +520,12 @@ class _EntryRow extends ConsumerWidget {
                         RarityBadge(rarity: card.rarity),
                         if (card.isFoil)
                           FoilTag(subTypeName: card.subTypeName, label: card.finishLabel),
-                        _ConditionChip(
+                        if (selecting)
+                          Text(entry.condition,
+                              style: theme.textTheme.labelSmall
+                                  ?.copyWith(color: t.textMuted))
+                        else
+                          _ConditionChip(
                           condition: entry.condition,
                           onChanged: (c) => notifier.setCondition(
                             card.id,
@@ -493,7 +535,7 @@ class _EntryRow extends ConsumerWidget {
                             condition: entry.condition,
                           ),
                         ),
-                        if (dests.isNotEmpty)
+                        if (dests.isNotEmpty && !selecting)
                           TextButton(
                             key: Key('moveBinder-${card.id}'),
                             style: TextButton.styleFrom(
@@ -522,6 +564,7 @@ class _EntryRow extends ConsumerWidget {
                     Text(pricing.lowPriceLabel(card)!,
                         style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant)),
+                  if (!selecting) ...[
                   const SizedBox(height: 4),
                   _MiniStepper(
                     qty: entry.quantity,
@@ -542,9 +585,14 @@ class _EntryRow extends ConsumerWidget {
                             condition: entry.condition,
                           ),
                   ),
+                  ] else if (entry.quantity > 1)
+                    Text('×${entry.quantity}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: t.textMuted, fontWeight: FontWeight.w700)),
                 ],
               ),
             ],
+          ),
           ),
         ),
       ),

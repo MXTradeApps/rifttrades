@@ -723,7 +723,6 @@ final bindersRepositoryProvider = Provider<BindersRepository>((ref) =>
     BindersRepository(
         ref.watch(sharedPreferencesProvider), ref.watch(syncJournalProvider)));
 
-/// Currently drilled-in Binder, or null when the grid is showing.
 /// A request from inside a tab to switch the shell's bottom tab. HomeShell
 /// listens, switches, then clears it.
 final shellTabProvider =
@@ -738,6 +737,10 @@ class ShellTabNotifier extends Notifier<int?> {
   void clear() => state = null;
 }
 
+/// HomeShell's Trade tab, for [shellTabProvider].
+const tradeTabIndex = 1;
+
+/// Currently drilled-in Binder, or null when the grid is showing.
 final openBinderIdProvider = NotifierProvider<OpenBinderIdNotifier, String?>(
     OpenBinderIdNotifier.new);
 
@@ -748,6 +751,30 @@ class OpenBinderIdNotifier extends Notifier<String?> {
   void open(String binderId) => state = binderId;
 
   void close() => state = null;
+}
+
+/// Identity of an owned row inside the open Binder (printing + condition).
+String binderRowKey(BinderEntry e) => '${e.card.id}|${e.condition}';
+
+/// Rows picked in the open Binder's selection mode, by [binderRowKey]. Empty
+/// means selection mode is off. Opening, switching or leaving a Binder ends it.
+final binderSelectionProvider =
+    NotifierProvider<BinderSelectionNotifier, Set<String>>(
+        BinderSelectionNotifier.new);
+
+class BinderSelectionNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() {
+    ref.watch(openBinderIdProvider);
+    return const {};
+  }
+
+  void toggle(String key) => state =
+      state.contains(key) ? ({...state}..remove(key)) : {...state, key};
+
+  void selectAll(Iterable<String> keys) => state = {...state, ...keys};
+
+  void clear() => state = const {};
 }
 
 /// Home tabs: 0 Browse, 1 Trade, 2 Binder, 3 Lend. Null = unknown context
@@ -1085,6 +1112,52 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
       _persist();
     }
     return result;
+  }
+
+  /// Removes these exact owned rows (printing + Binder + condition) in one
+  /// save and returns what was removed, for an Undo via [restore].
+  List<BinderEntry> removeEntries(Iterable<BinderEntry> rows) {
+    bool picked(BinderEntry e) => rows.any((r) =>
+        !e.isWanted &&
+        !r.isWanted &&
+        e.card.id == r.card.id &&
+        e.resolvedBinderId == r.resolvedBinderId &&
+        e.condition == r.condition);
+    final removed = state.where(picked).toList();
+    if (removed.isEmpty) return removed;
+    state = state.where((e) => !picked(e)).toList();
+    _persist();
+    return removed;
+  }
+
+  /// Moves every copy of each owned row into [toBinderId] in one save.
+  /// Returns how many rows moved; rows that can't move stay where they are.
+  int moveEntries(Iterable<BinderEntry> rows, String toBinderId) {
+    final binders = ref.read(bindersProvider);
+    final isPro = ref.read(isProProvider);
+    var next = state;
+    var moved = 0;
+    for (final row in rows) {
+      if (row.isWanted || row.resolvedBinderId == null) continue;
+      final result = moveBinderCopies(
+        binders: binders,
+        entries: next,
+        fromBinderId: row.resolvedBinderId!,
+        toBinderId: toBinderId,
+        printingId: row.card.id,
+        condition: row.condition,
+        quantity: row.quantity,
+        isPro: isPro,
+        freeBinderCardsCap: FreeLimits.binderCards,
+      );
+      if (!result.ok) continue;
+      next = result.entries;
+      moved++;
+    }
+    if (moved == 0) return 0;
+    state = next;
+    _persist();
+    return moved;
   }
 
   bool isWanted(String cardId) =>
