@@ -9,6 +9,7 @@ import SharedBinder from './pages/SharedBinder.jsx';
 import TradeHistory from './pages/TradeHistory.jsx';
 import SetList from './pages/SetList.jsx';
 import SetDetail from './pages/SetDetail.jsx';
+import Trends from './pages/Trends.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { EntitlementProvider } from './contexts/EntitlementContext.jsx';
 import { CardDetailProvider } from './contexts/CardDetailContext.jsx';
@@ -23,6 +24,7 @@ function App() {
                         <Route path="/" element={<Home />} />
                         <Route path="/sets" element={<SetList />} />
                         <Route path="/sets/:setId" element={<SetDetail />} />
+                        <Route path="/trends" element={<Trends />} />
                         <Route path="/privacy" element={<PrivacyPolicy />} />
                         <Route path="/terms" element={<TermsOfUse />} />
                         <Route path="/support" element={<Support />} />

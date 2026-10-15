@@ -11,6 +11,7 @@ import {
     HistoryRounded,
     BookmarkBorderRounded,
     StyleOutlined,
+    TrendingUpRounded,
     PrivacyTipOutlined,
     DescriptionOutlined,
     SupportAgentOutlined,
@@ -43,6 +44,7 @@ const NAV_SECTIONS = [
         label: 'Market',
         items: [
             { label: 'Browse Sets', short: 'Sets', to: '/sets', icon: StyleOutlined, match: (path) => path.startsWith('/sets') },
+            { label: 'Trends', short: 'Trends', to: '/trends', icon: TrendingUpRounded, match: (path) => path === '/trends' },
         ],
     },
 ];
