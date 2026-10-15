@@ -18,6 +18,7 @@ import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
 import '../scan/scan_screen.dart';
 import 'home_dashboard.dart';
+import 'trends_screen.dart';
 
 /// Top-level Browse tab: a global search bar over every set, the personal
 /// dashboard, then a grid of sets to drill into. Searching short-circuits the set list and shows every
@@ -188,6 +189,7 @@ class _SetListState extends ConsumerState<_SetList> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             const SliverToBoxAdapter(child: HomeDashboard()),
+            const SliverToBoxAdapter(child: SeeTrendingTile()),
             for (final group in groups) ...[
               SliverToBoxAdapter(
                 child: SectionTitle(group.label, count: group.sets.length),

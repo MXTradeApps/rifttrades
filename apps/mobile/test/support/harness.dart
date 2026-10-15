@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:rifttrades/core/data/card_repository.dart';
+import 'package:rifttrades/core/logic/recent_movers.dart';
 import 'package:rifttrades/core/models/account.dart';
 import 'package:rifttrades/core/models/card_model.dart';
 import 'package:rifttrades/core/models/subscription_status.dart';
@@ -42,10 +43,16 @@ Future<ProviderContainer> pumpApp(
   Map<String, List<PricePoint>> priceHistory = const {},
   Object? priceHistoryError,
   Future<List<PricePoint>> Function(String cardId)? onPriceHistory,
+  List<RecentMoverRow> recentMovers = const [],
+  Object? recentMoversError,
+  List<RecentLowChange> printingRecentChanges = const [],
+  Map<String, List<RecentLowChange>> printingRecentChangesByKey = const {},
+  Object? printingRecentChangesError,
   bool isPro = false,
 }) async {
   SharedPreferences.setMockInitialValues(seed);
   final prefs = await SharedPreferences.getInstance();
+  registerFallbackValue(<String>[]);
 
   final mockRepo = MockCardRepository();
   when(() => mockRepo.fetchAll()).thenAnswer((_) async => catalog);
@@ -55,6 +62,25 @@ Future<ProviderContainer> pumpApp(
     if (priceHistoryError != null) throw priceHistoryError;
     return priceHistory[id] ?? const <PricePoint>[];
   });
+  when(() => mockRepo.recentMovers(any())).thenAnswer((_) async {
+    if (recentMoversError != null) throw recentMoversError;
+    return recentMovers;
+  });
+
+  Future<List<RecentLowChange>> answerPrintingRecentChanges(
+    Invocation inv,
+  ) async {
+    if (printingRecentChangesError != null) throw printingRecentChangesError;
+    final ids = inv.positionalArguments[1] as List<String>;
+    if (printingRecentChangesByKey.isNotEmpty) {
+      final key = (List<String>.from(ids)..sort()).join(',');
+      return printingRecentChangesByKey[key] ?? const <RecentLowChange>[];
+    }
+    return printingRecentChanges;
+  }
+
+  when(() => mockRepo.printingRecentChanges(any(), any()))
+      .thenAnswer(answerPrintingRecentChanges);
 
   final container = ProviderContainer(
     overrides: [

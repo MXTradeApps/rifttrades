@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../logic/recent_movers.dart';
 import '../logic/set_sort.dart';
 import '../models/card_model.dart';
 
@@ -718,6 +719,41 @@ class CardRepository {
         .order('captured_on');
     return (rows as List)
         .map((r) => PricePoint.fromMap(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Ranked recent Low movers for [source]. Omit [cardIds] for catalog-wide;
+  /// pass owned Printing ids to rank only those. Does not default a bad source.
+  Future<List<RecentMoverRow>> recentMovers(
+    String source, {
+    List<String>? cardIds,
+  }) async {
+    final params = <String, dynamic>{'p_source': source};
+    if (cardIds != null) {
+      params['p_card_ids'] = cardIds;
+    }
+    final rows = await _client.rpc('rift_recent_movers', params: params);
+    return (rows as List)
+        .map((r) => RecentMoverRow.fromMap(Map<String, dynamic>.from(r as Map)))
+        .toList();
+  }
+
+  /// Displayable recent Low change for [cardIds] on [source]. Always sends
+  /// ids (empty → zero rows). Does not default a bad source. Does not call
+  /// `rift_recent_movers`.
+  Future<List<RecentLowChange>> printingRecentChanges(
+    String source,
+    List<String> cardIds,
+  ) async {
+    final rows = await _client.rpc(
+      'rift_printing_recent_changes',
+      params: {
+        'p_source': source,
+        'p_card_ids': cardIds,
+      },
+    );
+    return (rows as List)
+        .map((r) => RecentLowChange.fromMap(Map<String, dynamic>.from(r as Map)))
         .toList();
   }
 

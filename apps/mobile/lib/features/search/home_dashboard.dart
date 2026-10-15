@@ -5,13 +5,18 @@ import '../../app/theme.dart';
 import '../../app/ui.dart';
 import '../../app/widgets.dart';
 import '../../core/logic/binder_value_snapshot.dart';
+import '../../core/logic/recent_movers.dart';
 import '../../core/models/binder_entry.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
+import 'mover_box.dart';
 
 /// Shell tab index of the Binder tab (see `HomeShell._screens`).
 const binderTabIndex = 2;
+
+/// Movers below this start Low are penny noise, so Home leaves them out.
+const _moverFloor = 1.0;
 
 /// Copies per printing across every owned Binder (Want List excluded).
 Map<String, int> ownedCopiesByPrinting(Iterable<BinderEntry> entries) {
@@ -21,6 +26,49 @@ Map<String, int> ownedCopiesByPrinting(Iterable<BinderEntry> entries) {
     copies[e.card.id] = (copies[e.card.id] ?? 0) + e.quantity;
   }
   return copies;
+}
+
+/// Quantity-weighted recent Low change across the collection. Null when no
+/// owned printing has a recent change to report.
+({double amount, double percent})? collectionRecentChange(
+  Iterable<RecentLowChange> changes,
+  Map<String, int> copies,
+) {
+  var amount = 0.0;
+  var start = 0.0;
+  var any = false;
+  for (final c in changes) {
+    final qty = copies[c.cardId];
+    if (qty == null || qty < 1) continue;
+    any = true;
+    amount += c.amountChange * qty;
+    start += c.startLow * qty;
+  }
+  if (!any || start <= 0) return null;
+  return (amount: amount, percent: amount / start);
+}
+
+/// Owned printings that moved most, by total change across their copies.
+List<RecentLowChange> collectionMovers(
+  Iterable<RecentLowChange> changes,
+  Map<String, int> copies, {
+  int limit = 3,
+}) {
+  final rows =
+      changes
+          .where(
+            (c) =>
+                (copies[c.cardId] ?? 0) > 0 &&
+                c.startLow >= _moverFloor &&
+                c.amountChange != 0,
+          )
+          .toList()
+        ..sort(
+          (a, b) => (b.amountChange * copies[b.cardId]!).abs().compareTo(
+            (a.amountChange * copies[a.cardId]!).abs(),
+          ),
+        );
+  return rows.take(limit).toList(growable: false);
 }
 
 /// Most recently added owned printings, newest first, one per printing.
@@ -37,33 +85,72 @@ List<BinderEntry> recentlyAdded(
   ].take(limit).toList(growable: false);
 }
 
-/// Personal top of Browse: collection value with card and binder counts, and
-/// recently added cards.
-class HomeDashboard extends ConsumerWidget {
+/// Personal top of Browse: collection value and recent change, the biggest
+/// movers among owned cards, and recently added cards.
+class HomeDashboard extends ConsumerStatefulWidget {
   const HomeDashboard({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeDashboard> createState() => _HomeDashboardState();
+}
+
+class _HomeDashboardState extends ConsumerState<HomeDashboard> {
+  int _gen = 0;
+  String? _fetchedKey;
+  List<RecentLowChange> _changes = const [];
+
+  Future<void> _load(String source, List<String> ids, String key) async {
+    final gen = ++_gen;
+    _fetchedKey = key;
+    if (ids.isEmpty) {
+      setState(() => _changes = const []);
+      return;
+    }
+    try {
+      final rows = await ref
+          .read(cardRepositoryProvider)
+          .printingRecentChanges(source, ids);
+      if (!mounted || gen != _gen) return;
+      setState(() => _changes = rows);
+    } catch (_) {
+      // The change line and movers are extras; the value still shows.
+      if (!mounted || gen != _gen) return;
+      setState(() => _changes = const []);
+    }
+  }
+
+  void openCard(CardModel card) {
+    final catalog =
+        ref.read(catalogProvider).asData?.value ?? const <CardModel>[];
+    final full = catalog.where((c) => c.id == card.id).firstOrNull ?? card;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'Card Detail'),
+        builder: (_) => CardDetailScreen(card: full),
+      ),
+    );
+  }
+
+  void openBinders() {
+    ref.read(openBinderIdProvider.notifier).close();
+    ref.read(shellTabProvider.notifier).go(binderTabIndex);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final entries = ref.watch(binderProvider);
     final binders = ref.watch(bindersProvider);
     final pricing = ref.watch(pricingProvider);
+    final settings = ref.watch(settingsProvider);
     final copies = ownedCopiesByPrinting(entries);
 
-    void openBinders() {
-      ref.read(openBinderIdProvider.notifier).close();
-      ref.read(shellTabProvider.notifier).go(binderTabIndex);
-    }
-
-    void openCard(CardModel card) {
-      final catalog =
-          ref.read(catalogProvider).asData?.value ?? const <CardModel>[];
-      final full = catalog.where((c) => c.id == card.id).firstOrNull ?? card;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          settings: const RouteSettings(name: 'Card Detail'),
-          builder: (_) => CardDetailScreen(card: full),
-        ),
-      );
+    final ids = copies.keys.toList()..sort();
+    final key = '${settings.source.name}:${ids.join(',')}';
+    if (_fetchedKey != key) {
+      _fetchedKey = key;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load(settings.source.name, ids, key);
+      });
     }
 
     if (copies.isEmpty) {
@@ -79,6 +166,9 @@ class HomeDashboard extends ConsumerWidget {
       if (isPricedField(v)) total = (total ?? 0) + v! * e.quantity;
     }
     final added = recentlyAdded(entries);
+    final change = collectionRecentChange(_changes, copies);
+    final movers = collectionMovers(_changes, copies);
+    final cardsById = {for (final e in entries) e.card.id: e.card};
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -88,8 +178,44 @@ class HomeDashboard extends ConsumerWidget {
           detail:
               '$cardCount ${cardCount == 1 ? 'card' : 'cards'} · '
               '$binderCount ${binderCount == 1 ? 'binder' : 'binders'}',
+          change: change,
+          formatAmount: pricing.formatValue,
           onTap: openBinders,
         ),
+        if (movers.isNotEmpty) ...[
+          const SectionTitle(
+            'Moving in your binders',
+            key: Key('homeOwnedMoversTitle'),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              key: const Key('homeOwnedMovers'),
+              children: [
+                for (final m in movers)
+                  MoverBox(
+                    key: Key('homeOwnedMover-${m.cardId}'),
+                    name: cardsById[m.cardId]?.name ?? m.cardId,
+                    setName: cardsById[m.cardId]?.setName ?? '',
+                    finish: cardsById[m.cardId]?.subTypeName ?? '',
+                    currentLow: m.latestLow,
+                    percentChange: m.percentChange,
+                    amountChange: m.amountChange,
+                    // MoverBox says "N copies", so a single copy shows none.
+                    copies: (copies[m.cardId] ?? 0) > 1
+                        ? copies[m.cardId]
+                        : null,
+                    pricing: pricing,
+                    onSelect: () {
+                      final card = cardsById[m.cardId];
+                      if (card != null) openCard(card);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (added.isNotEmpty) ...[
           SectionTitle(
             'Recently added',
@@ -125,17 +251,27 @@ class _CollectionSummary extends StatelessWidget {
   const _CollectionSummary({
     required this.total,
     required this.detail,
+    required this.change,
+    required this.formatAmount,
     required this.onTap,
   });
 
   final String total;
   final String detail;
+  final ({double amount, double percent})? change;
+  final String Function(double) formatAmount;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final t = context.tokens;
+    final c = change;
+    final up = c != null && c.amount >= 0;
+    final pct = c == null ? 0 : c.percent * 100;
+    final pctLabel = pct.abs() >= 10
+        ? pct.abs().toStringAsFixed(0)
+        : pct.abs().toStringAsFixed(1);
     return Panel(
       key: const Key('homeCollectionSummary'),
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -167,6 +303,34 @@ class _CollectionSummary extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(detail, style: theme.textTheme.bodySmall),
+                if (c != null && c.amount != 0) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    key: const Key('homeCollectionChange'),
+                    children: [
+                      Icon(
+                        up
+                            ? Icons.trending_up_rounded
+                            : Icons.trending_down_rounded,
+                        size: 16,
+                        color: up ? t.gain : t.loss,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          '${up ? '+' : '−'}${formatAmount(c.amount.abs())} '
+                          '(${up ? '+' : '−'}$pctLabel%) this week',
+                          style: AppType.tabular(
+                            theme.textTheme.bodySmall?.copyWith(
+                              color: up ? t.gain : t.loss,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
