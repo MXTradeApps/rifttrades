@@ -17,9 +17,10 @@ import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
 import '../card_detail/card_detail_screen.dart';
 import '../scan/scan_screen.dart';
+import 'home_dashboard.dart';
 
-/// Top-level Browse tab: a global search bar over every set, then a list of
-/// sets to drill into. Searching short-circuits the set list and shows every
+/// Top-level Browse tab: a global search bar over every set, the personal
+/// dashboard, then a grid of sets to drill into. Searching short-circuits the set list and shows every
 /// printing (finish / art / set variant) as its own row across the catalog.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
@@ -186,6 +187,7 @@ class _SetListState extends ConsumerState<_SetList> {
         return CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            const SliverToBoxAdapter(child: HomeDashboard()),
             for (final group in groups) ...[
               SliverToBoxAdapter(
                 child: SectionTitle(group.label, count: group.sets.length),
