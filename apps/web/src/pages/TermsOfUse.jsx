@@ -1,135 +1,51 @@
-import {
-    Box,
-    Paper,
-    Typography,
-    IconButton,
-    Tooltip,
-    Divider,
-} from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { Link, useNavigate } from 'react-router-dom';
-import { useThemeMode } from "../contexts/ThemeContext.jsx";
+import { Box, Typography, Divider } from '@mui/material';
+import { Link } from 'react-router-dom';
+import Header from '../components/elements/Header.jsx';
+import { Page, PageHeader, Panel } from '../components/layout/Page.jsx';
+import { useCardData } from '../hooks/useCardData.jsx';
 
 const LAST_UPDATED = 'July 31, 2026';
 
-const TermsOfUse = () => {
-    const { isDark } = useThemeMode();
-    const navigate = useNavigate();
-
-    const accent = isDark ? '#d4a853' : '#1a5a7a';
-    const subtle = isDark ? 'rgba(160, 196, 212, 0.8)' : 'rgba(26, 74, 110, 0.8)';
-    const bodyColor = isDark ? '#e8f4f8' : '#0a2540';
-
-    const bgGradient = isDark
-        ? 'linear-gradient(135deg, #061825 0%, #0a2540 50%, #0d3050 100%)'
-        : 'linear-gradient(135deg, #e8f4f8 0%, #d0e8f0 50%, #c0dce8 100%)';
-
-    const Section = ({ title, children }) => (
-        <Box sx={{ mb: 3 }}>
-            <Typography
-                variant="h6"
-                sx={{
-                    fontSize: { xs: '1.05rem', sm: '1.2rem' },
-                    fontWeight: 700,
-                    color: accent,
-                    mb: 1
-                }}
-            >
-                {title}
-            </Typography>
-            <Box sx={{
-                fontSize: { xs: '0.95rem', sm: '1rem' },
-                lineHeight: 1.7,
-                color: bodyColor,
-                '& p': { mb: 1.5 },
-                '& ul': { pl: 3, mb: 1.5 },
-                '& li': { mb: 0.75 },
-                '& a': { color: accent, fontWeight: 600 },
-            }}>
-                {children}
-            </Box>
+const Section = ({ title, children }) => (
+    <Box component="section" sx={{ mb: 4, '&:last-of-type': { mb: 0 } }}>
+        <Typography
+            variant="h4"
+            component="h2"
+            sx={{ color: 'text.primary', mb: 1.25 }}
+        >
+            {title}
+        </Typography>
+        <Box sx={{
+            fontSize: '0.84375rem',
+            lineHeight: 1.75,
+            color: 'text.primary',
+            maxWidth: '68ch',
+            '& p': { mt: 0, mb: 1.5 },
+            '& ul': { pl: 3, my: 1 },
+            '& li': { mb: 1 },
+        }}>
+            {children}
         </Box>
-    );
+    </Box>
+);
+
+const TermsOfUse = () => {
+    const { pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
 
     return (
-        <Box sx={{
-            flexGrow: 1,
-            width: '100%',
-            background: bgGradient,
-            overflow: 'auto',
-            p: { xs: 1.5, sm: 2, md: 3 }
-        }}>
-            <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-                <Paper
-                    elevation={0}
+        <>
+            <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
+
+            <Page maxWidth={820}>
+                <PageHeader title="Terms of Use" subtitle={`Effective date: ${LAST_UPDATED}`} />
+
+                <Panel
+                    component="article"
                     sx={{
-                        p: { xs: 2, sm: 3, md: 4 },
-                        borderRadius: 3,
-                        border: `2px solid ${isDark ? 'rgba(58, 154, 186, 0.2)' : 'rgba(26, 90, 122, 0.15)'}`,
-                        borderTop: `4px solid ${accent}`,
-                        background: isDark
-                            ? 'linear-gradient(180deg, #0d3050 0%, #0a2540 100%)'
-                            : 'linear-gradient(180deg, #ffffff 0%, #f0f8fa 100%)',
-                        boxShadow: '0 8px 24px rgba(10, 37, 64, 0.15)'
+                        p: { xs: 2.5, md: 5 },
+                        '& a': { color: 'primary.main' },
                     }}
                 >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Tooltip title="Back to trade calculator">
-                            <IconButton
-                                onClick={() => navigate('/')}
-                                size="small"
-                                sx={{
-                                    color: accent,
-                                    '&:hover': {
-                                        backgroundColor: isDark ? 'rgba(212, 168, 83, 0.15)' : 'rgba(26, 90, 122, 0.1)'
-                                    }
-                                }}
-                            >
-                                <ArrowBackIcon />
-                            </IconButton>
-                        </Tooltip>
-                        <Typography sx={{
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.1em',
-                            textTransform: 'uppercase',
-                            color: subtle
-                        }}>
-                            Legal
-                        </Typography>
-                    </Box>
-
-                    <Typography
-                        variant="h4"
-                        sx={{
-                            fontSize: { xs: '1.6rem', sm: '2rem', md: '2.2rem' },
-                            fontWeight: 800,
-                            letterSpacing: '-0.01em',
-                            background: isDark
-                                ? 'linear-gradient(135deg, #e5c078 0%, #d4a853 50%, #b8892e 100%)'
-                                : 'linear-gradient(135deg, #0d4560 0%, #1a5a7a 50%, #2a7a9a 100%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text',
-                            mb: 0.5
-                        }}
-                    >
-                        Terms of Use
-                    </Typography>
-
-                    <Typography sx={{
-                        fontSize: '0.85rem',
-                        color: subtle,
-                        mb: 3
-                    }}>
-                        Effective date: {LAST_UPDATED}
-                    </Typography>
-
-                    <Divider sx={{
-                        mb: 3,
-                        borderColor: isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)'
-                    }} />
-
                     <Section title="Agreement">
                         <p>
                             These Terms of Use (&quot;Terms&quot;) govern your access to and use of the
@@ -291,22 +207,15 @@ const TermsOfUse = () => {
                         </p>
                     </Section>
 
-                    <Divider sx={{
-                        my: 3,
-                        borderColor: isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)'
-                    }} />
+                    <Divider sx={{ my: 3 }} />
 
-                    <Typography sx={{
-                        fontSize: '0.8rem',
-                        color: subtle,
-                        fontStyle: 'italic'
-                    }}>
+                    <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', fontStyle: 'italic' }}>
                         Riftrades is a fan-made project and is not affiliated with Riot Games.
                         Riftbound and all related names are trademarks of their respective owners.
                     </Typography>
-                </Paper>
-            </Box>
-        </Box>
+                </Panel>
+            </Page>
+        </>
     );
 };
 

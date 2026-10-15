@@ -20,6 +20,7 @@ import {
     CheckCircleOutline as CheckCircleOutlineIcon,
     Add as AddIcon
 } from '@mui/icons-material';
+import { foilTagStyle } from '../../utils/foilStyle.js';
 import { useThemeMode } from '../../contexts/ThemeContext.jsx';
 import { usePriceType } from '../../contexts/PriceContext.jsx';
 import { useCardData } from '../../hooks/useCardData.jsx';
@@ -96,9 +97,8 @@ const FindFillerDialog = ({
         onAdded?.(card, fillSide);
     };
 
-    const textColor = isDark ? '#e8f4f8' : '#0a2540';
-    const mutedColor = isDark ? '#a0c4d4' : '#1a4a6e';
-    const paperBg = isDark ? '#0a2540' : '#e8f4f8';
+    const textColor = 'text.primary';
+    const mutedColor = 'text.secondary';
 
     return (
         <Dialog
@@ -109,7 +109,6 @@ const FindFillerDialog = ({
             scroll="paper"
             sx={{
                 '& .MuiDialog-paper': {
-                    backgroundColor: paperBg,
                     maxHeight: '80vh'
                 }
             }}
@@ -127,22 +126,21 @@ const FindFillerDialog = ({
                     sx={{
                         width: 40,
                         height: 40,
-                        borderRadius: 1.25,
+                        borderRadius: '12px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: isDark
-                            ? 'rgba(58, 154, 186, 0.25)'
-                            : 'rgba(26, 90, 122, 0.12)',
+                        bgcolor: 'action.selected',
                         flexShrink: 0
                     }}
                 >
-                    <BalanceIcon sx={{ color: isDark ? '#5abada' : '#1a5a7a' }} />
+                    <BalanceIcon sx={{ color: 'primary.main' }} />
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography
-                        variant="h6"
-                        sx={{ fontWeight: 800, color: textColor, lineHeight: 1.2 }}
+                        variant="h4"
+                        component="h2"
+                        sx={{ color: textColor, lineHeight: 1.2 }}
                     >
                         Find Trade Filler
                     </Typography>
@@ -174,7 +172,7 @@ const FindFillerDialog = ({
                         }}
                     >
                         <CheckCircleOutlineIcon
-                            sx={{ fontSize: 40, color: isDark ? '#5abada' : '#2e7d32' }}
+                            sx={{ fontSize: 40, color: 'success.main' }}
                         />
                         <Typography variant="body2" sx={{ color: textColor }}>
                             Nothing to fill — the trade is balanced.
@@ -228,9 +226,7 @@ const FindFillerDialog = ({
                                                     py: 1,
                                                     px: 2,
                                                     '&:hover': {
-                                                        backgroundColor: isDark
-                                                            ? 'rgba(58, 154, 186, 0.12)'
-                                                            : 'rgba(26, 90, 122, 0.06)'
+                                                        bgcolor: 'action.hover'
                                                     }
                                                 }}
                                             >
@@ -269,12 +265,10 @@ const FindFillerDialog = ({
                                                                         height: 18,
                                                                         fontSize: '0.55rem',
                                                                         fontWeight: 600,
-                                                                        backgroundColor: isDark
-                                                                            ? 'rgba(212, 168, 83, 0.25)'
-                                                                            : 'rgba(26, 90, 122, 0.12)',
-                                                                        color: isDark
-                                                                            ? '#e5c078'
-                                                                            : '#1a5a7a',
+                                                                        ...(foilTagStyle(cardType, isDark) || {
+                                                                            bgcolor: 'action.hover',
+                                                                            color: 'text.secondary',
+                                                                        }),
                                                                         '& .MuiChip-label': {
                                                                             px: 0.5
                                                                         },
@@ -299,9 +293,7 @@ const FindFillerDialog = ({
                                                                     component="span"
                                                                     variant="caption"
                                                                     sx={{
-                                                                        color: isDark
-                                                                            ? 'rgba(160, 196, 212, 0.65)'
-                                                                            : 'rgba(26, 74, 110, 0.55)',
+                                                                        color: 'text.secondary',
                                                                         lineHeight: 1.2
                                                                     }}
                                                                 >
@@ -334,7 +326,8 @@ const FindFillerDialog = ({
                                                         sx={{
                                                             fontSize: '0.8rem',
                                                             fontWeight: 700,
-                                                            color: isDark ? '#5abada' : '#1a5a7a'
+                                                            color: 'text.primary',
+                                                            fontVariantNumeric: 'tabular-nums'
                                                         }}
                                                     >
                                                         {formatPrice(match.price)}
@@ -342,7 +335,7 @@ const FindFillerDialog = ({
                                                     <AddIcon
                                                         sx={{
                                                             fontSize: 18,
-                                                            color: isDark ? '#5abada' : '#1a5a7a'
+                                                            color: 'primary.main'
                                                         }}
                                                     />
                                                 </Box>

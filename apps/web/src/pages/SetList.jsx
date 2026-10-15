@@ -1,28 +1,23 @@
 import { useMemo, useState } from 'react';
 import {
     Box,
-    Container,
-    Paper,
+    ButtonBase,
     Typography,
     TextField,
     InputAdornment,
-    List,
-    ListItem,
-    ListItemButton,
-    Chip,
     CircularProgress,
     Alert,
 } from '@mui/material';
 import {
     Search as SearchIcon,
-    Style as StyleIcon,
     ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 import Header from '../components/elements/Header.jsx';
+import { Page, PageHeader, SectionTitle } from '../components/layout/Page.jsx';
+import { tk } from '../theme/tokens.js';
 import { useSets } from '../hooks/useSets.js';
 import { useCardData } from '../hooks/useCardData.jsx';
-import { useThemeMode } from '../contexts/ThemeContext.jsx';
 
 const formatMoney = (value) => {
     const num = Number(value);
@@ -30,11 +25,117 @@ const formatMoney = (value) => {
     return `$${num.toFixed(2)}`;
 };
 
+// Set code from the collector number prefix ("OGN-001" -> "OGN").
+const setCodeFromNumber = (extNumber) => {
+    const match = /^([A-Za-z]{2,5})[-\s]/.exec(String(extNumber || ''));
+    return match ? match[1].toUpperCase() : null;
+};
+
+/**
+ * Set tile: the set code on a neutral plate, then the name and the numbers
+ * people scan for.
+ */
+const SetTile = ({ set, code }) => (
+    <ButtonBase
+        component={Link}
+        to={`/sets/${set.slug}`}
+        sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            textAlign: 'left',
+            minWidth: 0,
+            borderRadius: '14px',
+            border: 1,
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            overflow: 'hidden',
+            transition: 'border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease',
+            '&:hover': {
+                borderColor: 'text.disabled',
+                boxShadow: (t) => tk(t).shadowMd,
+            },
+            '&:hover .set-tile-arrow': { transform: 'translateX(2px)', color: 'text.primary' },
+            '&.Mui-focusVisible': { borderColor: 'primary.main' },
+        }}
+    >
+        <Box
+            sx={{
+                height: { xs: 68, sm: 84 },
+                display: 'grid',
+                placeItems: 'center',
+                px: 2.5,
+                bgcolor: 'surface.sunken',
+                borderBottom: 1,
+                borderColor: 'divider',
+            }}
+        >
+            <Typography
+                aria-hidden
+                sx={{
+                    fontFamily: (t) => t.typography.h1.fontFamily,
+                    fontWeight: 800,
+                    fontStretch: '120%',
+                    fontSize: '1.6rem',
+                    letterSpacing: '0.02em',
+                    color: 'text.disabled',
+                }}
+            >
+                {code || set.name.slice(0, 3).toUpperCase()}
+            </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.5 }}>
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
+                    <Typography
+                        variant="subtitle1"
+                        noWrap
+                        sx={{ color: 'text.primary', fontWeight: 650, lineHeight: 1.3, minWidth: 0 }}
+                    >
+                        {set.name}
+                    </Typography>
+                    {code ? (
+                        <Typography
+                            component="span"
+                            sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.75rem', flexShrink: 0 }}
+                        >
+                            {code}
+                        </Typography>
+                    ) : null}
+                </Box>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        columnGap: 1.5,
+                        rowGap: 0.25,
+                        mt: 0.5,
+                        color: 'text.secondary',
+                        fontSize: '0.75rem',
+                        fontVariantNumeric: 'tabular-nums',
+                    }}
+                >
+                    <span>{set.cardCount} cards</span>
+                    {set.topMarketPrice > 0 && (
+                        <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                            Top {formatMoney(set.topMarketPrice)}
+                        </Box>
+                    )}
+                </Box>
+            </Box>
+            <ChevronRightIcon
+                className="set-tile-arrow"
+                sx={{ color: 'text.disabled', flexShrink: 0, transition: 'transform 120ms ease, color 120ms ease' }}
+            />
+        </Box>
+    </ButtonBase>
+);
+
 const SetList = () => {
     const { sets, loading, error } = useSets();
-    const { metadata } = useCardData();
+    const { metadata, cards } = useCardData();
     const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
-    const { isDark } = useThemeMode();
     const [query, setQuery] = useState('');
 
     const filteredSets = useMemo(() => {
@@ -43,64 +144,37 @@ const SetList = () => {
         return sets.filter((s) => s.name.toLowerCase().includes(q));
     }, [sets, query]);
 
-    const bgGradient = isDark
-        ? 'linear-gradient(135deg, #061825 0%, #0a2540 50%, #0d3050 100%)'
-        : 'linear-gradient(135deg, #e8f4f8 0%, #d0e8f0 50%, #c0dce8 100%)';
-    const textColor = isDark ? '#e8f4f8' : '#0a2540';
-    const mutedColor = isDark ? '#a0c4d4' : '#1a4a6e';
-    const accent = isDark ? '#d4a853' : '#1a5a7a';
-    const paperBg = isDark ? 'rgba(13, 48, 80, 0.6)' : '#ffffff';
-    const paperBorder = isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)';
+    const setCodes = useMemo(() => {
+        const map = new Map();
+        for (const card of cards || []) {
+            if (!card._setName || map.has(card._setName)) continue;
+            const code = setCodeFromNumber(card.extNumber);
+            if (code) map.set(card._setName, code);
+        }
+        return map;
+    }, [cards]);
 
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100vh',
-                pb: '28px',
-                background: bgGradient,
-                backgroundAttachment: 'fixed',
-            }}
-        >
+        <>
             <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
 
-            <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
-                <Box sx={{ mb: 3 }}>
-                    <Typography
-                        variant="h4"
-                        sx={{
-                            fontWeight: 700,
-                            color: textColor,
-                            mb: 0.5,
-                            fontSize: { xs: '1.5rem', md: '2rem' },
-                        }}
-                    >
-                        Browse Sets
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: mutedColor }}>
-                        Pick a set to see its cards ranked by TCGplayer market price.
-                    </Typography>
-                </Box>
+            <Page>
+                <PageHeader
+                    title="Browse Sets"
+                    subtitle="Pick a set to see its cards ranked by TCGplayer market price."
+                />
 
                 <TextField
                     fullWidth
-                    placeholder="Search sets..."
+                    placeholder="Search sets…"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    sx={{
-                        mb: 2,
-                        '& .MuiOutlinedInput-root': {
-                            backgroundColor: paperBg,
-                            '& fieldset': { borderColor: paperBorder },
-                            '&:hover fieldset': { borderColor: accent },
-                        },
-                        '& input': { color: textColor },
-                    }}
+                    inputProps={{ 'aria-label': 'Search sets' }}
+                    sx={{ mb: 3, maxWidth: 640 }}
                     InputProps={{
                         startAdornment: (
                             <InputAdornment position="start">
-                                <SearchIcon sx={{ color: mutedColor }} />
+                                <SearchIcon sx={{ color: 'text.secondary' }} />
                             </InputAdornment>
                         ),
                     }}
@@ -114,109 +188,36 @@ const SetList = () => {
 
                 {loading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                        <CircularProgress sx={{ color: accent }} />
+                        <CircularProgress />
                     </Box>
+                ) : filteredSets.length === 0 ? (
+                    <Typography variant="body2" sx={{ color: 'text.secondary', py: 2 }}>
+                        {sets.length === 0 ? 'No sets available.' : 'No sets match your search.'}
+                    </Typography>
                 ) : (
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            backgroundColor: paperBg,
-                            border: `1px solid ${paperBorder}`,
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <List disablePadding>
-                            {filteredSets.length === 0 && (
-                                <ListItem>
-                                    <Typography variant="body2" sx={{ color: mutedColor, py: 2 }}>
-                                        No sets match your search.
-                                    </Typography>
-                                </ListItem>
-                            )}
-                            {filteredSets.map((set, idx) => {
-                                const isLast = idx === filteredSets.length - 1;
-                                return (
-                                    <ListItem
-                                        key={set.slug || set.name}
-                                        disablePadding
-                                        sx={{
-                                            borderBottom: isLast
-                                                ? 'none'
-                                                : `1px solid ${isDark ? 'rgba(212, 168, 83, 0.12)' : 'rgba(26, 90, 122, 0.08)'}`,
-                                        }}
-                                    >
-                                        <ListItemButton
-                                            component={Link}
-                                            to={`/sets/${set.slug}`}
-                                            sx={{
-                                                px: 2,
-                                                py: 1.5,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 2,
-                                                '&:hover': {
-                                                    backgroundColor: isDark
-                                                        ? 'rgba(212, 168, 83, 0.1)'
-                                                        : 'rgba(26, 90, 122, 0.06)',
-                                                },
-                                            }}
-                                        >
-                                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                                                <Typography
-                                                    variant="subtitle1"
-                                                    sx={{
-                                                        color: textColor,
-                                                        fontWeight: 600,
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                    }}
-                                                >
-                                                    {set.name}
-                                                </Typography>
-                                                <Box
-                                                    sx={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: 1.5,
-                                                        mt: 0.5,
-                                                        flexWrap: 'wrap',
-                                                    }}
-                                                >
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                        <StyleIcon sx={{ fontSize: 14, color: mutedColor }} />
-                                                        <Typography variant="caption" sx={{ color: mutedColor }}>
-                                                            {set.cardCount} cards
-                                                        </Typography>
-                                                    </Box>
-                                                    {set.topMarketPrice > 0 && (
-                                                        <Chip
-                                                            size="small"
-                                                            label={`Top ${formatMoney(set.topMarketPrice)}`}
-                                                            sx={{
-                                                                height: 20,
-                                                                fontSize: '0.7rem',
-                                                                backgroundColor: isDark
-                                                                    ? 'rgba(212, 168, 83, 0.2)'
-                                                                    : 'rgba(26, 90, 122, 0.1)',
-                                                                color: isDark ? '#e5c078' : '#1a5a7a',
-                                                                border: `1px solid ${paperBorder}`,
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Box>
-                                            </Box>
-                                            <ChevronRightIcon sx={{ color: mutedColor, flexShrink: 0 }} />
-                                        </ListItemButton>
-                                    </ListItem>
-                                );
-                            })}
-                        </List>
-                    </Paper>
+                    <Box component="section">
+                        <SectionTitle count={filteredSets.length}>
+                            {query.trim() ? 'Matching sets' : 'All sets'}
+                        </SectionTitle>
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: {
+                                    xs: '1fr',
+                                    sm: 'repeat(2, minmax(0, 1fr))',
+                                    lg: 'repeat(3, minmax(0, 1fr))',
+                                },
+                                gap: 1.5,
+                            }}
+                        >
+                            {filteredSets.map((set) => (
+                                <SetTile key={set.slug || set.name} set={set} code={setCodes.get(set.name)} />
+                            ))}
+                        </Box>
+                    </Box>
                 )}
-            </Container>
-        </Box>
+            </Page>
+        </>
     );
 };
 

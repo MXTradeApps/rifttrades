@@ -13,7 +13,7 @@ import {
     snapshotEntryFromBinder,
 } from '../../utils/binderValueSnapshot.js';
 
-const PriceRow = ({ label, amount, currency, unpricedCopies, isDark }) => (
+const PriceRow = ({ label, amount, currency, unpricedCopies }) => (
     <Box
         sx={{
             display: 'flex',
@@ -26,7 +26,7 @@ const PriceRow = ({ label, amount, currency, unpricedCopies, isDark }) => (
         <Typography
             sx={{
                 fontSize: '0.85rem',
-                color: isDark ? 'rgba(160, 196, 212, 0.75)' : 'rgba(26, 74, 110, 0.7)',
+                color: 'text.secondary',
             }}
         >
             {label}
@@ -37,7 +37,7 @@ const PriceRow = ({ label, amount, currency, unpricedCopies, isDark }) => (
                 fontSize: '0.85rem',
                 fontWeight: 700,
                 fontVariantNumeric: 'tabular-nums',
-                color: isDark ? '#e8f4f8' : '#0a2540',
+                color: 'text.primary',
             }}
         >
             {formatCatalogPrice(amount, currency)}
@@ -45,7 +45,7 @@ const PriceRow = ({ label, amount, currency, unpricedCopies, isDark }) => (
     </Box>
 );
 
-const Group = ({ title, children, isDark }) => (
+const Group = ({ title, children }) => (
     <Box sx={{ mb: 2 }}>
         <Typography
             sx={{
@@ -53,7 +53,7 @@ const Group = ({ title, children, isDark }) => (
                 fontSize: '0.75rem',
                 letterSpacing: 0.4,
                 textTransform: 'uppercase',
-                color: isDark ? '#e5c078' : '#1a5a7a',
+                color: 'text.secondary',
                 mb: 0.5,
             }}
         >
@@ -73,7 +73,6 @@ const BinderValueDialog = ({
     headline,
     entries = [],
     catalogById,
-    isDark = false,
 }) => {
     const snapshot = useMemo(() => {
         const rows = (entries || []).map((entry) =>
@@ -107,14 +106,14 @@ const BinderValueDialog = ({
                 <Typography
                     id="binder-value-title"
                     variant="h6"
-                    sx={{ fontWeight: 800, pr: 5, color: isDark ? '#e8f4f8' : '#0a2540' }}
+                    sx={{ fontWeight: 800, pr: 5, color: 'text.primary' }}
                 >
                     Binder value
                 </Typography>
                 <Typography
                     sx={{
                         fontSize: '0.8rem',
-                        color: isDark ? 'rgba(160, 196, 212, 0.75)' : 'rgba(26, 74, 110, 0.7)',
+                        color: 'text.secondary',
                         mb: 0.5,
                     }}
                 >
@@ -125,58 +124,58 @@ const BinderValueDialog = ({
                     sx={{
                         fontWeight: 800,
                         fontSize: '1.6rem',
-                        color: '#2e7d32',
+                        color: 'success.main',
                         mb: 2,
                     }}
                 >
                     {headline}
                 </Typography>
 
-                <Group title="TCGplayer (USD)" isDark={isDark}>
+                <Group title="TCGplayer (USD)">
                     <PriceRow
                         label="Market"
                         amount={snapshot.tcgMarket.amount}
                         currency="USD"
                         unpricedCopies={snapshot.tcgMarket.unpricedCopies}
-                        isDark={isDark}
+                       
                     />
                     <PriceRow
                         label="Low"
                         amount={snapshot.tcgLow.amount}
                         currency="USD"
                         unpricedCopies={snapshot.tcgLow.unpricedCopies}
-                        isDark={isDark}
+                       
                     />
                 </Group>
-                <Group title="CardMarket (EUR)" isDark={isDark}>
+                <Group title="CardMarket (EUR)">
                     <PriceRow
                         label="Trend"
                         amount={snapshot.cmTrend.amount}
                         currency="EUR"
                         unpricedCopies={snapshot.cmTrend.unpricedCopies}
-                        isDark={isDark}
+                       
                     />
                     <PriceRow
                         label="Low"
                         amount={snapshot.cmLow.amount}
                         currency="EUR"
                         unpricedCopies={snapshot.cmLow.unpricedCopies}
-                        isDark={isDark}
+                       
                     />
                 </Group>
 
-                <Group title="Stock" isDark={isDark}>
-                    <Typography sx={{ fontSize: '0.85rem', color: isDark ? '#e8f4f8' : '#0a2540' }}>
+                <Group title="Stock">
+                    <Typography sx={{ fontSize: '0.85rem', color: 'text.primary' }}>
                         {snapshot.copies} copies · {snapshot.distinctPrintings} Printings
                     </Typography>
-                    <Typography sx={{ fontSize: '0.85rem', color: isDark ? '#e8f4f8' : '#0a2540' }}>
+                    <Typography sx={{ fontSize: '0.85rem', color: 'text.primary' }}>
                         {snapshot.foilCopies} foil · {snapshot.regularCopies} Regular
                     </Typography>
                     {snapshot.tcgUnpricedCopies > 0 && (
                         <Typography
                             sx={{
                                 fontSize: '0.8rem',
-                                color: isDark ? 'rgba(160, 196, 212, 0.75)' : 'rgba(26, 74, 110, 0.7)',
+                                color: 'text.secondary',
                             }}
                         >
                             {snapshot.tcgUnpricedCopies} unpriced on TCGplayer
@@ -186,7 +185,7 @@ const BinderValueDialog = ({
                         <Typography
                             sx={{
                                 fontSize: '0.8rem',
-                                color: isDark ? 'rgba(160, 196, 212, 0.75)' : 'rgba(26, 74, 110, 0.7)',
+                                color: 'text.secondary',
                             }}
                         >
                             {snapshot.cmUnpricedCopies} unpriced on CardMarket
@@ -195,7 +194,7 @@ const BinderValueDialog = ({
                 </Group>
 
                 {snapshot.topPrintings.length > 0 && (
-                    <Group title="Top Printings" isDark={isDark}>
+                    <Group title="Top Printings">
                         {snapshot.topPrintings.map((row) => (
                             <Box
                                 key={row.printingId}
@@ -211,7 +210,7 @@ const BinderValueDialog = ({
                                         sx={{
                                             fontWeight: 700,
                                             fontSize: '0.85rem',
-                                            color: isDark ? '#e8f4f8' : '#0a2540',
+                                            color: 'text.primary',
                                         }}
                                     >
                                         {row.name}
@@ -219,9 +218,7 @@ const BinderValueDialog = ({
                                     <Typography
                                         sx={{
                                             fontSize: '0.75rem',
-                                            color: isDark
-                                                ? 'rgba(160, 196, 212, 0.75)'
-                                                : 'rgba(26, 74, 110, 0.7)',
+                                            color: 'text.secondary',
                                         }}
                                     >
                                         {row.finish} · ×{row.quantity}
@@ -232,7 +229,7 @@ const BinderValueDialog = ({
                                         fontWeight: 700,
                                         fontSize: '0.85rem',
                                         fontVariantNumeric: 'tabular-nums',
-                                        color: isDark ? '#e8f4f8' : '#0a2540',
+                                        color: 'text.primary',
                                     }}
                                 >
                                     {formatCatalogPrice(row.contribution, 'USD')}

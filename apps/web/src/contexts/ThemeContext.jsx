@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { createTheme } from '@mui/material/styles';
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import { createTheme, alpha } from '@mui/material/styles';
+import { brand, fonts, tokens } from '../theme/tokens.js';
 
 const ThemeContext = createContext();
 
@@ -11,213 +12,446 @@ export const useThemeMode = () => {
     return context;
 };
 
-// Riftbound color palette
-// Primary: Deep teal/navy blue
-// Accent: Gold/Orange
-// Secondary: Lighter teal/cyan
+const buildTheme = (mode) => {
+    const t = tokens[mode];
+    const isDark = mode === 'dark';
 
-// Light theme
-const lightTheme = createTheme({
-    palette: {
-        mode: 'light',
-        primary: {
-            main: '#1a5a7a',      // Deep teal
-            light: '#2a7a9a',
-            dark: '#0d4560',
-            contrastText: '#ffffff',
+    // Soft, low-contrast elevation. MUI wants 25 entries; anything past the
+    // first few maps to the large overlay shadow.
+    const shadows = ['none', t.shadowSm, t.shadowSm, t.shadowMd, t.shadowMd, t.shadowMd];
+    while (shadows.length < 25) shadows.push(t.shadowLg);
+
+    const focusRing = `0 0 0 3px ${alpha(t.accent, isDark ? 0.35 : 0.22)}`;
+
+    return createTheme({
+        tokens: t,
+        palette: {
+            mode,
+            primary: {
+                main: t.accent,
+                light: isDark ? brand.tealGlow : brand.tealBright,
+                dark: isDark ? brand.tealBright : brand.tealDeep,
+                contrastText: t.onAccent,
+            },
+            secondary: {
+                main: t.tan,
+                light: brand.goldBright,
+                dark: brand.goldDeep,
+                contrastText: brand.navy,
+            },
+            success: { main: t.gain, contrastText: isDark ? '#0E1A13' : '#FFFFFF' },
+            error: { main: t.loss, contrastText: '#FFFFFF' },
+            warning: { main: t.warn, contrastText: isDark ? '#1A1206' : '#FFFFFF' },
+            info: { main: t.info, contrastText: '#FFFFFF' },
+            background: {
+                default: t.bg,
+                paper: t.surface,
+            },
+            surface: {
+                main: t.surface,
+                sunken: t.sunken,
+                hover: t.hover,
+            },
+            text: {
+                primary: t.text,
+                secondary: t.textMuted,
+                disabled: t.textFaint,
+            },
+            divider: t.border,
+            action: {
+                hover: t.hover,
+                selected: t.selected,
+                focus: alpha(t.accent, 0.16),
+            },
         },
-        secondary: {
-            main: '#d4a853',      // Gold
-            light: '#e5c078',
-            dark: '#b8892e',
-            contrastText: '#0a2540',
+        typography: {
+            fontFamily: fonts.body,
+            fontSize: 14,
+            h1: { fontFamily: fonts.display, fontWeight: 750, fontStretch: '112%', fontSize: '2.25rem', lineHeight: 1.1, letterSpacing: '-0.02em' },
+            h2: { fontFamily: fonts.display, fontWeight: 750, fontStretch: '112%', fontSize: '1.75rem', lineHeight: 1.15, letterSpacing: '-0.015em' },
+            h3: { fontFamily: fonts.display, fontWeight: 700, fontStretch: '110%', fontSize: '1.375rem', lineHeight: 1.2, letterSpacing: '-0.01em' },
+            h4: { fontFamily: fonts.display, fontWeight: 700, fontStretch: '108%', fontSize: '1.25rem', lineHeight: 1.25, letterSpacing: '-0.01em' },
+            h5: { fontFamily: fonts.display, fontWeight: 700, fontStretch: '106%', fontSize: '1.0625rem', lineHeight: 1.3 },
+            h6: { fontFamily: fonts.display, fontWeight: 650, fontSize: '0.9375rem', lineHeight: 1.35 },
+            subtitle1: { fontWeight: 600, fontSize: '0.9375rem' },
+            subtitle2: { fontWeight: 600, fontSize: '0.8125rem' },
+            body1: { fontSize: '0.9375rem', lineHeight: 1.55 },
+            body2: { fontSize: '0.84375rem', lineHeight: 1.5 },
+            caption: { fontSize: '0.75rem', lineHeight: 1.4 },
+            overline: { fontSize: '0.6875rem', fontWeight: 650, letterSpacing: '0.08em', lineHeight: 1.6 },
+            button: { textTransform: 'none', fontWeight: 600, letterSpacing: 0 },
         },
-        success: {
-            main: '#10b981',
-            light: '#34d399',
-            dark: '#059669',
+        shape: {
+            borderRadius: 10,
         },
-        error: {
-            main: '#ef4444',
-            light: '#f87171',
-            dark: '#dc2626',
-        },
-        warning: {
-            main: '#d4a853',      // Gold for warning too
-            light: '#e5c078',
-            dark: '#b8892e',
-        },
-        info: {
-            main: '#2a7a9a',
-            light: '#4a9aba',
-            dark: '#1a5a7a',
-        },
-        background: {
-            default: '#e8f4f8',   // Light teal tint
-            paper: '#ffffff',
-        },
-        text: {
-            primary: '#0a2540',
-            secondary: '#1a4a6e',
-        },
-    },
-    typography: {
-        fontFamily: '"Outfit", "Poppins", "Roboto", "Helvetica", "Arial", sans-serif',
-        button: {
-            textTransform: 'none',
-            fontWeight: 600,
-        },
-    },
-    shape: {
-        borderRadius: 12,
-    },
-    components: {
-        MuiButton: {
-            styleOverrides: {
-                root: {
-                    borderRadius: 8,
-                    padding: '10px 24px',
-                    boxShadow: 'none',
-                },
-                contained: {
-                    background: 'linear-gradient(135deg, #1a5a7a 0%, #2a7a9a 100%)',
-                    '&:hover': {
-                        background: 'linear-gradient(135deg, #0d4560 0%, #1a5a7a 100%)',
+        shadows,
+        components: {
+            MuiCssBaseline: {
+                styleOverrides: {
+                    body: {
+                        backgroundColor: t.bg,
+                        color: t.text,
+                        fontFeatureSettings: '"ss01" on',
                     },
                 },
             },
-        },
-        MuiChip: {
-            styleOverrides: {
-                root: {
-                    fontWeight: 600,
-                    borderRadius: 8,
-                },
-                colorPrimary: {
-                    background: 'linear-gradient(135deg, #1a5a7a 0%, #2a7a9a 100%)',
-                },
-                colorSuccess: {
-                    background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+            MuiPaper: {
+                defaultProps: { elevation: 0 },
+                styleOverrides: {
+                    root: { backgroundImage: 'none' },
+                    rounded: { borderRadius: 14 },
+                    outlined: { borderColor: t.border },
                 },
             },
-        },
-    },
-});
-
-// Dark theme - matches Riftbound's deep teal/navy aesthetic
-const darkTheme = createTheme({
-    palette: {
-        mode: 'dark',
-        primary: {
-            main: '#3a9aba',      // Lighter teal for visibility
-            light: '#5abada',
-            dark: '#2a7a9a',
-            contrastText: '#0a2540',
-        },
-        secondary: {
-            main: '#e5c078',      // Gold
-            light: '#f0d498',
-            dark: '#d4a853',
-            contrastText: '#0a2540',
-        },
-        success: {
-            main: '#34d399',
-            light: '#6ee7b7',
-            dark: '#10b981',
-        },
-        error: {
-            main: '#f87171',
-            light: '#fca5a5',
-            dark: '#ef4444',
-        },
-        warning: {
-            main: '#e5c078',
-            light: '#f0d498',
-            dark: '#d4a853',
-        },
-        info: {
-            main: '#5abada',
-            light: '#7acafa',
-            dark: '#3a9aba',
-        },
-        background: {
-            default: '#0a2540',   // Deep navy/teal from Riftbound
-            paper: '#0d3050',
-        },
-        text: {
-            primary: '#e8f4f8',
-            secondary: '#a0c4d4',
-        },
-    },
-    typography: {
-        fontFamily: '"Outfit", "Poppins", "Roboto", "Helvetica", "Arial", sans-serif',
-        button: {
-            textTransform: 'none',
-            fontWeight: 600,
-        },
-    },
-    shape: {
-        borderRadius: 12,
-    },
-    components: {
-        MuiButton: {
-            styleOverrides: {
-                root: {
-                    borderRadius: 8,
-                    padding: '10px 24px',
-                    boxShadow: 'none',
+            MuiCard: {
+                defaultProps: { variant: 'outlined' },
+                styleOverrides: {
+                    root: { borderRadius: 14, borderColor: t.border, boxShadow: t.shadowSm },
                 },
-                contained: {
-                    background: 'linear-gradient(135deg, #1a5a7a 0%, #3a9aba 100%)',
-                    '&:hover': {
-                        background: 'linear-gradient(135deg, #2a7a9a 0%, #5abada 100%)',
+            },
+            MuiButtonBase: {
+                defaultProps: { disableRipple: false },
+            },
+            MuiButton: {
+                defaultProps: { disableElevation: true },
+                styleOverrides: {
+                    root: {
+                        borderRadius: 10,
+                        fontWeight: 600,
+                        transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease',
+                        '&.Mui-focusVisible': { boxShadow: focusRing },
+                    },
+                    sizeSmall: { minHeight: 32, padding: '4px 12px', fontSize: '0.8125rem' },
+                    sizeMedium: { minHeight: 40, padding: '8px 16px' },
+                    sizeLarge: { minHeight: 48, padding: '10px 22px', fontSize: '0.9375rem' },
+                    containedPrimary: {
+                        '&:hover': { backgroundColor: t.accentHover },
+                    },
+                    outlined: {
+                        borderColor: t.borderStrong,
+                        '&:hover': { borderColor: t.textFaint, backgroundColor: t.hover },
+                    },
+                    outlinedPrimary: {
+                        borderColor: alpha(t.accent, 0.45),
+                        '&:hover': { borderColor: t.accent, backgroundColor: t.accentSoft },
+                    },
+                    text: {
+                        '&:hover': { backgroundColor: t.hover },
                     },
                 },
             },
-        },
-        MuiChip: {
-            styleOverrides: {
-                root: {
-                    fontWeight: 600,
-                    borderRadius: 8,
+            MuiIconButton: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 10,
+                        '&.Mui-focusVisible': { boxShadow: focusRing },
+                    },
                 },
-                colorPrimary: {
-                    background: 'linear-gradient(135deg, #1a5a7a 0%, #3a9aba 100%)',
+            },
+            MuiChip: {
+                styleOverrides: {
+                    root: {
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        fontVariantNumeric: 'tabular-nums',
+                    },
+                    filled: {
+                        '&.MuiChip-colorPrimary': { backgroundColor: t.accentSoft, color: t.accentText },
+                        '&.MuiChip-colorSuccess': { backgroundColor: alpha(t.gain, isDark ? 0.16 : 0.12), color: t.gain },
+                        '&.MuiChip-colorError': { backgroundColor: alpha(t.loss, isDark ? 0.16 : 0.12), color: t.loss },
+                        '&.MuiChip-colorWarning': { backgroundColor: alpha(t.warn, isDark ? 0.16 : 0.12), color: t.warn },
+                        '&.MuiChip-colorInfo': { backgroundColor: alpha(t.info, isDark ? 0.16 : 0.12), color: t.info },
+                        '&.MuiChip-colorSecondary': { backgroundColor: alpha(t.tan, isDark ? 0.16 : 0.14), color: isDark ? t.tan : '#6B4C00' },
+                    },
+                    outlined: {
+                        borderColor: t.borderStrong,
+                    },
                 },
-                colorSuccess: {
-                    background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+            },
+            MuiOutlinedInput: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 10,
+                        backgroundColor: t.sunken,
+                        transition: 'box-shadow 120ms ease, background-color 120ms ease',
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'transparent' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: t.borderStrong },
+                        '&.Mui-focused': { backgroundColor: t.surface, boxShadow: focusRing },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: t.accent, borderWidth: 1 },
+                        '&.Mui-disabled': { opacity: 0.6 },
+                    },
+                },
+            },
+            // Labels sit above the filled input instead of notching its border.
+            MuiTextField: {
+                defaultProps: { InputLabelProps: { shrink: true } },
+                styleOverrides: {
+                    root: {
+                        '&:has(> .MuiInputLabel-root)': { marginTop: '26px !important' },
+                        '& .MuiOutlinedInput-notchedOutline legend': { maxWidth: '0 !important' },
+                    },
+                },
+            },
+            MuiInputLabel: {
+                styleOverrides: {
+                    root: { color: t.textMuted },
+                    shrink: {
+                        '&.MuiInputLabel-outlined': {
+                            transform: 'translate(2px, -22px) scale(0.86)',
+                            fontWeight: 600,
+                            color: t.textMuted,
+                        },
+                        '&.Mui-focused': { color: t.text },
+                    },
+                },
+            },
+            MuiAutocomplete: {
+                styleOverrides: {
+                    paper: {
+                        borderRadius: 14,
+                        border: `1px solid ${t.border}`,
+                        boxShadow: t.shadowLg,
+                        marginTop: 6,
+                    },
+                    listbox: { padding: 6 },
+                    option: {
+                        borderRadius: 8,
+                        '&.Mui-focused': { backgroundColor: `${t.hover} !important` },
+                    },
+                },
+            },
+            MuiDialog: {
+                styleOverrides: {
+                    paper: {
+                        borderRadius: 20,
+                        border: `1px solid ${t.border}`,
+                        boxShadow: t.shadowLg,
+                    },
+                },
+            },
+            MuiBackdrop: {
+                styleOverrides: {
+                    root: {
+                        '&:not(.MuiBackdrop-invisible)': {
+                            backgroundColor: t.overlay,
+                            backdropFilter: 'blur(4px)',
+                        },
+                    },
+                },
+            },
+            MuiDialogTitle: {
+                styleOverrides: {
+                    root: {
+                        fontFamily: fonts.display,
+                        fontWeight: 700,
+                        fontStretch: '108%',
+                        fontSize: '1.25rem',
+                        letterSpacing: '-0.01em',
+                        padding: '20px 24px 8px',
+                    },
+                },
+            },
+            MuiDialogActions: {
+                styleOverrides: {
+                    root: { padding: '12px 24px 20px', gap: 8 },
+                },
+            },
+            MuiTooltip: {
+                defaultProps: { arrow: false, enterDelay: 300 },
+                styleOverrides: {
+                    tooltip: {
+                        backgroundColor: isDark ? tokens.dark.text : tokens.light.text,
+                        color: isDark ? tokens.light.text : tokens.light.bg,
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                    },
+                },
+            },
+            MuiPopover: {
+                styleOverrides: {
+                    paper: {
+                        borderRadius: 14,
+                        border: `1px solid ${t.border}`,
+                        boxShadow: t.shadowLg,
+                    },
+                },
+            },
+            MuiMenu: {
+                styleOverrides: {
+                    list: { padding: 6 },
+                },
+            },
+            MuiMenuItem: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 8,
+                        minHeight: 38,
+                        fontSize: '0.875rem',
+                    },
+                },
+            },
+            MuiListItemButton: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 10,
+                        '&.Mui-selected': { backgroundColor: t.selected },
+                        '&.Mui-selected:hover': { backgroundColor: t.selected },
+                    },
+                },
+            },
+            MuiAlert: {
+                styleOverrides: {
+                    root: { borderRadius: 12, alignItems: 'center' },
+                    standard: { border: `1px solid ${t.border}` },
+                },
+            },
+            MuiSnackbar: {
+                styleOverrides: {
+                    // Keep toasts above the mobile tab bar.
+                    anchorOriginBottomCenter: {
+                        '@media (max-width: 899.95px)': {
+                            bottom: 'calc(var(--shell-bottom) + 12px)',
+                        },
+                    },
+                },
+            },
+            MuiSnackbarContent: {
+                styleOverrides: {
+                    root: { borderRadius: 12 },
+                },
+            },
+            MuiTabs: {
+                styleOverrides: {
+                    root: { minHeight: 44 },
+                    indicator: { height: 2, borderRadius: 2 },
+                },
+            },
+            MuiTab: {
+                styleOverrides: {
+                    root: {
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        minHeight: 44,
+                        fontSize: '0.875rem',
+                    },
+                },
+            },
+            MuiToggleButtonGroup: {
+                styleOverrides: {
+                    root: {
+                        backgroundColor: t.sunken,
+                        borderRadius: 10,
+                        padding: 3,
+                        gap: 2,
+                    },
+                    grouped: {
+                        border: 0,
+                        borderRadius: '8px !important',
+                        margin: 0,
+                    },
+                },
+            },
+            MuiToggleButton: {
+                styleOverrides: {
+                    root: {
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        border: 0,
+                        color: t.textMuted,
+                        '&.Mui-selected': {
+                            backgroundColor: t.surface,
+                            color: t.text,
+                            boxShadow: t.shadowSm,
+                        },
+                        '&.Mui-selected:hover': { backgroundColor: t.surface },
+                    },
+                },
+            },
+            MuiDivider: {
+                styleOverrides: {
+                    root: { borderColor: t.border },
+                },
+            },
+            MuiTableCell: {
+                styleOverrides: {
+                    root: { borderColor: t.border },
+                    head: { color: t.textMuted, fontWeight: 600, fontSize: '0.75rem' },
+                },
+            },
+            MuiLinearProgress: {
+                styleOverrides: {
+                    root: { borderRadius: 4 },
+                },
+            },
+            MuiSkeleton: {
+                styleOverrides: {
+                    root: { backgroundColor: t.hover },
+                },
+            },
+            MuiAvatar: {
+                styleOverrides: {
+                    root: { fontWeight: 600 },
+                },
+            },
+            MuiDrawer: {
+                styleOverrides: {
+                    paper: { backgroundImage: 'none', borderColor: t.border },
+                },
+            },
+            MuiSwitch: {
+                styleOverrides: {
+                    track: { borderRadius: 10 },
                 },
             },
         },
-        MuiPaper: {
-            styleOverrides: {
-                root: {
-                    backgroundImage: 'none',
-                },
-            },
-        },
-    },
-});
+    });
+};
+
+const lightTheme = buildTheme('light');
+const darkTheme = buildTheme('dark');
+
+const THEME_STORAGE_KEY = 'riftrades-theme-mode';
+
+const readSavedMode = () => {
+    try {
+        return localStorage.getItem(THEME_STORAGE_KEY);
+    } catch {
+        return null;
+    }
+};
+
+// No saved preference: follow the system setting.
+const systemMode = () => {
+    if (typeof window !== 'undefined' && window.matchMedia
+        && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+    }
+    return 'light';
+};
 
 export const ThemeModeProvider = ({ children }) => {
-    // Check for saved preference or system preference
-    const getInitialMode = () => {
-        const saved = localStorage.getItem('riftrades-theme-mode');
-        if (saved) {
-            return saved;
-        }
-        // Check system preference
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            return 'dark';
-        }
-        return 'light';
-    };
+    // Saved preference wins; otherwise follow the system preference.
+    const [mode, setMode] = useState(() => readSavedMode() || systemMode());
 
-    const [mode, setMode] = useState(getInitialMode);
-
-    // Save preference to localStorage
     useEffect(() => {
-        localStorage.setItem('riftrades-theme-mode', mode);
+        try {
+            localStorage.setItem(THEME_STORAGE_KEY, mode);
+        } catch {
+            // Storage blocked (private mode); the toggle still works for this visit.
+        }
+    }, [mode]);
+
+    // Mirror the mode and tokens onto <html> so plain CSS (index.css,
+    // scrollbars, selection) follows the same palette as MUI.
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        root.dataset.theme = mode;
+        root.style.colorScheme = mode;
+        Object.entries(tokens[mode]).forEach(([name, value]) => {
+            root.style.setProperty(`--c-${name}`, value);
+        });
     }, [mode]);
 
     const toggleMode = () => {

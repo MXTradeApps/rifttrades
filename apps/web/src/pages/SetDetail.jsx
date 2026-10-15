@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     Box,
-    Container,
-    Paper,
     Typography,
     Button,
     List,
     ListItem,
-    Chip,
     CircularProgress,
     Alert,
     TextField,
@@ -23,11 +20,12 @@ import {
     ArrowBack as ArrowBackIcon,
     Search as SearchIcon,
     Style as StyleIcon,
-    AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material';
 import { Link, useParams } from 'react-router-dom';
 import Header from '../components/elements/Header.jsx';
+import { Page, Panel } from '../components/layout/Page.jsx';
 import { CardThumbnail } from '../components/ui/CardImagePreview.jsx';
+import FoilTag from '../components/ui/FoilTag.jsx';
 import { useSets } from '../hooks/useSets.js';
 import { useCardData } from '../hooks/useCardData.jsx';
 import { useThemeMode } from '../contexts/ThemeContext.jsx';
@@ -98,7 +96,7 @@ const annotateCards = (cards) =>
         return { ...card, _baseName: baseName, _artVariant: artVariant };
     });
 
-const FilterToggle = ({ label, count, singular, plural, checked, onChange, accent, mutedColor, textColor }) => (
+const FilterToggle = ({ label, count, singular, plural, checked, onChange }) => (
     <Box
         sx={{
             display: 'flex',
@@ -114,22 +112,16 @@ const FilterToggle = ({ label, count, singular, plural, checked, onChange, accen
                     checked={checked}
                     onChange={(e) => onChange(e.target.checked)}
                     size="small"
-                    sx={{
-                        '& .MuiSwitch-switchBase.Mui-checked': { color: accent },
-                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: accent,
-                        },
-                    }}
                 />
             }
             label={
-                <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: textColor }}>
+                <Typography sx={{ fontSize: '0.84375rem', fontWeight: 600, color: 'text.primary' }}>
                     {label}
                 </Typography>
             }
-            sx={{ m: 0 }}
+            sx={{ m: 0, gap: 0.5 }}
         />
-        <Typography sx={{ fontSize: '0.75rem', color: mutedColor, fontStyle: 'italic' }}>
+        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
             {checked
                 ? `${count} ${count === 1 ? singular : plural} hidden`
                 : `${count} ${count === 1 ? singular : plural} included`}
@@ -137,36 +129,55 @@ const FilterToggle = ({ label, count, singular, plural, checked, onChange, accen
     </Box>
 );
 
-const PriceCell = ({ label, value, isDark, accent = false }) => (
-    <Box sx={{ textAlign: 'center', minWidth: { xs: 52, sm: 64 } }}>
-        <Typography
-            variant="caption"
+const PRICE_COLUMNS = [
+    { key: 'marketPrice', label: 'Market' },
+    { key: 'lowPrice', label: 'Low' },
+    { key: 'highPrice', label: 'High' },
+];
+
+// Rank · art · name/meta · Market · Low · High. Phones fold Low and High under
+// Market so the row keeps one line of name.
+const ROW_GRID = {
+    display: 'grid',
+    gridTemplateColumns: {
+        xs: '22px auto minmax(0, 1fr) auto',
+        sm: '28px auto minmax(0, 1fr) 84px 72px 72px',
+    },
+    alignItems: 'center',
+    columnGap: { xs: 1.25, sm: 1.75 },
+};
+
+// Soft tinted tags for Riftbound's special printings, matching FoilTag.
+const SPECIAL_TAGS = {
+    signature: { label: 'Signature', light: ['#F1E8FD', '#6B21A8'], dark: ['rgba(192, 132, 252, 0.16)', '#D8B4FE'] },
+    overnumbered: { label: 'Overnumbered', light: ['#FDEBDD', '#9A3412'], dark: ['rgba(251, 146, 60, 0.16)', '#FDBA74'] },
+    showcase: { label: 'Showcase', light: ['#FCE7F3', '#9D174D'], dark: ['rgba(244, 114, 182, 0.16)', '#F9A8D4'] },
+};
+
+const SpecialTag = ({ kind, isDark }) => {
+    const tag = SPECIAL_TAGS[kind];
+    const [bg, fg] = isDark ? tag.dark : tag.light;
+    return (
+        <Box
+            component="span"
             sx={{
-                display: 'block',
-                color: isDark ? 'rgba(160, 196, 212, 0.7)' : 'rgba(26, 74, 110, 0.7)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                height: 18,
+                px: 0.75,
+                borderRadius: '6px',
                 fontSize: '0.65rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                fontWeight: 600,
+                fontWeight: 650,
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
+                bgcolor: bg,
+                color: fg,
             }}
         >
-            {label}
-        </Typography>
-        <Typography
-            variant="body2"
-            sx={{
-                color: accent
-                    ? (isDark ? '#d4a853' : '#1a5a7a')
-                    : (isDark ? '#e8f4f8' : '#0a2540'),
-                fontWeight: accent ? 700 : 500,
-                fontSize: accent ? '0.95rem' : '0.85rem',
-                fontVariantNumeric: 'tabular-nums',
-            }}
-        >
-            {formatMoney(value)}
-        </Typography>
-    </Box>
-);
+            {tag.label}
+        </Box>
+    );
+};
 
 const SetDetail = () => {
     const { setId } = useParams();
@@ -244,52 +255,29 @@ const SetDetail = () => {
         return getSortedCards(filtered, sortMode);
     }, [annotated, query, sortMode, hideSignatures, hideOvernumbered]);
 
-    const bgGradient = isDark
-        ? 'linear-gradient(135deg, #061825 0%, #0a2540 50%, #0d3050 100%)'
-        : 'linear-gradient(135deg, #e8f4f8 0%, #d0e8f0 50%, #c0dce8 100%)';
-    const textColor = isDark ? '#e8f4f8' : '#0a2540';
-    const mutedColor = isDark ? '#a0c4d4' : '#1a4a6e';
-    const accent = isDark ? '#d4a853' : '#1a5a7a';
-    const paperBg = isDark ? 'rgba(13, 48, 80, 0.6)' : '#ffffff';
-    const paperBorder = isDark ? 'rgba(212, 168, 83, 0.2)' : 'rgba(26, 90, 122, 0.15)';
-
     const openCard = (card) => {
         if (card?._uniqueId) openDetail(card);
     };
 
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100vh',
-                pb: '28px',
-                background: bgGradient,
-                backgroundAttachment: 'fixed',
-            }}
-        >
+        <>
             <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
 
-            <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
+            <Page maxWidth={1080}>
                 <Button
                     component={Link}
                     to="/sets"
-                    startIcon={<ArrowBackIcon />}
-                    sx={{
-                        mb: 2,
-                        color: accent,
-                        background: 'transparent',
-                        '&:hover': {
-                            background: isDark ? 'rgba(212, 168, 83, 0.15)' : 'rgba(26, 90, 122, 0.08)',
-                        },
-                    }}
+                    size="small"
+                    color="inherit"
+                    startIcon={<ArrowBackIcon sx={{ fontSize: '1rem !important' }} />}
+                    sx={{ mb: 2, ml: -1, color: 'text.secondary', '&:hover': { color: 'text.primary' } }}
                 >
                     All sets
                 </Button>
 
                 {loading && (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                        <CircularProgress sx={{ color: accent }} />
+                        <CircularProgress />
                     </Box>
                 )}
 
@@ -303,41 +291,40 @@ const SetDetail = () => {
 
                 {!loading && set && (
                     <>
-                        <Box sx={{ mb: 2 }}>
+                        <Box sx={{ mb: 3 }}>
                             <Typography
-                                variant="h4"
-                                sx={{
-                                    fontWeight: 700,
-                                    color: textColor,
-                                    fontSize: { xs: '1.5rem', md: '2rem' },
-                                }}
+                                variant="h1"
+                                sx={{ fontSize: { xs: '1.6rem', md: '2.25rem' }, color: 'text.primary', textWrap: 'balance' }}
                             >
                                 {set.name}
                             </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <StyleIcon sx={{ fontSize: 14, color: mutedColor }} />
-                                    <Typography variant="caption" sx={{ color: mutedColor }}>
-                                        {set.cards.length} printings
-                                        {signatureCount > 0 ? ` · ${signatureCount} signatures` : ''}
-                                        {overnumberedCount > 0 ? ` · ${overnumberedCount} overnumbered` : ''}
-                                        {showcaseCount > 0 ? ` · ${showcaseCount} showcase` : ''}
-                                    </Typography>
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    columnGap: 1.5,
+                                    rowGap: 0.5,
+                                    mt: 1,
+                                    flexWrap: 'wrap',
+                                    color: 'text.secondary',
+                                    fontSize: '0.8125rem',
+                                    fontVariantNumeric: 'tabular-nums',
+                                }}
+                            >
+                                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                    <StyleIcon sx={{ fontSize: 14 }} />
+                                    {set.cards.length} printings
+                                    {signatureCount > 0 ? ` · ${signatureCount} signatures` : ''}
+                                    {overnumberedCount > 0 ? ` · ${overnumberedCount} overnumbered` : ''}
+                                    {showcaseCount > 0 ? ` · ${showcaseCount} showcase` : ''}
                                 </Box>
                                 {set.topMarketPrice > 0 && (
-                                    <Chip
-                                        size="small"
-                                        label={`Top ${formatMoney(set.topMarketPrice)}`}
-                                        sx={{
-                                            height: 22,
-                                            fontSize: '0.75rem',
-                                            fontWeight: 700,
-                                            color: isDark ? '#0a2540' : '#ffffff',
-                                            background: isDark
-                                                ? 'linear-gradient(135deg, #e5c078 0%, #d4a853 100%)'
-                                                : 'linear-gradient(135deg, #1a5a7a 0%, #2a7a9a 100%)',
-                                        }}
-                                    />
+                                    <Box component="span">
+                                        Top card{' '}
+                                        <Box component="span" sx={{ color: 'text.primary', fontWeight: 650 }}>
+                                            {formatMoney(set.topMarketPrice)}
+                                        </Box>
+                                    </Box>
                                 )}
                             </Box>
                         </Box>
@@ -345,29 +332,23 @@ const SetDetail = () => {
                         <Box
                             sx={{
                                 display: 'flex',
-                                flexDirection: { xs: 'column', sm: 'row' },
+                                flexDirection: { xs: 'column', md: 'row' },
                                 gap: 1.5,
-                                mb: 1.5,
-                                alignItems: { xs: 'stretch', sm: 'center' },
+                                mb: 2,
+                                alignItems: { xs: 'stretch', md: 'center' },
                             }}
                         >
                             <TextField
-                                placeholder="Filter cards..."
+                                placeholder="Filter by name, number, rarity or finish…"
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 size="small"
-                                sx={{
-                                    flexGrow: 1,
-                                    '& .MuiOutlinedInput-root': {
-                                        backgroundColor: paperBg,
-                                        '& fieldset': { borderColor: paperBorder },
-                                    },
-                                    '& input': { color: textColor },
-                                }}
+                                inputProps={{ 'aria-label': 'Filter cards' }}
+                                sx={{ flexGrow: 1 }}
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
-                                            <SearchIcon sx={{ color: mutedColor, fontSize: 18 }} />
+                                            <SearchIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
                                         </InputAdornment>
                                     ),
                                 }}
@@ -377,24 +358,11 @@ const SetDetail = () => {
                                 exclusive
                                 value={sortMode}
                                 onChange={(_, v) => v && setSortMode(v)}
-                                sx={{
-                                    flexWrap: 'wrap',
-                                    '& .MuiToggleButton-root': {
-                                        textTransform: 'none',
-                                        color: mutedColor,
-                                        borderColor: paperBorder,
-                                        '&.Mui-selected': {
-                                            backgroundColor: isDark
-                                                ? 'rgba(212, 168, 83, 0.25)'
-                                                : 'rgba(26, 90, 122, 0.12)',
-                                            color: accent,
-                                            fontWeight: 700,
-                                        },
-                                    },
-                                }}
+                                aria-label="Sort cards"
+                                sx={{ flexWrap: 'wrap', alignSelf: { xs: 'flex-start', md: 'auto' } }}
                             >
                                 {SORT_OPTIONS.map((opt) => (
-                                    <ToggleButton key={opt.value} value={opt.value}>
+                                    <ToggleButton key={opt.value} value={opt.value} sx={{ px: 1.5, py: 0.5 }}>
                                         {opt.label}
                                     </ToggleButton>
                                 ))}
@@ -402,14 +370,11 @@ const SetDetail = () => {
                         </Box>
 
                         {(signatureCount > 0 || overnumberedCount > 0) && (
-                            <Paper
-                                elevation={0}
+                            <Panel
                                 sx={{
                                     mb: 2,
-                                    p: 1.5,
-                                    backgroundColor: paperBg,
-                                    border: `1px solid ${paperBorder}`,
-                                    borderRadius: 2,
+                                    px: 2,
+                                    py: 1.25,
                                     display: 'flex',
                                     flexDirection: 'column',
                                     gap: 0.5,
@@ -423,9 +388,6 @@ const SetDetail = () => {
                                         plural="signatures"
                                         checked={hideSignatures}
                                         onChange={setHideSignatures}
-                                        accent={accent}
-                                        mutedColor={mutedColor}
-                                        textColor={textColor}
                                     />
                                 )}
                                 {overnumberedCount > 0 && (
@@ -436,27 +398,39 @@ const SetDetail = () => {
                                         plural="overnumbered cards"
                                         checked={hideOvernumbered}
                                         onChange={setHideOvernumbered}
-                                        accent={accent}
-                                        mutedColor={mutedColor}
-                                        textColor={textColor}
                                     />
                                 )}
-                            </Paper>
+                            </Panel>
                         )}
 
-                        <Paper
-                            elevation={0}
-                            sx={{
-                                backgroundColor: paperBg,
-                                border: `1px solid ${paperBorder}`,
-                                borderRadius: 2,
-                                overflow: 'hidden',
-                            }}
-                        >
+                        <Panel sx={{ overflow: 'hidden' }}>
+                            <Box
+                                aria-hidden
+                                sx={{
+                                    ...ROW_GRID,
+                                    display: { xs: 'none', sm: 'grid' },
+                                    px: 2,
+                                    py: 1,
+                                    borderBottom: 1,
+                                    borderColor: 'divider',
+                                    bgcolor: 'surface.sunken',
+                                    color: 'text.secondary',
+                                    fontSize: '0.6875rem',
+                                    fontWeight: 650,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                <Box sx={{ textAlign: 'right' }}>#</Box>
+                                <Box sx={{ gridColumn: 'span 2' }}>Card</Box>
+                                {PRICE_COLUMNS.map((col) => (
+                                    <Box key={col.key} sx={{ textAlign: 'right' }}>{col.label}</Box>
+                                ))}
+                            </Box>
                             <List disablePadding>
                                 {visibleCards.length === 0 && (
                                     <ListItem>
-                                        <Typography variant="body2" sx={{ color: mutedColor, py: 2 }}>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', py: 2 }}>
                                             No cards match your filter.
                                         </Typography>
                                     </ListItem>
@@ -465,49 +439,28 @@ const SetDetail = () => {
                                     const isSig = isSignatureCard(card);
                                     const isOver = isOvernumberedCard(card);
                                     const isShow = isShowcaseCard(card);
-                                    const hasSpecial = isSig || isOver || isShow || card.isFoil;
                                     const rColor = rarityColor(card.extRarity, isDark);
 
                                     return (
                                         <ListItem
                                             key={card._uniqueId || `${card.productId}-${card.subTypeName}-${idx}`}
                                             sx={{
-                                                px: { xs: 1.25, sm: 2 },
-                                                py: 1.25,
-                                                gap: 1.5,
-                                                position: 'relative',
-                                                borderBottom: idx === visibleCards.length - 1
-                                                    ? 'none'
-                                                    : `1px solid ${isDark ? 'rgba(212, 168, 83, 0.12)' : 'rgba(26, 90, 122, 0.08)'}`,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                '&::before': hasSpecial
-                                                    ? {
-                                                        content: '""',
-                                                        position: 'absolute',
-                                                        left: 0,
-                                                        top: 0,
-                                                        bottom: 0,
-                                                        width: 3,
-                                                        background: isSig
-                                                            ? (isDark ? '#c084fc' : '#9333ea')
-                                                            : isOver
-                                                                ? (isDark ? '#fb923c' : '#ea580c')
-                                                                : isShow
-                                                                    ? (isDark ? '#f472b6' : '#db2777')
-                                                                    : accent,
-                                                    }
-                                                    : undefined,
+                                                ...ROW_GRID,
+                                                px: { xs: 1.5, sm: 2 },
+                                                py: 1,
+                                                borderBottom: idx === visibleCards.length - 1 ? 0 : 1,
+                                                borderColor: 'divider',
+                                                transition: 'background-color 120ms ease',
+                                                '&:hover': { bgcolor: 'action.hover' },
                                             }}
                                         >
                                             <Typography
                                                 variant="caption"
                                                 sx={{
-                                                    color: mutedColor,
+                                                    color: 'text.disabled',
                                                     fontVariantNumeric: 'tabular-nums',
-                                                    width: 28,
                                                     textAlign: 'right',
-                                                    flexShrink: 0,
+                                                    fontWeight: 600,
                                                 }}
                                             >
                                                 {idx + 1}
@@ -517,11 +470,11 @@ const SetDetail = () => {
                                                 imageUrl={card.imageUrl}
                                                 fallbackUrl={card.imageUrlFallback}
                                                 alt={card.name}
-                                                size={isSmall ? 34 : 42}
+                                                size={isSmall ? 34 : 40}
                                                 onClick={() => openCard(card)}
                                             />
 
-                                            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                            <Box sx={{ minWidth: 0 }}>
                                                 <Typography
                                                     component={card._uniqueId ? 'button' : 'span'}
                                                     type={card._uniqueId ? 'button' : undefined}
@@ -529,7 +482,9 @@ const SetDetail = () => {
                                                     aria-label={card._uniqueId ? `View details for ${card.name}` : undefined}
                                                     variant="body2"
                                                     sx={{
-                                                        color: textColor,
+                                                        display: 'block',
+                                                        maxWidth: '100%',
+                                                        color: 'text.primary',
                                                         fontWeight: 600,
                                                         whiteSpace: 'nowrap',
                                                         overflow: 'hidden',
@@ -541,24 +496,14 @@ const SetDetail = () => {
                                                         textAlign: 'left',
                                                         fontFamily: 'inherit',
                                                         cursor: card._uniqueId ? 'pointer' : 'default',
+                                                        '&:hover': card._uniqueId ? { color: 'primary.main' } : undefined,
                                                     }}
                                                 >
                                                     {card._baseName || card.name}
                                                 </Typography>
-                                                <Box
-                                                    sx={{
-                                                        display: 'flex',
-                                                        gap: 0.5,
-                                                        flexWrap: 'wrap',
-                                                        mt: 0.35,
-                                                        alignItems: 'center',
-                                                    }}
-                                                >
+                                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.4, alignItems: 'center' }}>
                                                     {card.extNumber && (
-                                                        <Typography
-                                                            variant="caption"
-                                                            sx={{ color: mutedColor, fontSize: '0.7rem' }}
-                                                        >
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
                                                             #{card.extNumber}
                                                         </Typography>
                                                     )}
@@ -570,107 +515,55 @@ const SetDetail = () => {
                                                                 fontSize: '0.7rem',
                                                                 fontWeight: 700,
                                                                 textTransform: 'uppercase',
+                                                                mr: 0.25,
                                                             }}
                                                         >
                                                             · {card.extRarity}
                                                         </Typography>
                                                     )}
                                                     {card.isFoil && (
-                                                        <Chip
-                                                            icon={
-                                                                <AutoAwesomeIcon
-                                                                    sx={{ fontSize: '0.7rem !important' }}
-                                                                />
-                                                            }
-                                                            size="small"
-                                                            label="Foil"
-                                                            sx={{
-                                                                height: 18,
-                                                                fontSize: '0.65rem',
-                                                                fontWeight: 700,
-                                                                color: isDark ? '#0a2540' : '#ffffff',
-                                                                background:
-                                                                    'linear-gradient(135deg, #e5c078 0%, #d4a853 50%, #b8892e 100%)',
-                                                                '& .MuiChip-icon': {
-                                                                    color: isDark ? '#0a2540' : '#ffffff',
-                                                                    ml: 0.5,
-                                                                },
-                                                                '& .MuiChip-label': { px: 0.75 },
-                                                            }}
-                                                        />
+                                                        <FoilTag subTypeName={card.subTypeName || 'Foil'} />
                                                     )}
-                                                    {isSig && (
-                                                        <Chip
-                                                            size="small"
-                                                            label="Signature"
-                                                            sx={{
-                                                                height: 18,
-                                                                fontSize: '0.65rem',
-                                                                fontWeight: 700,
-                                                                color: '#ffffff',
-                                                                background: isDark
-                                                                    ? 'linear-gradient(135deg, #c084fc 0%, #9333ea 100%)'
-                                                                    : 'linear-gradient(135deg, #9333ea 0%, #7c3aed 100%)',
-                                                                '& .MuiChip-label': { px: 0.75 },
-                                                            }}
-                                                        />
-                                                    )}
-                                                    {isOver && (
-                                                        <Chip
-                                                            size="small"
-                                                            label="Overnumbered"
-                                                            sx={{
-                                                                height: 18,
-                                                                fontSize: '0.65rem',
-                                                                fontWeight: 700,
-                                                                color: '#ffffff',
-                                                                background: isDark
-                                                                    ? 'linear-gradient(135deg, #fb923c 0%, #ea580c 100%)'
-                                                                    : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
-                                                                '& .MuiChip-label': { px: 0.75 },
-                                                            }}
-                                                        />
-                                                    )}
-                                                    {isShow && !isSig && !isOver && (
-                                                        <Chip
-                                                            size="small"
-                                                            label="Showcase"
-                                                            sx={{
-                                                                height: 18,
-                                                                fontSize: '0.65rem',
-                                                                fontWeight: 700,
-                                                                color: '#ffffff',
-                                                                background: isDark
-                                                                    ? 'linear-gradient(135deg, #f472b6 0%, #db2777 100%)'
-                                                                    : 'linear-gradient(135deg, #db2777 0%, #be185d 100%)',
-                                                                '& .MuiChip-label': { px: 0.75 },
-                                                            }}
-                                                        />
-                                                    )}
+                                                    {isSig && <SpecialTag kind="signature" isDark={isDark} />}
+                                                    {isOver && <SpecialTag kind="overnumbered" isDark={isDark} />}
+                                                    {isShow && !isSig && !isOver && <SpecialTag kind="showcase" isDark={isDark} />}
                                                 </Box>
                                             </Box>
 
-                                            <Box
-                                                sx={{
-                                                    display: 'flex',
-                                                    gap: { xs: 0.75, sm: 2 },
-                                                    alignItems: 'center',
-                                                    flexShrink: 0,
-                                                }}
-                                            >
-                                                <PriceCell label="Market" value={card.marketPrice} isDark={isDark} accent />
-                                                <PriceCell label="Low" value={card.lowPrice} isDark={isDark} />
-                                                <PriceCell label="High" value={card.highPrice} isDark={isDark} />
-                                            </Box>
+                                            {isSmall ? (
+                                                <Box sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem', color: 'text.primary', lineHeight: 1.3 }}>
+                                                        {formatMoney(card.marketPrice)}
+                                                    </Typography>
+                                                    <Typography sx={{ fontSize: '0.6875rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                                        {formatMoney(card.lowPrice)} – {formatMoney(card.highPrice)}
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                PRICE_COLUMNS.map((col, colIdx) => (
+                                                    <Typography
+                                                        key={col.key}
+                                                        sx={{
+                                                            textAlign: 'right',
+                                                            fontVariantNumeric: 'tabular-nums',
+                                                            fontWeight: colIdx === 0 ? 700 : 500,
+                                                            fontSize: colIdx === 0 ? '0.9375rem' : '0.84375rem',
+                                                            color: colIdx === 0 ? 'text.primary' : 'text.secondary',
+                                                        }}
+                                                    >
+                                                        {formatMoney(card[col.key])}
+                                                    </Typography>
+                                                ))
+                                            )}
                                         </ListItem>
                                     );
                                 })}
                             </List>
-                        </Paper>
+                        </Panel>
                     </>
                 )}
-            </Container>
-        </Box>
+            </Page>
+        </>
     );
 };
 

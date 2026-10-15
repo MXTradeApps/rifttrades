@@ -178,7 +178,7 @@ describe('BinderGrid', () => {
             error: null,
         });
         renderCollection(true, { path: '/wants' });
-        await waitFor(() => screen.getByText('Want List'));
+        await waitFor(() => screen.getByRole('heading', { name: 'Want List' }));
         expect(screen.queryByTestId('binder-grid')).not.toBeInTheDocument();
         expect(screen.queryByTestId('binder-tile-system:trade')).not.toBeInTheDocument();
         expect(screen.queryByTestId(`binder-move-${pricedPrinting._uniqueId}`)).not.toBeInTheDocument();
