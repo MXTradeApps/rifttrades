@@ -76,14 +76,14 @@ class _TradeCard extends ConsumerWidget {
                 Expanded(
                   child: _sideSummary(theme, 'Gave',
                       '${trade.haveCount} cards', trade.haveTotal, symbol,
-                      context.tokens.gain),
+                      context.tokens.text),
                 ),
                 Icon(Icons.arrow_forward,
                     color: theme.colorScheme.onSurfaceVariant),
                 Expanded(
                   child: _sideSummary(theme, 'Got',
                       '${trade.wantCount} cards', trade.wantTotal, symbol,
-                      context.tokens.accent, alignEnd: true),
+                      context.tokens.text, alignEnd: true),
                 ),
               ],
             ),
@@ -99,7 +99,7 @@ class _TradeCard extends ConsumerWidget {
                   label: 'Gave',
                   items: trade.haveItems,
                   symbol: symbol,
-                  accent: context.tokens.gain,
+                  accent: context.tokens.accent,
                 ),
                 if (trade.haveCash > 0)
                   _CashRow(amount: trade.haveCash, symbol: symbol),
@@ -112,7 +112,7 @@ class _TradeCard extends ConsumerWidget {
                   label: 'Got',
                   items: trade.wantItems,
                   symbol: symbol,
-                  accent: context.tokens.accent,
+                  accent: context.tokens.gain,
                 ),
                 if (trade.wantCash > 0)
                   _CashRow(amount: trade.wantCash, symbol: symbol),

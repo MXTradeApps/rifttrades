@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:showcaseview/showcaseview.dart';
 
-import '../../app/app.dart';
 import '../../app/theme.dart';
 import '../../core/logic/binder_names.dart';
 import '../../core/logic/free_limits.dart';
@@ -134,7 +133,6 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
               icon: const Icon(Icons.add_box_outlined),
               label: const Text('New'),
             ),
-          const AppMenuAction(),
         ],
         bottom: inBinder
             ? null

@@ -6,6 +6,7 @@ import '../core/models/card_model.dart';
 import '../core/providers.dart';
 import 'fallback_network_image.dart';
 import 'theme.dart';
+import 'ui.dart';
 
 /// Official Riftbound set key-art / logo for browse lists. Falls back to
 /// [setName] when the logo URL is missing or fails to load.
@@ -226,13 +227,13 @@ class CardThumbnail extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
         border: foil
-            ? Border.all(color: const Color(0xFFB794F6), width: 1.5)
+            ? Border.all(color: AppTheme.gold, width: 1.5)
             : Border.all(color: scheme.outlineVariant, width: 0.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -364,14 +365,14 @@ class CardRow extends ConsumerWidget {
       if (wanted)
         PillBadge(
             label: 'Wanted',
-            color: context.tokens.accent,
+            color: theme.colorScheme.primary,
             icon: Icons.favorite),
     ];
 
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
             if (showThumbnail) ...[
@@ -397,10 +398,9 @@ class CardRow extends ConsumerWidget {
                         CardMetaLine(card: card),
                         RarityBadge(rarity: card.rarity),
                         if (card.isFoil)
-                          const PillBadge(
-                              label: 'FOIL',
-                              color: Color(0xFF9B5DE5),
-                              icon: Icons.auto_awesome),
+                          FoilTag(
+                              subTypeName: card.subTypeName,
+                              label: card.finishLabel),
                         ...ownership,
                       ],
                     )
@@ -414,10 +414,9 @@ class CardRow extends ConsumerWidget {
                       children: [
                         RarityBadge(rarity: card.rarity),
                         if (card.isFoil)
-                          const PillBadge(
-                              label: 'FOIL',
-                              color: Color(0xFF9B5DE5),
-                              icon: Icons.auto_awesome),
+                          FoilTag(
+                              subTypeName: card.subTypeName,
+                              label: card.finishLabel),
                         ...ownership,
                       ],
                     ),
@@ -431,12 +430,12 @@ class CardRow extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(priceLabel,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                    style: AppType.tabular(theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700))),
                 if (secondaryLabel != null)
                   Text(secondaryLabel!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
+                      style: AppType.tabular(theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant))),
                 if (priceSource != null) ...[
                   const SizedBox(height: 2),
                   PriceSourceTag(source: priceSource!),
@@ -534,7 +533,7 @@ class PriceSourceBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return PillBadge(
       label: source,
-      color: AppTheme.seed,
+      color: Theme.of(context).colorScheme.primary,
       icon: Icons.storefront_outlined,
     );
   }

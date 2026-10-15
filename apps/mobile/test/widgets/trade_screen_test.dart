@@ -16,8 +16,9 @@ void main() {
     expect(find.text('Add my cards'), findsOneWidget);
     expect(find.text('Add their cards'), findsOneWidget);
     expect(find.text('Even'), findsOneWidget);
-    expect(find.text('Their 0 cards'), findsOneWidget);
-    expect(find.text('My 0 cards'), findsOneWidget);
+    expect(find.text('Even trade'), findsOneWidget);
+    expect(find.text('You get · 0'), findsOneWidget);
+    expect(find.text('You give · 0'), findsOneWidget);
   });
 
   testWidgets('adding cards updates totals and the delta', (tester) async {
@@ -36,10 +37,11 @@ void main() {
 
     expect(find.text('Their Card'), findsOneWidget);
     expect(find.text('My Card'), findsOneWidget);
-    expect(find.text('Their 1 card'), findsOneWidget);
-    expect(find.text('My 1 card'), findsOneWidget);
+    expect(find.text('You get · 1'), findsOneWidget);
+    expect(find.text('You give · 1'), findsOneWidget);
     // theirs 10 - mine 4 => +$6.00 in your favor
     expect(find.text('+\$6.00'), findsOneWidget);
+    expect(find.text('You get \$6.00 more'), findsOneWidget);
   });
 
   testWidgets('Find Trade Filler is free and opens without a paywall',
