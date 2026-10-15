@@ -11,6 +11,8 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:showcaseview/showcaseview.dart';
 
 import '../../app/card_actions.dart';
+import '../../app/theme.dart';
+import '../../app/ui.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/models/card_model.dart';
@@ -118,6 +120,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
 
   /// True once we've locked onto a result and paused the live scan.
   bool _locked = false;
+
+  /// The card most recently added from this scanner, how many copies of it
+  /// went in this session, and where. Drives the inline "Added" confirmation
+  /// under the viewport, which replaced a floating snackbar that covered the
+  /// bottom of the screen.
+  CardModel? _lastAdded;
+  int _lastAddedCount = 0;
+  String _lastAddedTo = '';
 
   // Two-frame confirmation to reject transient false positives.
   String? _pendingKey;
@@ -734,23 +744,25 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
         ));
   }
 
-  /// Adds a scanned card to the trade draft or Binder, confirms with a
-  /// snackbar, and immediately resumes scanning so more cards can be added.
+  /// Adds a scanned card to the trade draft or Binder, confirms it inline
+  /// under the viewport (with a +1 button for multiples), and immediately
+  /// resumes scanning so more cards can be added.
   Future<void> _addLockedCard(CardModel card) async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
+    if (!await _addCard(card)) return;
+    await _scanAgain();
+  }
+
+  /// Adds one copy of [card] to the scanner's destination and records it as
+  /// the last added card. Returns false when nothing was added (free binder
+  /// full, or browse mode).
+  Future<bool> _addCard(CardModel card) async {
+    final String destLabel;
     switch (widget.destination) {
       case ScanDestination.trade:
         final side = widget.tradeSide;
-        if (side == null) return;
+        if (side == null) return false;
         ref.read(tradeDraftProvider.notifier).addCard(side, card);
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Added ${card.name} to trade'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        destLabel = 'trade';
       case ScanDestination.binder:
         // Stop scanning if the free binder is full — continuing to rack up
         // rejected scans would be worse than surfacing the limit once.
@@ -759,7 +771,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
               openId: ref.read(openBinderIdProvider),
               tab: ref.read(homeTabIndexProvider),
             );
-        final destName = ref.read(bindersProvider.notifier).byId(dest)?.name ??
+        destLabel = ref.read(bindersProvider.notifier).byId(dest)?.name ??
             'Binder';
         if (!await addToBinderOrUpsell(
           context,
@@ -767,19 +779,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
           card,
           binderId: dest,
         )) {
-          return;
+          return false;
         }
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Added ${card.name} to $destName'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        if (!mounted) return false;
       case ScanDestination.detail:
-        return;
+        return false;
     }
-    await _scanAgain();
+    unawaited(HapticFeedback.lightImpact());
+    setState(() {
+      _lastAddedCount =
+          _lastAdded?.id == card.id ? _lastAddedCount + 1 : 1;
+      _lastAdded = card;
+      _lastAddedTo = destLabel;
+    });
+    return true;
   }
 
   Future<void> _scanAgain() async {
@@ -935,6 +948,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                     color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
+          if (_lastAdded != null) _buildAddedBanner(_lastAdded!),
           Expanded(child: _buildMatches()),
         ],
       ),
@@ -1085,6 +1099,70 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Inline confirmation of the last added card, sitting under the viewport
+  /// where it never covers the bottom of the screen. The +1 button adds
+  /// another copy without re-scanning, which is the hard part of multiples.
+  Widget _buildAddedBanner(CardModel card) {
+    final t = context.tokens;
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('scanAddedBanner'),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Panel(
+        radius: AppRadii.lg,
+        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: t.gain, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    card.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    _lastAddedCount > 1
+                        ? 'Added $_lastAddedCount to $_lastAddedTo'
+                        : 'Added to $_lastAddedTo',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: t.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonalIcon(
+              key: const Key('scanAddOneMore'),
+              onPressed: () => unawaited(_addCard(card)),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('1 more'),
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Dismiss',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.close, size: 18, color: t.textMuted),
+              onPressed: () => setState(() {
+                _lastAdded = null;
+                _lastAddedCount = 0;
+              }),
+            ),
+          ],
         ),
       ),
     );
