@@ -706,10 +706,7 @@ class _TradeItemRow extends StatelessWidget {
                       ),
                       if (item.card.isFoil) ...[
                         const SizedBox(width: 6),
-                        const PillBadge(
-                            label: 'FOIL',
-                            color: Color(0xFF9B5DE5),
-                            icon: Icons.auto_awesome),
+                        FoilTag(subTypeName: item.card.subTypeName, label: item.card.finishLabel),
                       ],
                     ],
                   ),

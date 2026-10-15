@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../app/ui.dart';
 import '../../app/widgets.dart';
 import '../../core/logic/pricing.dart';
 import '../../core/models/lend_group.dart';
@@ -210,10 +211,7 @@ class _ItemRow extends ConsumerWidget {
                         RarityBadge(rarity: card.rarity),
                         if (card.isFoil) ...[
                           const SizedBox(width: 5),
-                          const PillBadge(
-                              label: 'FOIL',
-                              color: Color(0xFF9B5DE5),
-                              icon: Icons.auto_awesome),
+                          FoilTag(subTypeName: card.subTypeName, label: card.finishLabel),
                         ],
                       ],
                     ),

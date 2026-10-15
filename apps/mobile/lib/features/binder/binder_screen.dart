@@ -338,6 +338,15 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
   }
 
   Future<void> _showBinderAddOptions(BuildContext context) async {
+    if (ref.read(openBinderIdProvider) == null) {
+      // On the grid nothing is open, so ask where the cards should go rather
+      // than silently filing them in the Trade Binder.
+      final target = await _pickTargetBinder(context);
+      if (target == null || !context.mounted) return;
+      ref.read(binderFiltersProvider.notifier).clear();
+      ref.read(openBinderIdProvider.notifier).open(target);
+    }
+    if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -373,6 +382,35 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _pickTargetBinder(BuildContext context) {
+    final binders = Binder.gridOrder(
+      ref.read(bindersProvider).where((b) => b.isLive),
+    );
+    return showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            key: const Key('addTargetBinderSheet'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('Add cards to…')),
+              for (final binder in binders)
+                ListTile(
+                  key: Key('addTarget-${binder.clientId}'),
+                  leading: const Icon(Icons.collections_bookmark_outlined),
+                  title: Text(binder.name),
+                  onTap: () => Navigator.pop(ctx, binder.clientId),
+                ),
+            ],
+          ),
         ),
       ),
     );

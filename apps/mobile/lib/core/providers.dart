@@ -1008,6 +1008,20 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
     _persist();
   }
 
+  /// Puts back rows removed a moment ago (the Undo on a removal). A row
+  /// whose identity has been re-added since is left as it is now.
+  void restore(List<BinderEntry> rows) {
+    final missing = rows.where((row) => !state.any((e) =>
+        e.card.id == row.card.id &&
+        e.isWanted == row.isWanted &&
+        (row.isWanted ||
+            (e.resolvedBinderId == row.resolvedBinderId &&
+                e.condition == row.condition))));
+    if (missing.isEmpty) return;
+    state = [...missing, ...state];
+    _persist();
+  }
+
   void remove(String cardId, bool isWanted,
       {String? binderId, String condition = 'NM'}) {
     state = state.where((e) {

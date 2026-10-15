@@ -334,4 +334,70 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('Add card on the grid asks which Binder first', (tester) async {
+    await pumpGrid(tester);
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Add card'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('addTargetBinderSheet')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('addTarget-system:collection')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<Text>(find.byKey(const Key('binderHomeTitle'))).data,
+      'Collection',
+    );
+    expect(find.text('Scan cards'), findsWidgets);
+    expect(find.text('Add by search'), findsWidgets);
+  });
+
+  testWidgets('removing a row offers Undo that restores it', (tester) async {
+    final container = await pumpGrid(tester);
+    container.read(binderProvider.notifier).add(
+          buildCard(id: 'a-Normal', name: 'Alpha', tcgMarket: 3),
+          quantity: 2,
+          binderId: BinderIds.trade,
+        );
+    container.read(binderProvider.notifier).add(
+          buildCard(id: 'b-Normal', name: 'Beta', tcgMarket: 1),
+          binderId: BinderIds.trade,
+        );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('binderTile-system:trade')));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.text('Alpha'), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Alpha'), findsNothing);
+    expect(find.byKey(const Key('binderRemovedSnack')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('binderRemovedUndo')));
+    await tester.pumpAndSettle();
+    final alpha = container
+        .read(binderProvider)
+        .where((e) => e.card.id == 'a-Normal')
+        .toList();
+    expect(alpha, hasLength(1));
+    expect(alpha.single.quantity, 2);
+    expect(alpha.single.resolvedBinderId, BinderIds.trade);
+    expect(find.text('Alpha'), findsOneWidget);
+  });
+
+  testWidgets('unpriced rows show a dash, not \$0.00', (tester) async {
+    final container = await pumpGrid(tester);
+    container.read(binderProvider.notifier).add(
+          buildCard(id: 'u-Normal', name: 'Unpriced'),
+          binderId: BinderIds.trade,
+        );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('binderTile-system:trade')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<Text>(find.byKey(const Key('binderRowValue-u-Normal'))).data,
+      '—',
+    );
+  });
 }
