@@ -277,6 +277,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         if (!mounted) return;
+        unawaited(ref.read(reviewPromptRepositoryProvider).recordError());
         setState(() {
           _cameraError = 'No cameras reported by the OS.';
           _initializing = false;
@@ -318,6 +319,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     } catch (e) {
       _recordDiag('camera init failed: $e');
       if (!mounted) return;
+      unawaited(ref.read(reviewPromptRepositoryProvider).recordError());
       setState(() {
         _cameraError = 'Camera init failed: $e';
         _initializing = false;
@@ -723,6 +725,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
           : 'Found ${baseCardName(expanded.cards.first.name)} — '
               '${expanded.cards.length} versions, best matches first.';
     });
+    // A scan feeding a trade, or any scan while the draft holds cards, is a
+    // trade in progress: it counts toward the prompt but never shows it.
+    final draft = ref.read(tradeDraftProvider);
+    unawaited(ref.read(reviewPromptRepositoryProvider).recordScanMatch(
+          tradeInProgress: widget.destination == ScanDestination.trade ||
+              draft.haveItems.isNotEmpty ||
+              draft.wantItems.isNotEmpty,
+        ));
   }
 
   /// Adds a scanned card to the trade draft or Binder, confirms with a
@@ -866,7 +876,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                     '${expanded.cards.length} versions, best matches first.';
       });
     } catch (e) {
-      if (mounted) setState(() => _statusMessage = 'Lookup failed: $e');
+      if (!mounted) return;
+      unawaited(ref.read(reviewPromptRepositoryProvider).recordError());
+      setState(() => _statusMessage = 'Lookup failed: $e');
     }
   }
 

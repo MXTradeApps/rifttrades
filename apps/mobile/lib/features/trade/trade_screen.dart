@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -260,6 +262,8 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
         duration: const Duration(seconds: 3),
       ),
     );
+    // The trade is done and the draft is clear, so nothing is interrupted.
+    unawaited(ref.read(reviewPromptRepositoryProvider).recordTradeConfirmed());
   }
 
   void _confirmClear(BuildContext context, TradeDraftNotifier notifier) {

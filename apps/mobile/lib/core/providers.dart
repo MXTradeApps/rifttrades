@@ -20,6 +20,7 @@ import 'data/binders_repository.dart';
 import 'data/entitlement_repository.dart';
 import 'data/lend_repository.dart';
 import 'data/purchases_repository.dart';
+import 'data/review_prompt_repository.dart';
 import 'data/settings_repository.dart';
 import 'data/trade_repository.dart';
 import 'logic/binder_move.dart';
@@ -58,6 +59,12 @@ final priceHistoryProvider =
     FutureProvider.family<List<PricePoint>, String>((ref, cardId) {
   return ref.watch(cardRepositoryProvider).priceHistory(cardId);
 });
+
+/// App Store / Play Store rating prompt, asked only after positive moments.
+/// Local-only state; see `ReviewPromptPolicy`.
+final reviewPromptRepositoryProvider = Provider<ReviewPromptRepository>(
+  (ref) => ReviewPromptRepository(ref.watch(sharedPreferencesProvider)),
+);
 
 /// Lazily resolves Supabase so widget tests without [Supabase.initialize]
 /// can still construct the checker (failures surface inside [AppUpdateChecker.check]).
