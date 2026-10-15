@@ -28,3 +28,12 @@ iPhone 17 Pro Max simulator (native 1320x2868), app in dark mode, clean status b
     python3 screenshots/v2/build.py 03       # one slide
 
 Needs Pillow and Google Chrome (`CHROME=/path/to/chrome` to override).
+
+## Header and search results assets
+
+App Store Connect (iOS 27+) adds two optional placements: a 21:9 product page header
+(3840x1646) and a 3:2 search results asset (3840x2560). `build_creatives.py` composes both
+from the same raw captures into `final/creatives/`. Upload them on the version page's
+Header and Search Results tab or in Asset Library.
+
+    python3 screenshots/v2/build_creatives.py
