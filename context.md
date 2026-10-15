@@ -161,11 +161,10 @@ Browse assets: `assets/setLogos.json`, `assets/setPublishedOn.json`,
 
 One `mobile-vMAJOR.MINOR.PATCH` tag (matching `apps/mobile/pubspec.yaml` before
 `+`) triggers both stores: GitHub Actions
-`.github/workflows/release-android-closed.yml` → Play closed testing, and
-Codemagic `ios-testflight` → TestFlight. Both run
-`scripts/check-release-tag.sh`. Manual `workflow_dispatch` / Codemagic UI remain
-as escapes. Codemagic's GitHub webhook must include tag events or iOS will not
-build on tag push. Details: `docs/RELEASING.md`.
+`.github/workflows/release-android-closed.yml` → Play closed testing; iOS is
+archived and uploaded to TestFlight locally in Xcode from the same tagged commit
+(run `scripts/check-release-tag.sh` first). Manual `workflow_dispatch` remains as
+an escape. Details: `docs/RELEASING.md`.
 
 Required secrets include keystore + `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` for
 `com.rifttrades.myapp`. Android `applicationId` is `com.rifttrades.myapp`
