@@ -22,7 +22,7 @@ import '../search/card_picker.dart';
 import '../want_list/want_list_screen.dart';
 import 'binder_grid.dart';
 import 'binder_list.dart';
-import 'binder_value_sheet.dart';
+import 'collection_stats_screen.dart';
 
 class BinderScreen extends ConsumerStatefulWidget {
   const BinderScreen({super.key});
@@ -206,7 +206,12 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
                   description: TourCopy.binderTotalBody,
                   child: _BinderValueChip(
                     total: valueLabel,
-                    onTap: () => showBinderValueSheet(context),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        settings: const RouteSettings(name: 'Collection Stats'),
+                        builder: (_) => const CollectionStatsScreen(),
+                      ),
+                    ),
                   ),
                 )
               else
@@ -610,7 +615,7 @@ class _BinderValueChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: Semantics(
           button: true,
-          label: 'Binder value',
+          label: 'Collection Stats',
           child: SizedBox(
             height: 56,
             child: Padding(

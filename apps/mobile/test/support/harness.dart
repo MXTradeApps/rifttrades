@@ -44,7 +44,9 @@ Future<ProviderContainer> pumpApp(
   Object? priceHistoryError,
   Future<List<PricePoint>> Function(String cardId)? onPriceHistory,
   List<RecentMoverRow> recentMovers = const [],
+  Map<String, List<RecentMoverRow>> recentMoversByOwnedKey = const {},
   Object? recentMoversError,
+  Object? recentMoversOwnedError,
   List<RecentLowChange> printingRecentChanges = const [],
   Map<String, List<RecentLowChange>> printingRecentChangesByKey = const {},
   Object? printingRecentChangesError,
@@ -62,10 +64,20 @@ Future<ProviderContainer> pumpApp(
     if (priceHistoryError != null) throw priceHistoryError;
     return priceHistory[id] ?? const <PricePoint>[];
   });
-  when(() => mockRepo.recentMovers(any())).thenAnswer((_) async {
-    if (recentMoversError != null) throw recentMoversError;
-    return recentMovers;
-  });
+  Future<List<RecentMoverRow>> answerRecentMovers(Invocation inv) async {
+    final ids = inv.namedArguments[#cardIds] as List<String>?;
+    if (ids == null) {
+      if (recentMoversError != null) throw recentMoversError;
+      return recentMovers;
+    }
+    if (recentMoversOwnedError != null) throw recentMoversOwnedError;
+    final key = (List<String>.from(ids)..sort()).join(',');
+    return recentMoversByOwnedKey[key] ?? const <RecentMoverRow>[];
+  }
+
+  when(() => mockRepo.recentMovers(any())).thenAnswer(answerRecentMovers);
+  when(() => mockRepo.recentMovers(any(), cardIds: any(named: 'cardIds')))
+      .thenAnswer(answerRecentMovers);
 
   Future<List<RecentLowChange>> answerPrintingRecentChanges(
     Invocation inv,
