@@ -134,8 +134,7 @@ const SetTile = ({ set, code }) => (
 
 const SetList = () => {
     const { sets, loading, error } = useSets();
-    const { metadata, cards } = useCardData();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
+    const { pricesUpdatedAt: lastUpdatedTimestamp, cards } = useCardData();
     const [query, setQuery] = useState('');
 
     const filteredSets = useMemo(() => {

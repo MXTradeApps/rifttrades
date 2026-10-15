@@ -33,8 +33,7 @@ const CollectionStats = () => {
     const { user } = useAuth();
     const { priceSource } = usePriceType();
     const { openDetail } = useCardDetail();
-    const { cards, cardIdLookup, metadata } = useCardData();
-    const lastUpdatedTimestamp = metadata?.lastUpdated || metadata?.updatedAt || null;
+    const { cards, cardIdLookup, pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
     const [searchParams] = useSearchParams();
     const [signInOpen, setSignInOpen] = useState(false);
     const [entries, setEntries] = useState([]);

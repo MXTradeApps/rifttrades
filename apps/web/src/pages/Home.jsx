@@ -24,7 +24,7 @@ const Home = () => {
     const isLandscape = useMediaQuery('(min-aspect-ratio: 4/3) and (min-width: 1100px)');
     const panelView = isLandscape ? 'grid' : 'list';
 
-    const { cardGroups, cardIdLookup, cards, dataReady, error } = useCardData();
+    const { cardGroups, cardIdLookup, cards, dataReady, error, pricesUpdatedAt } = useCardData();
     
     // Create unique card options that include all editions
     const cardOptions = cards.map(card => ({
@@ -65,7 +65,7 @@ const Home = () => {
     if (error) {
         return (
             <>
-                <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
+                <Header lastUpdatedTimestamp={lastUpdatedTimestamp ?? pricesUpdatedAt} />
                 <EmptyState
                     icon={<ErrorOutlineIcon />}
                     title="Couldn’t load card prices"
@@ -82,7 +82,7 @@ const Home = () => {
 
     return (
         <>
-            <Header lastUpdatedTimestamp={lastUpdatedTimestamp} />
+            <Header lastUpdatedTimestamp={lastUpdatedTimestamp ?? pricesUpdatedAt} />
 
             <Box
                 component="main"
