@@ -7,6 +7,7 @@ import '../core/models/app_settings.dart';
 import '../core/providers.dart';
 import '../core/update/app_update_dialog.dart';
 import '../features/binder/binder_screen.dart';
+import '../features/card_detail/card_detail_screen.dart';
 import '../features/lend/lend_screen.dart';
 import '../features/onboarding/onboarding_keys.dart';
 import '../features/onboarding/onboarding_provider.dart';
@@ -14,6 +15,8 @@ import '../features/onboarding/onboarding_repository.dart';
 import '../features/onboarding/showcase_theme.dart';
 import '../features/onboarding/tour_controller.dart';
 import '../features/onboarding/welcome_carousel.dart';
+import '../features/price_alerts/price_alerts_screen.dart';
+import '../features/price_alerts/push_host.dart';
 import '../features/search/search_screen.dart';
 import '../features/sync/sync_host.dart';
 import '../features/trade/trade_screen.dart';
@@ -34,7 +37,7 @@ class RiftTradesApp extends ConsumerWidget {
       themeMode: settings.themeMode == AppThemeMode.dark
           ? ThemeMode.dark
           : ThemeMode.light,
-      home: const SyncHost(child: _OnboardingGate()),
+      home: const SyncHost(child: PushHost(child: _OnboardingGate())),
     );
   }
 }
@@ -191,12 +194,33 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     });
   }
 
+  /// Opens a tapped price alert notification: the card when it is in the
+  /// catalog, otherwise the alerts list.
+  void _openFromPush(String cardId) {
+    final card = cardId.isEmpty ? null : ref.read(catalogByIdProvider)[cardId];
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => card == null
+            ? const PriceAlertsScreen()
+            : CardDetailScreen(card: card),
+        settings: RouteSettings(
+          name: card == null ? 'Price Alerts' : 'Card Detail',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<int?>(shellTabProvider, (_, next) {
       if (next == null) return;
       ref.read(shellTabProvider.notifier).clear();
       if (next != _index) _selectTab(next);
+    });
+    ref.listen<String?>(pushOpenProvider, (_, next) {
+      if (next == null) return;
+      ref.read(pushOpenProvider.notifier).clear();
+      _openFromPush(next);
     });
     final draft = ref.watch(tradeDraftProvider);
     final tradeCount = draft.haveCount + draft.wantCount;

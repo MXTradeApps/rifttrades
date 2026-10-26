@@ -68,6 +68,9 @@ verify_jwt = false
 [functions.reconcile-entitlements]
 verify_jwt = false
 
+[functions.price-alerts]
+verify_jwt = false
+
 # Intended staging project (currently paused). Free orgs are limited to two active
 # projects; until fabtools can be restored, staging builds use the interim project
 # documented in docs/ENVIRONMENTS.md.
