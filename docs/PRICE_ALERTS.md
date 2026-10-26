@@ -45,9 +45,10 @@ runs. Push is the part that needs Firebase.
 2. **Firebase project.** Create one for Rift Trades, add an iOS app
    (bundle id `com.rifttrades.rifttrades`) and an Android app (package
    `com.rifttrades.myapp`).
-   - iOS: upload an APNs auth key (Project settings → Cloud Messaging), and turn on
-     the Push Notifications capability for the App ID. `Runner.entitlements`
-     already carries `aps-environment`.
+   - iOS: upload an APNs auth key (Project settings → Cloud Messaging), turn on
+     the Push Notifications capability for the App ID, and add `aps-environment`
+     to `Runner.entitlements` (left out while push is off, so builds don't need
+     the capability).
    - Copy the app ids, API keys, sender id and project id into
      `apps/mobile/env/production.json`:
      ```json

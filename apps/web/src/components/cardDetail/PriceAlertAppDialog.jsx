@@ -25,21 +25,19 @@ export default function PriceAlertAppDialog({ open, onClose, cardName }) {
                         : 'Open a card in the RiftTrades app and tap the bell to get a notification when it rises to or drops to your price.'}
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2.5 }}>
-                    {APP_STORE_URL && (
-                        <Button
-                            variant="contained"
-                            startIcon={<Apple />}
-                            href={APP_STORE_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            fullWidth
-                        >
-                            Get it on the App Store
-                        </Button>
-                    )}
                     <Button
-                        variant={APP_STORE_URL ? 'outlined' : 'contained'}
-                        color={APP_STORE_URL ? 'inherit' : 'primary'}
+                        variant="contained"
+                        startIcon={<Apple />}
+                        href={APP_STORE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        fullWidth
+                    >
+                        Get it on the App Store
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        color="inherit"
                         startIcon={<Android />}
                         href={PLAY_STORE_URL}
                         target="_blank"

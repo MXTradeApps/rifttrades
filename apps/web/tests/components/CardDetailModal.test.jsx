@@ -180,6 +180,8 @@ describe('CardDetailModal', () => {
         renderModal();
         fireEvent.click(screen.getByRole('button', { name: 'Price alert' }));
         expect(await screen.findByText('Set price alerts in the app')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /App Store/ }))
+            .toHaveAttribute('href', 'https://apps.apple.com/us/app/rift-trades-riftbound-tcg/id6794404610');
         expect(screen.getByRole('link', { name: /Google Play/ }))
             .toHaveAttribute('href', 'https://play.google.com/store/apps/details?id=com.rifttrades.myapp');
         expect(screen.queryByTestId('sign-in-dialog')).not.toBeInTheDocument();
