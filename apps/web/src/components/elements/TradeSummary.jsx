@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
     Box, 
     Typography, 
@@ -23,7 +23,9 @@ import {
     AutoFixHigh as AutoFixHighIcon,
     BookmarkAdd as BookmarkAddIcon,
     CheckCircle as CheckCircleIcon,
+    Campaign as CampaignIcon,
 } from '@mui/icons-material';
+import SalePostDialog from "../binder/SalePostDialog.jsx";
 import { usePriceType } from "../../contexts/PriceContext.jsx";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import FindFillerDialog from "./FindFillerDialog.jsx";
@@ -120,6 +122,7 @@ const TradeSummary = ({
     const [addReceived, setAddReceived] = useState(true);
     const [confirming, setConfirming] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const [showTradePost, setShowTradePost] = useState(false);
 
     const isUnbalanced = Math.abs(diff) >= FILLER_BALANCE_THRESHOLD;
     const canActOnTrade = haveList.length > 0 || wantList.length > 0;
@@ -131,6 +134,17 @@ const TradeSummary = ({
 
     const haveCardCount = getTotalCardCount(haveList);
     const wantCardCount = getTotalCardCount(wantList);
+
+    // The trade post reads "Cards I Want" as Looking for and "Cards I Have" as Have.
+    const toPostItems = (list) =>
+        list.map((card) => ({
+            name: card.name,
+            finish: card.subTypeName,
+            quantity: card.quantity || 1,
+            price: card.price || null,
+        }));
+    const postHave = useMemo(() => toPostItems(haveList), [haveList]);
+    const postWant = useMemo(() => toPostItems(wantList), [wantList]);
 
     const handlePriceTypeChange = (event, newPriceType) => {
         if (newPriceType !== null) {
@@ -390,6 +404,22 @@ const TradeSummary = ({
         </Box>
     );
 
+    const tradePostButton = (
+        <Button
+            variant="outlined"
+            color="inherit"
+            size={isLandscape ? 'medium' : 'small'}
+            startIcon={<CampaignIcon sx={{ fontSize: '1rem !important' }} />}
+            onClick={() => setShowTradePost(true)}
+            disabled={!canActOnTrade}
+            fullWidth={isLandscape}
+            sx={{ color: 'text.primary' }}
+            data-testid="trade-post-button"
+        >
+            Post WTT/WTS
+        </Button>
+    );
+
     return (
         <>
         {isLandscape ? (
@@ -456,6 +486,13 @@ const TradeSummary = ({
                 {ageWarning}
 
                 {tradeActions}
+
+                <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        Posting your own WTT/WTS?
+                    </Typography>
+                    {tradePostButton}
+                </Box>
             </Box>
         ) : (
             <Box
@@ -498,15 +535,23 @@ const TradeSummary = ({
                     <SideTotal label="Get" count={wantCardCount} total={money(wantTotal)} tone="success.main" align="right" compact />
                 </Box>
                 <BalanceBar give={haveTotal} get={wantTotal} height={4} />
-                {(ageWarning || tradeActions || clearUrlButton || fillerButton) && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 1 }}>
-                        {ageWarning}
-                        {fillerButton}
-                        {tradeActions}
-                        {clearUrlButton}
-                    </Box>
-                )}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 1 }}>
+                    {ageWarning}
+                    {fillerButton}
+                    {tradeActions}
+                    {tradePostButton}
+                    {clearUrlButton}
+                </Box>
             </Box>
+        )}
+
+        {showTradePost && (
+            <SalePostDialog
+                open
+                onClose={() => setShowTradePost(false)}
+                items={postHave}
+                wants={postWant}
+            />
         )}
 
         {/* Clear Confirmation Dialog */}
