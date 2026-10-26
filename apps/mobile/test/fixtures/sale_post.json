@@ -1,0 +1,247 @@
+{
+  "$comment": "Post for sale composer (salePost.js / sale_post.dart). Byte-identical copies live in apps/web/tests/fixtures and apps/mobile/test/fixtures.",
+  "salePriceCents": [
+    {
+      "price": 39.99,
+      "percent": 90,
+      "expected": 3600
+    },
+    {
+      "price": 0.45,
+      "percent": 90,
+      "expected": 41
+    },
+    {
+      "price": 5,
+      "percent": 100,
+      "expected": 500
+    },
+    {
+      "price": 9.99,
+      "percent": 100,
+      "expected": 999
+    },
+    {
+      "price": 11.11,
+      "percent": 100,
+      "expected": 1100
+    },
+    {
+      "price": null,
+      "percent": 90,
+      "expected": null
+    },
+    {
+      "price": 0,
+      "percent": 100,
+      "expected": null
+    },
+    {
+      "price": 0.004,
+      "percent": 100,
+      "expected": null
+    }
+  ],
+  "buildSalePost": [
+    {
+      "name": "empty list has no post",
+      "input": {
+        "platform": "discord",
+        "items": []
+      },
+      "expected": []
+    },
+    {
+      "name": "discord at 90% of market",
+      "input": {
+        "platform": "discord",
+        "items": [
+          {
+            "name": "Yasuo, Windrider (Alternate Art)",
+            "finish": "Foil",
+            "condition": "NM",
+            "quantity": 2,
+            "price": 39.99
+          },
+          {
+            "name": "Kai'Sa, Survivor",
+            "finish": "Foil",
+            "condition": "LP",
+            "quantity": 1,
+            "price": 5
+          },
+          {
+            "name": "Long Sword",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 3,
+            "price": 0.45
+          },
+          {
+            "name": "Mystery",
+            "finish": "",
+            "condition": "MP",
+            "quantity": 1,
+            "price": null
+          },
+          {
+            "name": "Gone",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 0,
+            "price": 3
+          }
+        ],
+        "percent": 90,
+        "symbol": "$",
+        "sourceLabel": "TCGplayer",
+        "pricedOn": "Oct 19, 2026",
+        "link": ""
+      },
+      "expected": [
+        "**WTS** · prices are 90% of TCGplayer market (Oct 19, 2026)\nAll NM unless noted. DM me!\n\n2x Foil Yasuo, Windrider (Alternate Art) $36 ea\nFoil Kai'Sa, Survivor (LP) $4.50\n3x Long Sword $0.41 ea\nMystery (MP)\n\n7 cards · $78 total\nPriced on riftrades.com"
+      ]
+    },
+    {
+      "name": "discord at market with a Binder link",
+      "input": {
+        "platform": "discord",
+        "items": [
+          {
+            "name": "Yasuo, Windrider (Alternate Art)",
+            "finish": "Foil",
+            "condition": "NM",
+            "quantity": 2,
+            "price": 39.99
+          },
+          {
+            "name": "Kai'Sa, Survivor",
+            "finish": "Foil",
+            "condition": "LP",
+            "quantity": 1,
+            "price": 5
+          }
+        ],
+        "percent": 100,
+        "symbol": "$",
+        "sourceLabel": "TCGplayer",
+        "pricedOn": "Oct 19, 2026",
+        "link": "https://riftrades.com/b/abc"
+      },
+      "expected": [
+        "**WTS** · prices are TCGplayer market (Oct 19, 2026)\nAll NM unless noted. DM me!\n\n2x Foil Yasuo, Windrider (Alternate Art) $40 ea\nFoil Kai'Sa, Survivor (LP) $5.00\n\n3 cards · $85 total\nFull list: https://riftrades.com/b/abc"
+      ]
+    },
+    {
+      "name": "facebook at 85% of CardMarket",
+      "input": {
+        "platform": "facebook",
+        "items": [
+          {
+            "name": "Yasuo, Windrider (Alternate Art)",
+            "finish": "Foil",
+            "condition": "NM",
+            "quantity": 2,
+            "price": 39.99
+          },
+          {
+            "name": "Kai'Sa, Survivor",
+            "finish": "Foil",
+            "condition": "LP",
+            "quantity": 1,
+            "price": 5
+          },
+          {
+            "name": "Long Sword",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 3,
+            "price": 0.45
+          },
+          {
+            "name": "Mystery",
+            "finish": "",
+            "condition": "MP",
+            "quantity": 1,
+            "price": null
+          },
+          {
+            "name": "Gone",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 0,
+            "price": 3
+          }
+        ],
+        "percent": 85,
+        "symbol": "€",
+        "sourceLabel": "CardMarket",
+        "pricedOn": "Oct 19, 2026",
+        "link": "https://riftrades.com/b/abc"
+      },
+      "expected": [
+        "WTS - Riftbound singles\nPrices are 85% of CardMarket market (Oct 19, 2026). All NM unless noted. Comment or message me!\n\n2x Yasuo, Windrider (Alternate Art) (Foil) - €34 each\nKai'Sa, Survivor (Foil, LP) - €4.25\n3x Long Sword - €0.38 each\nMystery (MP)\n\n7 cards · €73 total\nFull list: https://riftrades.com/b/abc"
+      ]
+    },
+    {
+      "name": "discord splits long posts under the limit",
+      "input": {
+        "platform": "discord",
+        "items": [
+          {
+            "name": "Ahri, Alluring",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 1,
+            "price": 10
+          },
+          {
+            "name": "Blade Dancer",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 1,
+            "price": 11
+          },
+          {
+            "name": "Cleave",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 1,
+            "price": 12
+          },
+          {
+            "name": "Darius, Trifarian",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 1,
+            "price": 13
+          },
+          {
+            "name": "Ezreal, Prodigy",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 1,
+            "price": 14
+          },
+          {
+            "name": "Fury Rune",
+            "finish": "Normal",
+            "condition": "NM",
+            "quantity": 1,
+            "price": 15
+          }
+        ],
+        "percent": 100,
+        "symbol": "$",
+        "sourceLabel": "TCGplayer",
+        "pricedOn": "",
+        "link": "",
+        "limit": 120
+      },
+      "expected": [
+        "**WTS** · prices are TCGplayer market\nAll NM unless noted. DM me!\n\nFury Rune $15\nEzreal, Prodigy $14",
+        "Darius, Trifarian $13\nCleave $12\nBlade Dancer $11\nAhri, Alluring $10\n\n6 cards · $75 total\nPriced on riftrades.com"
+      ]
+    }
+  ]
+}

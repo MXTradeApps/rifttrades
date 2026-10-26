@@ -23,6 +23,7 @@ import '../want_list/want_list_screen.dart';
 import 'binder_grid.dart';
 import 'binder_list.dart';
 import 'collection_stats_screen.dart';
+import 'sale_post_sheet.dart';
 
 class BinderScreen extends ConsumerStatefulWidget {
   const BinderScreen({super.key});
@@ -119,6 +120,7 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
                 .any((b) => b.isLive && b.clientId != openId),
             onMove: () => _moveSelected(context),
             onTrade: () => _tradeSelected(context),
+            onSell: () => _sellSelected(context),
             onRemove: () => _removeSelected(context),
           )
         : null;
@@ -152,6 +154,13 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
               onPressed: () => _createBinder(context),
               icon: const Icon(Icons.add_box_outlined),
               label: const Text('New'),
+            ),
+          if (inBinder && openRows.isNotEmpty)
+            IconButton(
+              key: const Key('sellBinder'),
+              tooltip: 'Post for sale',
+              icon: const Icon(Icons.sell_outlined),
+              onPressed: () => _sellBinder(context),
             ),
         ],
         bottom: inBinder
@@ -343,6 +352,24 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
               ref.read(shellTabProvider.notifier).go(tradeTabIndex),
         ),
       ));
+  }
+
+  Future<void> _sellBinder(BuildContext context) async {
+    final openId = ref.read(openBinderIdProvider);
+    if (openId == null) return;
+    final rows = ownedInBinder(ref.read(binderProvider), openId)
+        .where((e) => e.quantity > 0)
+        .toList();
+    if (rows.isEmpty) return;
+    await showSalePostSheet(context, entries: rows);
+  }
+
+  /// Lists only the selected cards. Selection stays so the seller can go
+  /// straight on to Remove once they have sold.
+  Future<void> _sellSelected(BuildContext context) async {
+    final rows = _selectedRows();
+    if (rows.isEmpty) return;
+    await showSalePostSheet(context, entries: rows);
   }
 
   void _removeSelected(BuildContext context) {
@@ -643,12 +670,14 @@ class _SelectionActionBar extends StatelessWidget {
     required this.canMove,
     required this.onMove,
     required this.onTrade,
+    required this.onSell,
     required this.onRemove,
   });
 
   final bool canMove;
   final VoidCallback onMove;
   final VoidCallback onTrade;
+  final VoidCallback onSell;
   final VoidCallback onRemove;
 
   @override
@@ -679,6 +708,13 @@ class _SelectionActionBar extends StatelessWidget {
             label: 'Add to trade',
             color: t.text,
             onTap: onTrade,
+          ),
+          _SelectionAction(
+            key: const Key('binderBulkSell'),
+            icon: Icons.sell_outlined,
+            label: 'Sell',
+            color: t.text,
+            onTap: onSell,
           ),
           _SelectionAction(
             key: const Key('binderBulkRemove'),

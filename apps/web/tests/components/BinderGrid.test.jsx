@@ -12,6 +12,8 @@ const mockCreateBinder = jest.fn();
 const mockRenameBinder = jest.fn();
 const mockDeleteBinder = jest.fn();
 const mockApplyBinderMove = jest.fn();
+const mockRemoveEntry = jest.fn();
+const mockEnsureBinderShare = jest.fn();
 
 let mockUser = { id: 'user-1' };
 
@@ -60,8 +62,8 @@ jest.mock('../../src/services/binder.js', () => ({
     getBinderEntries: (...args) => mockGetBinderEntries(...args),
     getBinders: (...args) => mockGetBinders(...args),
     upsertEntry: (...args) => mockUpsertEntry(...args),
-    removeEntry: jest.fn(),
-    ensureBinderShare: jest.fn(),
+    removeEntry: (...args) => mockRemoveEntry(...args),
+    ensureBinderShare: (...args) => mockEnsureBinderShare(...args),
     regenerateBinderShare: jest.fn(),
     setBinderShareEnabled: jest.fn(),
     createBinder: (...args) => mockCreateBinder(...args),
@@ -390,5 +392,107 @@ describe('BinderGrid', () => {
         fireEvent.click(screen.getByTestId('binder-create'));
         expect(await screen.findByText(/Subscribe in the RiftTrades app/)).toBeInTheDocument();
         expect(mockCreateBinder).not.toHaveBeenCalled();
+    });
+
+    test('Post for sale formats the open Binder for Discord and Facebook', async () => {
+        const writeText = jest.fn().mockResolvedValue(undefined);
+        Object.assign(navigator, { clipboard: { writeText } });
+        mockEnsureBinderShare.mockResolvedValue({
+            data: { url: 'https://riftrades.com/b/tok', isEnabled: true },
+            error: null,
+        });
+        mockGetBinderEntries.mockResolvedValue({
+            data: {
+                binder: [
+                    {
+                        cardId: pricedPrinting._uniqueId,
+                        quantity: 3,
+                        isWanted: false,
+                        binderId: 'system:trade',
+                        condition: 'LP',
+                        card: pricedPrinting,
+                    },
+                ],
+                wants: [],
+            },
+            error: null,
+        });
+        renderCollection(false);
+        fireEvent.click(await screen.findByTestId('binder-tile-system:trade'));
+        fireEvent.click(await screen.findByTestId('binder-sell'));
+
+        const preview = await screen.findByTestId('sale-post-preview-0');
+        expect(preview.textContent).toContain('**WTS** · prices are TCGplayer market');
+        expect(preview.textContent).toContain('3x Void Seeker (LP) $13 ea');
+
+        fireEvent.click(screen.getByTestId('sale-post-percent-80'));
+        fireEvent.click(screen.getByTestId('sale-post-facebook'));
+        expect(screen.getByTestId('sale-post-preview-0').textContent).toContain(
+            '3x Void Seeker (LP) - $10 each',
+        );
+
+        fireEvent.click(screen.getByLabelText('Add a link to my Binder'));
+        await waitFor(() =>
+            expect(screen.getByTestId('sale-post-preview-0').textContent).toContain(
+                'Full list: https://riftrades.com/b/tok',
+            ),
+        );
+
+        fireEvent.click(screen.getByTestId('sale-post-copy-0'));
+        await waitFor(() => expect(writeText).toHaveBeenCalled());
+        expect(writeText.mock.calls[0][0]).toBe(screen.getByTestId('sale-post-preview-0').textContent);
+        expect(await screen.findByText('Copied')).toBeInTheDocument();
+    });
+
+    test('multi-select posts only the selected cards and removes them in a batch', async () => {
+        mockRemoveEntry.mockResolvedValue({ data: { success: true }, error: null });
+        mockGetBinderEntries.mockResolvedValue({
+            data: {
+                binder: [
+                    {
+                        cardId: pricedPrinting._uniqueId,
+                        quantity: 2,
+                        isWanted: false,
+                        binderId: 'system:trade',
+                        condition: 'NM',
+                        card: pricedPrinting,
+                    },
+                    {
+                        cardId: unpricedPrinting._uniqueId,
+                        quantity: 1,
+                        isWanted: false,
+                        binderId: 'system:trade',
+                        condition: 'NM',
+                        card: unpricedPrinting,
+                    },
+                ],
+                wants: [],
+            },
+            error: null,
+        });
+        renderCollection(false);
+        fireEvent.click(await screen.findByTestId('binder-tile-system:trade'));
+        const selectPriced = await screen.findByLabelText(`Select ${pricedPrinting.name}`);
+        expect(screen.queryByTestId('binder-selection-bar')).not.toBeInTheDocument();
+
+        fireEvent.click(selectPriced);
+        expect(screen.getByTestId('binder-selection-bar')).toHaveTextContent('1 selected');
+
+        fireEvent.click(screen.getByTestId('binder-bulk-sell'));
+        const preview = await screen.findByTestId('sale-post-preview-0');
+        expect(preview.textContent).toContain('Void Seeker');
+        expect(preview.textContent).not.toContain(unpricedPrinting.name);
+        expect(preview.textContent).toContain('2 cards');
+        fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+        fireEvent.click(screen.getByTestId('binder-select-all'));
+        expect(screen.getByTestId('binder-selection-bar')).toHaveTextContent('2 selected');
+        fireEvent.click(screen.getByTestId('binder-bulk-remove'));
+        fireEvent.click(await screen.findByTestId('binder-bulk-remove-confirm'));
+
+        await waitFor(() => expect(mockRemoveEntry).toHaveBeenCalledTimes(2));
+        expect(await screen.findByText('Removed 2 cards')).toBeInTheDocument();
+        expect(screen.queryByLabelText(`Select ${pricedPrinting.name}`)).not.toBeInTheDocument();
+        expect(screen.queryByTestId('binder-selection-bar')).not.toBeInTheDocument();
     });
 });
