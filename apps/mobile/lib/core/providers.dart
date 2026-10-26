@@ -737,8 +737,11 @@ class ShellTabNotifier extends Notifier<int?> {
   void clear() => state = null;
 }
 
-/// HomeShell's Trade tab, for [shellTabProvider].
-const tradeTabIndex = 1;
+// HomeShell tab positions, for [shellTabProvider]. Trade sits in the middle
+// of the bottom bar (Browse, Binder, Trade, Lend, More).
+const binderTabIndex = 1;
+const tradeTabIndex = 2;
+const lendTabIndex = 3;
 
 /// Currently drilled-in Binder, or null when the grid is showing.
 final openBinderIdProvider = NotifierProvider<OpenBinderIdNotifier, String?>(
@@ -794,7 +797,7 @@ class HomeTabIndexNotifier extends Notifier<int?> {
 /// [tab] null = unknown context (standalone tests) — honor [openId] if set.
 String destinationBinderId({String? openId, int? tab}) {
   if (openId == null) return BinderIds.trade;
-  if (tab == null || tab == 2) return openId;
+  if (tab == null || tab == binderTabIndex) return openId;
   return BinderIds.trade;
 }
 
