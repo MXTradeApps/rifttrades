@@ -16,6 +16,7 @@ import {
     SwapHorizRounded,
     BookmarkBorderRounded,
     CollectionsBookmarkOutlined,
+    NotificationsNoneRounded,
 } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 import { useCardDetail } from '../../contexts/CardDetailContext.jsx';
@@ -26,6 +27,8 @@ import { useThemeMode } from '../../contexts/ThemeContext.jsx';
 import { CardImageModal, CardThumbnail } from '../ui/CardImagePreview.jsx';
 import SignInDialog from '../auth/SignInDialog.jsx';
 import CardDetailPrices from './CardDetailPrices.jsx';
+import CardPriceAlerts from './CardPriceAlerts.jsx';
+import PriceAlertAppDialog from './PriceAlertAppDialog.jsx';
 import { printingsForCard } from '../../utils/printingsForCard.js';
 import { upsertEntry, getBinderEntries, TRADE_BINDER_ID } from '../../services/binder.js';
 import { canAddDistinctCard, cardsFor, distinctOwnedCount } from '../../utils/freeLimits.js';
@@ -59,6 +62,7 @@ export function CardDetailModal({
     const [selected, setSelected] = useState(printing);
     const [zoomOpen, setZoomOpen] = useState(false);
     const [signInOpen, setSignInOpen] = useState(false);
+    const [alertAppOpen, setAlertAppOpen] = useState(false);
     const [ownQty, setOwnQty] = useState(null);
     const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
     const [wantBusy, setWantBusy] = useState(false);
@@ -358,6 +362,13 @@ export function CardDetailModal({
                                 pricesUpdatedAt={pricesUpdatedAt}
                                 isDark={isDark}
                             />
+
+                            {shown?._uniqueId && (
+                                <CardPriceAlerts
+                                    printingId={shown._uniqueId}
+                                    signedIn={Boolean(user)}
+                                />
+                            )}
                         </Box>
 
                             <Box sx={{ gridArea: 'actions', display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, alignSelf: { xs: 'center', sm: 'start' } }}>
@@ -391,6 +402,15 @@ export function CardDetailModal({
                                 >
                                     Binder
                                 </Button>
+                                <Button
+                                    variant="outlined"
+                                    color="inherit"
+                                    startIcon={<NotificationsNoneRounded />}
+                                    onClick={() => setAlertAppOpen(true)}
+                                    fullWidth
+                                >
+                                    Price alert
+                                </Button>
                             </Box>
                     </Box>
                 </DialogContent>
@@ -405,6 +425,12 @@ export function CardDetailModal({
             />
 
             <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
+
+            <PriceAlertAppDialog
+                open={alertAppOpen}
+                onClose={() => setAlertAppOpen(false)}
+                cardName={shown?.name}
+            />
 
             <Snackbar
                 open={toast.open}
