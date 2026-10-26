@@ -133,6 +133,11 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
               controller: _controller,
               autofocus: true,
               onChanged: _onChanged,
+              // Mobile TextFields keep focus on outside taps by default, which
+              // leaves the keyboard stuck open. Close it on an outside tap or
+              // the keyboard's search key.
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               decoration: const InputDecoration(
                 hintText: 'Search cards…',
                 prefixIcon: Icon(Icons.search),
@@ -169,6 +174,8 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
                   return const Center(child: Text('No cards found.'));
                 }
                 return ListView.separated(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   itemCount: cards.length,
                   separatorBuilder: (_, _) =>
                       const Divider(height: 1, indent: 72),
