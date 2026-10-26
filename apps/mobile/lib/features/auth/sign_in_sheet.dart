@@ -54,6 +54,13 @@ class SignInCopy {
         'your binder and trade history. You can do this later in My Account.',
     dismissLabel: 'Not now',
   );
+
+  static const priceAlerts = SignInCopy(
+    title: 'Sign in for price alerts',
+    body:
+        'Price alerts are checked on our servers every day, so they need an '
+        'account to notify. Everything already on this device is kept.',
+  );
 }
 
 /// Why an account is worth having, then one button per provider.

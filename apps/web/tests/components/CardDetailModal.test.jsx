@@ -36,6 +36,10 @@ jest.mock('../../src/services/binder.js', () => ({
     upsertEntry: (...args) => mockUpsertEntry(...args),
 }));
 
+jest.mock('../../src/services/priceAlerts.js', () => ({
+    listPriceAlertsForCard: () => Promise.resolve({ data: [], error: null }),
+}));
+
 jest.mock('../../src/components/auth/SignInDialog.jsx', () => ({
     __esModule: true,
     default: ({ open }) => (open ? <div data-testid="sign-in-dialog" /> : null),
@@ -170,5 +174,16 @@ describe('CardDetailModal', () => {
         expect(screen.getByText('$40.00')).toBeInTheDocument();
         expect(screen.queryByText('$12.50')).not.toBeInTheDocument();
         expect(screen.getByLabelText(/Zoom art for Void Seeker/)).toBeInTheDocument();
+    });
+
+    test('Price alert points to the mobile app instead of creating one', async () => {
+        renderModal();
+        fireEvent.click(screen.getByRole('button', { name: 'Price alert' }));
+        expect(await screen.findByText('Set price alerts in the app')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /App Store/ }))
+            .toHaveAttribute('href', 'https://apps.apple.com/us/app/rift-trades-riftbound-tcg/id6794404610');
+        expect(screen.getByRole('link', { name: /Google Play/ }))
+            .toHaveAttribute('href', 'https://play.google.com/store/apps/details?id=com.rifttrades.myapp');
+        expect(screen.queryByTestId('sign-in-dialog')).not.toBeInTheDocument();
     });
 });

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/app.dart';
 import 'core/config/supabase_config.dart';
 import 'core/data/purchases_repository.dart';
+import 'core/notifications/push_service.dart';
 import 'core/providers.dart';
 
 Future<void> main() async {
@@ -22,6 +23,9 @@ Future<void> main() async {
   // throws: a build without a usable API key just runs without subscriptions.
   final purchases = PurchasesRepository();
   await purchases.configure();
+
+  // Push for price alerts. Never throws; without Firebase keys push is off.
+  await PushService.initialize();
 
   runApp(
     ProviderScope(

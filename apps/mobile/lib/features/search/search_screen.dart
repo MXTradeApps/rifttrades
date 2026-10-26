@@ -83,6 +83,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               controller: _controller,
               onChanged: _onChanged,
               textInputAction: TextInputAction.search,
+              // Mobile TextFields keep focus on outside taps by default, which
+              // leaves the keyboard stuck open. Close it on an outside tap or
+              // the keyboard's search key.
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               decoration: InputDecoration(
                 hintText: 'Search all cards…',
                 prefixIcon: const Icon(Icons.search),
@@ -187,6 +192,7 @@ class _SetListState extends ConsumerState<_SetList> {
         final bottomPad = 16 + MediaQuery.paddingOf(context).bottom + 80;
         return CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           slivers: [
             const SliverToBoxAdapter(child: HomeDashboard()),
             const SliverToBoxAdapter(child: SeeTrendingTile()),
@@ -386,6 +392,11 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
               controller: _controller,
               onChanged: _onChanged,
               textInputAction: TextInputAction.search,
+              // Mobile TextFields keep focus on outside taps by default, which
+              // leaves the keyboard stuck open. Close it on an outside tap or
+              // the keyboard's search key.
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               decoration: InputDecoration(
                 hintText: 'Search in ${widget.setName}…',
                 prefixIcon: const Icon(Icons.search),
@@ -516,6 +527,7 @@ class _CardList extends StatelessWidget {
         Expanded(
           child: ListView.separated(
             physics: const AlwaysScrollableScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.only(bottom: bottomPad),
             itemCount: cards.length,
             separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),

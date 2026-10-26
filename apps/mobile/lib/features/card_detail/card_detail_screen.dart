@@ -12,6 +12,8 @@ import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/providers.dart';
 import '../paywall/pro_limits.dart';
+import '../price_alerts/price_alert_sheet.dart';
+import '../price_alerts/price_alert_widgets.dart';
 import 'price_history_section.dart';
 
 class CardDetailScreen extends ConsumerStatefulWidget {
@@ -69,7 +71,15 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
     final printings = printingsForCard(catalog, widget.card);
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            tooltip: 'Price alert',
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: () => showPriceAlertSheet(context, ref, card: _selected),
+          ),
+        ],
+      ),
       // Not lazily built: the page is short, and building it all keeps the
       // price history mounted however small the screen.
       body: SingleChildScrollView(
@@ -172,6 +182,8 @@ class _CardDetailScreenState extends ConsumerState<CardDetailScreen> {
             ),
             const SizedBox(height: 20),
             _PriceCard(card: _selected, settings: settings, pricing: pricing),
+            const SizedBox(height: 18),
+            CardPriceAlerts(card: _selected),
             const SizedBox(height: 14),
             PriceHistorySection(cardId: _selected.id),
           ],

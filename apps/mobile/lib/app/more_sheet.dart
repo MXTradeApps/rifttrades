@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../core/providers.dart';
+import '../features/price_alerts/price_alerts_screen.dart';
 import '../features/settings/account_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/trade/trade_history_screen.dart';
@@ -48,6 +49,7 @@ class _MoreSheet extends ConsumerWidget {
     final account = ref.watch(accountProvider).value;
     final signedIn = account != null;
     final updatedAt = ref.watch(priceUpdatedAtProvider);
+    final alertsHit = ref.watch(triggeredPriceAlertCountProvider);
 
     return SafeArea(
       top: false,
@@ -97,6 +99,13 @@ class _MoreSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             _MoreTile(
+              icon: Icons.notifications_none_rounded,
+              label: 'Price Alerts',
+              badge: alertsHit,
+              onTap: () => _push(
+                  context, const PriceAlertsScreen(), 'Price Alerts'),
+            ),
+            _MoreTile(
               icon: Icons.history_rounded,
               label: 'Trade History',
               onTap: () => _push(
@@ -125,11 +134,15 @@ class _MoreTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badge = 0,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+
+  /// Shown as a count beside the chevron when above zero.
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +164,17 @@ class _MoreTile extends StatelessWidget {
               .textTheme
               .bodyLarge
               ?.copyWith(fontWeight: FontWeight.w600)),
-      trailing: Icon(Icons.chevron_right, color: t.textFaint),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (badge > 0)
+            Badge(
+              label: Text('$badge'),
+              backgroundColor: t.accent,
+            ),
+          Icon(Icons.chevron_right, color: t.textFaint),
+        ],
+      ),
       onTap: onTap,
     );
   }

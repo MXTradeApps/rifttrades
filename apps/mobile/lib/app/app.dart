@@ -7,6 +7,7 @@ import '../core/models/app_settings.dart';
 import '../core/providers.dart';
 import '../core/update/app_update_dialog.dart';
 import '../features/binder/binder_screen.dart';
+import '../features/card_detail/card_detail_screen.dart';
 import '../features/lend/lend_screen.dart';
 import '../features/onboarding/onboarding_keys.dart';
 import '../features/onboarding/onboarding_provider.dart';
@@ -14,6 +15,8 @@ import '../features/onboarding/onboarding_repository.dart';
 import '../features/onboarding/showcase_theme.dart';
 import '../features/onboarding/tour_controller.dart';
 import '../features/onboarding/welcome_carousel.dart';
+import '../features/price_alerts/price_alerts_screen.dart';
+import '../features/price_alerts/push_host.dart';
 import '../features/search/search_screen.dart';
 import '../features/sync/sync_host.dart';
 import '../features/trade/trade_screen.dart';
@@ -34,7 +37,7 @@ class RiftTradesApp extends ConsumerWidget {
       themeMode: settings.themeMode == AppThemeMode.dark
           ? ThemeMode.dark
           : ThemeMode.light,
-      home: const SyncHost(child: _OnboardingGate()),
+      home: const SyncHost(child: PushHost(child: _OnboardingGate())),
     );
   }
 }
@@ -72,8 +75,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   // Scan is reached from Browse / Trade / Binder (not a bottom-nav tab).
   static const _screens = [
     BrowseScreen(),
-    TradeScreen(),
     BinderScreen(),
+    TradeScreen(),
     LendScreen(),
   ];
 
@@ -127,12 +130,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   void _onTourFinished() {
     final tab = _activeTourTab;
     _activeTourTab = null;
-    if (tab == 1) _tours.cleanupTradeSeed();
+    if (tab == tradeTabIndex) _tours.cleanupTradeSeed();
     if (tab == null) return;
     final id = switch (tab) {
-      1 => OnboardingTourId.trade,
-      2 => OnboardingTourId.binder,
-      3 => OnboardingTourId.lend,
+      tradeTabIndex => OnboardingTourId.trade,
+      binderTabIndex => OnboardingTourId.binder,
+      lendTabIndex => OnboardingTourId.lend,
       _ => null,
     };
     if (id != null) _tours.markSeen(id);
@@ -164,17 +167,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     // Browse has no dedicated tour; Scan teaches itself when opened.
     if (i == 0) return;
     final id = switch (i) {
-      1 => OnboardingTourId.trade,
-      2 => OnboardingTourId.binder,
-      3 => OnboardingTourId.lend,
+      tradeTabIndex => OnboardingTourId.trade,
+      binderTabIndex => OnboardingTourId.binder,
+      lendTabIndex => OnboardingTourId.lend,
       _ => null,
     };
     if (id == null || _tours.hasSeen(id)) return;
 
     final keys = switch (i) {
-      1 => _tours.prepareTradeTour(),
-      2 => _tours.binderKeys(),
-      3 => _tours.lendKeys(),
+      tradeTabIndex => _tours.prepareTradeTour(),
+      binderTabIndex => _tours.binderKeys(),
+      lendTabIndex => _tours.lendKeys(),
       _ => <GlobalKey>[],
     };
     if (keys.isEmpty) {
@@ -191,12 +194,33 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     });
   }
 
+  /// Opens a tapped price alert notification: the card when it is in the
+  /// catalog, otherwise the alerts list.
+  void _openFromPush(String cardId) {
+    final card = cardId.isEmpty ? null : ref.read(catalogByIdProvider)[cardId];
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => card == null
+            ? const PriceAlertsScreen()
+            : CardDetailScreen(card: card),
+        settings: RouteSettings(
+          name: card == null ? 'Price Alerts' : 'Card Detail',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<int?>(shellTabProvider, (_, next) {
       if (next == null) return;
       ref.read(shellTabProvider.notifier).clear();
       if (next != _index) _selectTab(next);
+    });
+    ref.listen<String?>(pushOpenProvider, (_, next) {
+      if (next == null) return;
+      ref.read(pushOpenProvider.notifier).clear();
+      _openFromPush(next);
     });
     final draft = ref.watch(tradeDraftProvider);
     final tradeCount = draft.haveCount + draft.wantCount;
@@ -219,6 +243,11 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               selectedIcon: Icon(Icons.grid_view),
               label: 'Browse',
             ),
+            const NavigationDestination(
+              icon: Icon(Icons.collections_bookmark_outlined),
+              selectedIcon: Icon(Icons.collections_bookmark),
+              label: 'Binder',
+            ),
             NavigationDestination(
               icon: Badge(
                 isLabelVisible: tradeCount > 0,
@@ -231,11 +260,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                 child: const Icon(Icons.swap_horiz_rounded),
               ),
               label: 'Trade',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.collections_bookmark_outlined),
-              selectedIcon: Icon(Icons.collections_bookmark),
-              label: 'Binder',
             ),
             const NavigationDestination(
               icon: Icon(Icons.sync_alt_rounded),
