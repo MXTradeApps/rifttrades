@@ -11,6 +11,7 @@ import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/logic/free_limits.dart';
 import '../../core/logic/pricing.dart';
+import '../../core/logic/trade_offer.dart';
 import '../../core/models/app_settings.dart';
 import '../../core/models/card_model.dart';
 import '../../core/models/trade.dart';
@@ -57,6 +58,13 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
               MaterialPageRoute(builder: (_) => const TradeHistoryScreen()),
             ),
           ),
+          if (!isEmpty)
+            IconButton(
+              key: const Key('shareTrade'),
+              icon: const Icon(Icons.ios_share),
+              tooltip: 'Share trade',
+              onPressed: () => _shareTrade(context),
+            ),
           if (!isEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep_outlined),
@@ -263,6 +271,59 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
     );
     // The trade is done and the draft is clear, so nothing is interrupted.
     unawaited(ref.read(reviewPromptRepositoryProvider).recordTradeConfirmed());
+  }
+
+  /// Copies the trade for Discord, where most remote trades are agreed: either
+  /// a ready-to-paste offer with a link, or the link alone.
+  Future<void> _shareTrade(BuildContext context) async {
+    final draft = ref.read(tradeDraftProvider);
+    final link = TradeOffer.link(draft);
+    if (link == null) return;
+
+    Future<void> copy(BuildContext sheet, String format, String text) async {
+      Navigator.of(sheet).pop();
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(format == 'discord'
+              ? 'Trade copied. Paste it into Discord.'
+              : 'Link copied'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      routeSettings: const RouteSettings(name: 'Share Trade'),
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              key: const Key('copyTradeForDiscord'),
+              leading: const Icon(Icons.forum_outlined),
+              title: const Text('Copy for Discord'),
+              subtitle: const Text('Your offer, with a link to the trade'),
+              onTap: () => copy(
+                sheet,
+                'discord',
+                '${TradeOffer.message(draft)}$link',
+              ),
+            ),
+            ListTile(
+              key: const Key('copyTradeLink'),
+              leading: const Icon(Icons.link),
+              title: const Text('Copy link'),
+              subtitle: const Text('Opens this trade on riftrades.com'),
+              onTap: () => copy(sheet, 'link', link),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _confirmClear(BuildContext context, TradeDraftNotifier notifier) {
