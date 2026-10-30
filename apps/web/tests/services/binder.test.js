@@ -1,5 +1,5 @@
 jest.mock('../../src/lib/supabase.js', () => {
-    const auth = { getUser: jest.fn() };
+    const auth = { getUser: jest.fn(), getSession: jest.fn() };
     const supabase = { auth, from: jest.fn(), rpc: jest.fn() };
     return { supabase };
 });
@@ -85,9 +85,9 @@ const makeChain = (result) => {
 };
 
 const asUser = (id = 'user-1') =>
-    supabase.auth.getUser.mockResolvedValue({ data: { user: { id } } });
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id } } } });
 const asAnonymous = () =>
-    supabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
 
 const webCard = {
     _uniqueId: 'og-001-foil',

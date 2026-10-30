@@ -4,7 +4,7 @@ import {
     CollectionsBookmarkOutlined,
 } from '@mui/icons-material';
 import { tk } from '../../theme/tokens.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { pickBinderCover } from '../../utils/binderCover.js';
 import { isPricedField } from '../../utils/binderValueSnapshot.js';
 import { gridOrderBinders, TRADE_BINDER_ID } from '../../services/binder.js';
@@ -36,11 +36,37 @@ export function formatBinderTileValue(ownedRows) {
     return formatTileUsd(amount);
 }
 
-function ownedInBinder(entries, binderId) {
-    return (entries || []).filter((e) =>
-        !e.isWanted && (e.binderId || TRADE_BINDER_ID) === binderId && (e.quantity || 0) > 0,
-    );
+/**
+ * Bucket entries by tile in one pass. Filtering the whole collection once per
+ * tile, and resolving each card again on every render, was the bulk of the
+ * grid's render cost for collections in the thousands.
+ */
+function rowsByBinder(entries, resolveCard) {
+    const buckets = new Map();
+    for (const entry of entries || []) {
+        if (entry.isWanted || !((entry.quantity || 0) > 0)) continue;
+        const binderId = entry.binderId || TRADE_BINDER_ID;
+        const card = resolveCard ? resolveCard(entry) : (entry.card || {});
+        const row = {
+            ...entry,
+            printingId: entry.cardId || entry.printingId,
+            name: card.name || entry.name || '',
+            tcgMarket: card.market ?? card.tcgMarket ?? entry.tcgMarket,
+            market: card.market ?? card.tcgMarket ?? entry.tcgMarket,
+            imageUrl: card.imageUrl,
+            imageUrlFallback: card.imageUrlFallback,
+            isFoil: Boolean(card.isFoil),
+            condition: entry.condition || 'NM',
+            quantity: entry.quantity || 1,
+        };
+        const bucket = buckets.get(binderId);
+        if (bucket) bucket.push(row);
+        else buckets.set(binderId, [row]);
+    }
+    return buckets;
 }
+
+const NO_ROWS = [];
 
 /** Tile art: catalog image first, then fallback URL when the primary 404s. */
 function BinderTileCover({ imageUrl, fallbackUrl, alt, binderId }) {
@@ -95,7 +121,8 @@ export default function BinderGrid({
     onRename,
     onDelete,
 }) {
-    const ordered = gridOrderBinders(binders);
+    const ordered = useMemo(() => gridOrderBinders(binders), [binders]);
+    const rowsById = useMemo(() => rowsByBinder(entries, resolveCard), [entries, resolveCard]);
 
     return (
         <Box
@@ -113,8 +140,7 @@ export default function BinderGrid({
                 <BinderTile
                     key={binder.clientId}
                     binder={binder}
-                    entries={entries}
-                    resolveCard={resolveCard}
+                    rows={rowsById.get(binder.clientId) || NO_ROWS}
                     onOpen={onOpen}
                     onRename={onRename}
                     onDelete={binder.role === 'trade' ? undefined : onDelete}
@@ -126,29 +152,13 @@ export default function BinderGrid({
 
 function BinderTile({
     binder,
-    entries,
-    resolveCard,
+    rows,
     onOpen,
     onRename,
     onDelete,
 }) {
     const [menuEl, setMenuEl] = useState(null);
     const id = binder.clientId;
-    const rows = ownedInBinder(entries, id).map((entry) => {
-        const card = resolveCard ? resolveCard(entry) : (entry.card || {});
-        return {
-            ...entry,
-            printingId: entry.cardId || entry.printingId,
-            name: card.name || entry.name || '',
-            tcgMarket: card.market ?? card.tcgMarket ?? entry.tcgMarket,
-            market: card.market ?? card.tcgMarket ?? entry.tcgMarket,
-            imageUrl: card.imageUrl,
-            imageUrlFallback: card.imageUrlFallback,
-            isFoil: Boolean(card.isFoil),
-            condition: entry.condition || 'NM',
-            quantity: entry.quantity || 1,
-        };
-    });
     const copies = rows.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
     const value = formatBinderTileValue(rows);
     const cover = pickBinderCover(rows);

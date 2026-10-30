@@ -80,7 +80,13 @@ async function requireAuthenticatedUser(unauthedMessage) {
         return { user: null, error: { message: 'Authentication not configured' } };
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    // getSession() reads the locally stored (auto-refreshed) session. getUser()
+    // would re-validate the JWT against the Auth server first: one extra round
+    // trip ahead of every binder read and write, and the Binder page makes
+    // several on load. RLS still checks the token on each request, so the id
+    // here only scopes the query.
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
 
     if (!user) {
         return { user: null, error: { message: unauthedMessage } };
