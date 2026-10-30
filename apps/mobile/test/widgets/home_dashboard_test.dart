@@ -77,20 +77,6 @@ void main() {
       ], copies);
       expect(rows.map((r) => r.cardId), ['b', 'a', 'c']);
     });
-
-    test('recently added is newest first, one per printing, owned only', () {
-      final rows = recentlyAdded([
-        owned('old', at: DateTime(2026, 9, 1)),
-        owned('new', at: DateTime(2026, 10, 10)),
-        owned('new', at: DateTime(2026, 10, 9), binder: BinderIds.collection),
-        BinderEntry(
-          card: buildCard(id: 'want'),
-          isWanted: true,
-          addedAt: DateTime(2026, 10, 12),
-        ),
-      ]);
-      expect(rows.map((e) => e.card.id), ['new', 'old']);
-    });
   });
 
   testWidgets('empty collection shows a start prompt', (tester) async {
@@ -102,7 +88,7 @@ void main() {
     expect(find.byKey(const Key('seeTrending')), findsOneWidget);
   });
 
-  testWidgets('owned cards show value, weekly change, movers and recents',
+  testWidgets('owned cards show value, weekly change, and movers',
       (tester) async {
     final container = await pumpApp(
       tester,
@@ -127,7 +113,7 @@ void main() {
     expect(find.byKey(const Key('homeCollectionChange')), findsOneWidget);
     expect(find.textContaining('+\$8.00 (+40%) this week'), findsOneWidget);
     expect(find.byKey(const Key('homeOwnedMover-alpha')), findsOneWidget);
-    expect(find.byKey(const Key('homeRecent-alpha')), findsOneWidget);
+    expect(find.byKey(const Key('homeRecent-alpha')), findsNothing);
   });
 
   testWidgets('a failed change lookup still shows the value', (tester) async {

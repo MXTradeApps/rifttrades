@@ -9,11 +9,10 @@ function compress(str) {
         // Strategy 1: Remove unnecessary whitespace from JSON
         const minified = str.replace(/\s+/g, '');
         
-        // Strategy 2: Compress common patterns
-        let compressed = compressRepeatedPatterns(minified);
-        
-        // Strategy 3: Base64 encode the result
-        const result = btoa(unescape(encodeURIComponent(compressed)));
+        // Plain base64 of the UTF-8 JSON, the same payload the mobile app
+        // writes, so link previews and short links can read it. Links made
+        // with the old pattern substitutions still decode (decompress).
+        const result = btoa(unescape(encodeURIComponent(minified)));
         return result;
     } catch (error) {
         console.warn('Advanced compression failed, using simple base64:', error);
@@ -68,26 +67,6 @@ function decompress(str) {
             return str;
         }
     }
-}
-
-// Compress repeated JSON patterns
-function compressRepeatedPatterns(str) {
-    const patterns = [
-        ['"n":"', 'α'],
-        ['"p":', 'β'],
-        ['"q":', 'γ'],
-        ['{"', 'δ'],
-        ['"}', 'ε'],
-        [',"', 'ζ'],
-        ['":', 'η'],
-    ];
-    
-    let compressed = str;
-    patterns.forEach(([pattern, replacement]) => {
-        compressed = compressed.replace(new RegExp(escapeRegExp(pattern), 'g'), replacement);
-    });
-    
-    return compressed;
 }
 
 // Decompress repeated JSON patterns

@@ -166,7 +166,7 @@ class PurchasesRepository {
   Future<void> syncPurchases() async {
     if (!_configured) return;
     try {
-      await Purchases.syncPurchases();
+      await Purchases.syncPurchasesForResult();
     } catch (e) {
       debugPrint('RevenueCat: syncPurchases failed — $e');
     }

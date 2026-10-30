@@ -5,6 +5,17 @@
   command = "npm run build"
   publish = "dist"
 
+# Shared trade links (/?trade=…) unfurl with the trade's cards and totals in
+# Discord, iMessage and Facebook: netlify/edge-functions/trade-meta.js rewrites
+# the SPA's <head> for those URLs, and netlify/functions/trade-image.mjs draws
+# the og:image at /og/trade.png. resvg ships a native binary, so it is left
+# out of the bundle and installed alongside the function instead. Short links
+# (/t/<code>, /api/trade-links) are functions too; functions with a path run
+# before the SPA fallback below.
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@resvg/resvg-js"]
+
 [build.environment]
   NODE_VERSION = "20"
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_PUBLIC_POSTHOG_PROJECT_TOKEN,VITE_PUBLIC_POSTHOG_HOST"

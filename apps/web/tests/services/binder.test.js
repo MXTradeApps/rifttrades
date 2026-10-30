@@ -1,5 +1,5 @@
 jest.mock('../../src/lib/supabase.js', () => {
-    const auth = { getUser: jest.fn() };
+    const auth = { getUser: jest.fn(), getSession: jest.fn() };
     const supabase = { auth, from: jest.fn(), rpc: jest.fn() };
     return { supabase };
 });
@@ -85,9 +85,9 @@ const makeChain = (result) => {
 };
 
 const asUser = (id = 'user-1') =>
-    supabase.auth.getUser.mockResolvedValue({ data: { user: { id } } });
+    supabase.auth.getSession.mockResolvedValue({ data: { session: { user: { id } } } });
 const asAnonymous = () =>
-    supabase.auth.getUser.mockResolvedValue({ data: { user: null } });
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
 
 const webCard = {
     _uniqueId: 'og-001-foil',
@@ -547,6 +547,17 @@ describe('binder share helpers', () => {
         expect(data.entries[0].card.name).toBe('Kai');
         expect(data.entries.every((e) => e.binderId === TRADE_BINDER_ID)).toBe(true);
         expect(supabase.from).not.toHaveBeenCalledWith('rift_binders');
+        expect(data.ownerName).toBeNull();
+    });
+
+    test('getPublicBinder returns the trimmed owner name', async () => {
+        supabase.rpc.mockResolvedValue({
+            data: { owner_name: '  Max  ', entries: [] },
+            error: null,
+        });
+        const { data } = await getPublicBinder('c'.repeat(32));
+        expect(data.ownerName).toBe('Max');
+        expect(data.entries).toEqual([]);
     });
 
     test('filterTradeBinderEntries documents the role=trade filter', () => {

@@ -45,6 +45,9 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
 
   void _onTabChanged() {
     if (_tab.indexIsChanging) return;
+    // A selection belongs to the tab it was made on.
+    final selection = ref.read(binderSelectionProvider);
+    if (selection.isNotEmpty) ref.read(binderSelectionProvider.notifier).clear();
     setState(() {});
     if (_tab.index == 1) _maybeStartWantListTour();
   }
@@ -101,6 +104,7 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
     final owned = entries.where((e) => !e.isWanted).toList();
     final onBinderTab = _tab.index == 0;
     final inBinder = onBinderTab && openId != null;
+    final onWantTab = _tab.index == 1;
     final openRows = openId == null
         ? const <BinderEntry>[]
         : ownedInBinder(owned, openId);
@@ -113,9 +117,10 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
       binders: binders,
     );
     final selection = ref.watch(binderSelectionProvider);
-    final selecting = inBinder && selection.isNotEmpty;
+    final selecting = (inBinder || onWantTab) && selection.isNotEmpty;
     final selectionBar = selecting
         ? _SelectionActionBar(
+            wants: onWantTab,
             canMove: Binder.gridOrder(binders)
                 .any((b) => b.isLive && b.clientId != openId),
             onMove: () => _moveSelected(context),
@@ -183,7 +188,9 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
       ),
       body: TabBarView(
         controller: _tab,
-        physics: inBinder ? const NeverScrollableScrollPhysics() : null,
+        physics: inBinder || selecting
+            ? const NeverScrollableScrollPhysics()
+            : null,
         children: [
           openId == null
               ? BinderGrid(
@@ -247,8 +254,10 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
   }
 
   PreferredSizeWidget _selectionAppBar(Set<String> selection) {
-    final visibleKeys =
-        ref.read(filteredBinderProvider).map(binderRowKey).toList();
+    final rows = _tab.index == 1
+        ? ref.read(binderProvider).where((e) => e.isWanted)
+        : ref.read(filteredBinderProvider);
+    final visibleKeys = rows.map(binderRowKey).toList();
     final allSelected = visibleKeys.every(selection.contains);
     final notifier = ref.read(binderSelectionProvider.notifier);
     return AppBar(
@@ -274,9 +283,15 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
 
   /// Selected rows as they are now, so actions see current quantities.
   List<BinderEntry> _selectedRows() {
+    final keys = ref.read(binderSelectionProvider);
+    if (_tab.index == 1) {
+      return ref
+          .read(binderProvider)
+          .where((e) => e.isWanted && keys.contains(binderRowKey(e)))
+          .toList();
+    }
     final openId = ref.read(openBinderIdProvider);
     if (openId == null) return const [];
-    final keys = ref.read(binderSelectionProvider);
     return ownedInBinder(ref.read(binderProvider), openId)
         .where((e) => keys.contains(binderRowKey(e)))
         .toList();
@@ -331,21 +346,26 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
     );
   }
 
-  /// Puts one copy of each selected card on my side of the trade. The cards
-  /// stay in the Binder until the trade is confirmed.
+  /// Puts one copy of each selected card on the trade: Want List cards on
+  /// the side I want, Binder cards on my side. The cards stay in the Binder
+  /// until the trade is confirmed.
   void _tradeSelected(BuildContext context) {
     final rows = _selectedRows();
     if (rows.isEmpty) return;
+    final wants = _tab.index == 1;
+    final side = wants ? TradeSide.want : TradeSide.have;
     final trade = ref.read(tradeDraftProvider.notifier);
     for (final row in rows) {
-      trade.addCard(TradeSide.have, row.card);
+      trade.addCard(side, row.card);
     }
     ref.read(binderSelectionProvider.notifier).clear();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         key: const Key('binderBulkTradeSnack'),
-        content: Text('Added ${_cards(rows.length)} to your side of the trade'),
+        content: Text(wants
+            ? 'Added ${_cards(rows.length)} to Cards I Want'
+            : 'Added ${_cards(rows.length)} to your side of the trade'),
         action: SnackBarAction(
           label: 'View',
           onPressed: () =>
@@ -376,7 +396,15 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
     final rows = _selectedRows();
     if (rows.isEmpty) return;
     final notifier = ref.read(binderProvider.notifier);
-    final removed = notifier.removeEntries(rows);
+    final List<BinderEntry> removed;
+    if (_tab.index == 1) {
+      for (final row in rows) {
+        notifier.remove(row.card.id, true);
+      }
+      removed = rows;
+    } else {
+      removed = notifier.removeEntries(rows);
+    }
     ref.read(binderSelectionProvider.notifier).clear();
     if (removed.isEmpty) return;
     ScaffoldMessenger.of(context)
@@ -667,6 +695,7 @@ class _BinderValueChip extends StatelessWidget {
 /// Stands in for the Add card row while rows are selected.
 class _SelectionActionBar extends StatelessWidget {
   const _SelectionActionBar({
+    required this.wants,
     required this.canMove,
     required this.onMove,
     required this.onTrade,
@@ -674,6 +703,8 @@ class _SelectionActionBar extends StatelessWidget {
     required this.onRemove,
   });
 
+  /// Want List rows can't be moved or sold, only traded for or removed.
+  final bool wants;
   final bool canMove;
   final VoidCallback onMove;
   final VoidCallback onTrade;
@@ -695,13 +726,14 @@ class _SelectionActionBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _SelectionAction(
-            key: const Key('binderBulkMove'),
-            icon: Icons.drive_file_move_outline,
-            label: 'Move',
-            color: t.text,
-            onTap: canMove ? onMove : null,
-          ),
+          if (!wants)
+            _SelectionAction(
+              key: const Key('binderBulkMove'),
+              icon: Icons.drive_file_move_outline,
+              label: 'Move',
+              color: t.text,
+              onTap: canMove ? onMove : null,
+            ),
           _SelectionAction(
             key: const Key('binderBulkTrade'),
             icon: Icons.swap_horiz_rounded,
@@ -709,13 +741,14 @@ class _SelectionActionBar extends StatelessWidget {
             color: t.text,
             onTap: onTrade,
           ),
-          _SelectionAction(
-            key: const Key('binderBulkSell'),
-            icon: Icons.sell_outlined,
-            label: 'Sell',
-            color: t.text,
-            onTap: onSell,
-          ),
+          if (!wants)
+            _SelectionAction(
+              key: const Key('binderBulkSell'),
+              icon: Icons.sell_outlined,
+              label: 'Sell',
+              color: t.text,
+              onTap: onSell,
+            ),
           _SelectionAction(
             key: const Key('binderBulkRemove'),
             icon: Icons.delete_outline_rounded,

@@ -117,10 +117,10 @@ packages:
     dependency: "direct main"
     description:
       name: camera
-      sha256: "034c38cb8014d29698dcae6d20276688a1bf74e6487dfeb274d70ea05d5f7777"
+      sha256: "4a0863bc142f6fbfdca19161205574fd8a8f00d4753b48d214c4dfbdcc534c51"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.0+1"
+    version: "0.12.2"
   camera_android:
     dependency: "direct main"
     description:
@@ -133,10 +133,10 @@ packages:
     dependency: transitive
     description:
       name: camera_android_camerax
-      sha256: "50c3fd81228826635af4875330febb193c74a2e12a4d19c1b95e2a67f0017bb3"
+      sha256: b5e0a2a8e63f2788139379926a9abc3a64eed5e309c1384e5db25b74f15b7307
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.3"
+    version: "0.7.6+1"
   camera_avfoundation:
     dependency: "direct overridden"
     description:
@@ -149,10 +149,10 @@ packages:
     dependency: "direct dev"
     description:
       name: camera_platform_interface
-      sha256: "7ac852d77699acee79f0d438b793feee26721841e50973576419ff5c6d95e9b7"
+      sha256: b3083b183ef1daa408d5f0c98c8c7ac0325b490695fb4557ff4210fcf04c5984
       url: "https://pub.dev"
     source: hosted
-    version: "2.13.0"
+    version: "2.15.0"
   camera_web:
     dependency: transitive
     description:
@@ -478,18 +478,18 @@ packages:
     dependency: transitive
     description:
       name: google_mlkit_commons
-      sha256: c7fc384bdb66c3b83e24e3a41818e61d7a378d900f65f5e775344fbca95a0917
+      sha256: "621e94de22fd0f1e902e593b892746d80ab7542b39c2552aa091d904eb82fc6f"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.0"
+    version: "0.13.0"
   google_mlkit_text_recognition:
     dependency: "direct main"
     description:
       name: google_mlkit_text_recognition
-      sha256: "8324fdc2628ebeb63568ad06437b984b716d938d87e4ce63ab24dfd3eeebf08a"
+      sha256: e13685af5093c8be009a3555909b72a80e10cfe8f97752bcbdf99fa0ccbda810
       url: "https://pub.dev"
     source: hosted
-    version: "0.16.0"
+    version: "0.17.1"
   gotrue:
     dependency: transitive
     description:
@@ -891,18 +891,18 @@ packages:
     dependency: "direct main"
     description:
       name: purchases_flutter
-      sha256: "2d02f74f88a890aca44962cac31c7f55fa6b28b18f6fa73c6da71b3cc878d969"
+      sha256: "16d6610e6076ef36cf0c49f926a0f03484fb092ea8c7ea89b02e51dfe57bae82"
       url: "https://pub.dev"
     source: hosted
-    version: "10.4.3"
+    version: "10.19.0"
   purchases_ui_flutter:
     dependency: "direct main"
     description:
       name: purchases_ui_flutter
-      sha256: c25cc21b406a50f3491945b73c60af1126696769f783930823299bfcae91362f
+      sha256: c3292178db9a95c3fcbc47a5d3d9fdc4155295dcae3d66548d68e4a0b50c2657
       url: "https://pub.dev"
     source: hosted
-    version: "10.4.3"
+    version: "10.19.0"
   realtime_client:
     dependency: transitive
     description:
@@ -1043,10 +1043,10 @@ packages:
     dependency: "direct main"
     description:
       name: sign_in_with_apple
-      sha256: "8bd875c8e8748272749eb6d25b896f768e7e9d60988446d543fe85a37a2392b8"
+      sha256: "6d205ad2b30f95b231812d61f19b4a8df836f16ba9cde28735b3ac8ece9113f7"
       url: "https://pub.dev"
     source: hosted
-    version: "7.0.1"
+    version: "8.2.0"
   sign_in_with_apple_platform_interface:
     dependency: transitive
     description:
