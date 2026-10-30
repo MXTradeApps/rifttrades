@@ -547,6 +547,17 @@ describe('binder share helpers', () => {
         expect(data.entries[0].card.name).toBe('Kai');
         expect(data.entries.every((e) => e.binderId === TRADE_BINDER_ID)).toBe(true);
         expect(supabase.from).not.toHaveBeenCalledWith('rift_binders');
+        expect(data.ownerName).toBeNull();
+    });
+
+    test('getPublicBinder returns the trimmed owner name', async () => {
+        supabase.rpc.mockResolvedValue({
+            data: { owner_name: '  Max  ', entries: [] },
+            error: null,
+        });
+        const { data } = await getPublicBinder('c'.repeat(32));
+        expect(data.ownerName).toBe('Max');
+        expect(data.entries).toEqual([]);
     });
 
     test('filterTradeBinderEntries documents the role=trade filter', () => {

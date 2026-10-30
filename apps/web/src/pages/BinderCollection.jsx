@@ -35,8 +35,10 @@ import {
     Search as SearchIcon,
     SellOutlined,
     Share as ShareIcon,
+    SwapHorizRounded,
 } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { addCardToTradeDraft } from '../utils/tradeDraft.js';
 import { useAuth } from '../contexts/AuthContext';
 import { useEntitlement } from '../contexts/EntitlementContext.jsx';
 import { useCardData } from '../hooks/useCardData.jsx';
@@ -239,6 +241,8 @@ const BinderCollection = ({ isWanted = false }) => {
     const [limitMessage, setLimitMessage] = useState('');
     const [toast, setToast] = useState('');
     const [toastSeverity, setToastSeverity] = useState('success');
+    // While this message is the toast, it offers View to open the trade calculator.
+    const [tradeToast, setTradeToast] = useState('');
     const showToast = (message, severity = 'success') => {
         setToastSeverity(severity);
         setToast(message);
@@ -661,6 +665,34 @@ const BinderCollection = ({ isWanted = false }) => {
         const { data: enabled } = await setBinderShareEnabled(true);
         if (enabled) setShare(enabled);
         return enabled?.isEnabled ? enabled.url : null;
+    };
+
+    /**
+     * Appends one copy of each selected card to the trade draft: Want List
+     * cards go on the side I want, Binder cards on the side I have. Cards
+     * stay in the Binder until the trade is confirmed.
+     */
+    const addSelectedToTrade = () => {
+        const rows = selectedEntries;
+        if (rows.length === 0) return;
+        const side = isWanted ? 'want' : 'have';
+        for (const entry of rows) {
+            const live = catalogById.get(entry.cardId);
+            const stub = entry.card || {};
+            const card = resolveCard(entry);
+            addCardToTradeDraft(side, {
+                uniqueId: entry.cardId || live?._uniqueId || null,
+                name: live?.displayName || live?.name || stub.name || 'Card',
+                subTypeName: card.finish,
+                quantity: 1,
+                price: card.market,
+            });
+        }
+        setSelectedKeys(new Set());
+        const label = `${rows.length} ${rows.length === 1 ? 'card' : 'cards'}`;
+        const message = `Added ${label} to ${isWanted ? 'Cards I Want' : 'Cards I Have'}`;
+        setTradeToast(message);
+        showToast(message);
     };
 
     const confirmBulkRemove = async () => {
@@ -1184,10 +1216,19 @@ const BinderCollection = ({ isWanted = false }) => {
                         >
                             Select all
                         </Button>
+                        <Button
+                            size="small"
+                            variant="contained"
+                            data-testid="binder-bulk-trade"
+                            startIcon={<SwapHorizRounded />}
+                            onClick={addSelectedToTrade}
+                        >
+                            Add to trade
+                        </Button>
                         {!isWanted && (
                             <Button
                                 size="small"
-                                variant="contained"
+                                variant="outlined"
                                 data-testid="binder-bulk-sell"
                                 startIcon={<SellOutlined />}
                                 onClick={() => setSaleEntries(selectedEntries)}
@@ -1677,6 +1718,16 @@ const BinderCollection = ({ isWanted = false }) => {
             >
                 <Alert
                     onClose={() => setToast('')}
+                    action={toast && toast === tradeToast ? (
+                        <Button
+                            color="inherit"
+                            size="small"
+                            data-testid="binder-trade-toast-view"
+                            onClick={() => navigate('/')}
+                        >
+                            View
+                        </Button>
+                    ) : undefined}
                     severity={toastSeverity}
                     variant="filled"
                     sx={{ width: '100%' }}

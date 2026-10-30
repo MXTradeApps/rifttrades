@@ -23,6 +23,7 @@ import { useCardDetail } from '../contexts/CardDetailContext.jsx';
 import { getPublicBinder } from '../services/binder.js';
 import { formatCurrency } from '../utils/helpers.js';
 import { addCardToTradeDraft } from '../utils/tradeDraft.js';
+import { sharedBinderTitle } from '../utils/binderNames.js';
 import { capture } from '../lib/analytics.js';
 import { Page, PageHeader, Panel, EmptyState } from '../components/layout/Page.jsx';
 import { tk } from '../theme/tokens.js';
@@ -168,6 +169,7 @@ const SharedBinder = () => {
     const { openDetail } = useCardDetail();
 
     const [entries, setEntries] = useState([]);
+    const [ownerName, setOwnerName] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [sort, setSort] = useState('nameAsc');
@@ -183,12 +185,14 @@ const SharedBinder = () => {
             if (fetchError) {
                 setError(fetchError.message || 'This binder link is unavailable');
                 setEntries([]);
+                setOwnerName(null);
                 capture('shared_binder_view_failed', {
                     error_message: fetchError.message || 'unavailable',
                 });
             } else {
                 const list = data.entries || [];
                 setEntries(list);
+                setOwnerName(data.ownerName || null);
                 capture('shared_binder_viewed', {
                     card_count: list.length,
                 });
@@ -299,7 +303,7 @@ const SharedBinder = () => {
 
             <Page>
                 <PageHeader
-                    title="Shared Binder"
+                    title={sharedBinderTitle(ownerName)}
                     subtitle={
                         ready ? (
                             <Box
