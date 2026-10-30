@@ -277,12 +277,19 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
   /// a ready-to-paste offer with a link, or the link alone.
   Future<void> _shareTrade(BuildContext context) async {
     final draft = ref.read(tradeDraftProvider);
-    final link = TradeOffer.link(draft);
-    if (link == null) return;
+    final longLink = TradeOffer.link(draft);
+    if (longLink == null) return;
+    // Ask for the short link while the sheet opens; copying waits for it and
+    // falls back to the long link if the site can't be reached.
+    final link = ref.read(tradeLinkShortenerProvider).shorten(longLink);
 
-    Future<void> copy(BuildContext sheet, String format, String text) async {
+    Future<void> copy(
+      BuildContext sheet,
+      String format,
+      String Function(String link) text,
+    ) async {
       Navigator.of(sheet).pop();
-      await Clipboard.setData(ClipboardData(text: text));
+      await Clipboard.setData(ClipboardData(text: text(await link)));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -310,7 +317,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
               onTap: () => copy(
                 sheet,
                 'discord',
-                '${TradeOffer.message(draft)}$link',
+                (link) => '${TradeOffer.message(draft)}$link',
               ),
             ),
             ListTile(
@@ -318,7 +325,7 @@ class _TradeScreenState extends ConsumerState<TradeScreen> {
               leading: const Icon(Icons.link),
               title: const Text('Copy link'),
               subtitle: const Text('Opens this trade on riftrades.com'),
-              onTap: () => copy(sheet, 'link', link),
+              onTap: () => copy(sheet, 'link', (link) => link),
             ),
           ],
         ),

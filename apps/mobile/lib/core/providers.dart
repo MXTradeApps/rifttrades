@@ -23,6 +23,7 @@ import 'data/price_alert_repository.dart';
 import 'data/purchases_repository.dart';
 import 'data/review_prompt_repository.dart';
 import 'data/settings_repository.dart';
+import 'data/trade_link_shortener.dart';
 import 'data/trade_repository.dart';
 import 'logic/binder_move.dart';
 import 'logic/binder_names.dart';
@@ -67,6 +68,10 @@ final priceHistoryProvider =
 final reviewPromptRepositoryProvider = Provider<ReviewPromptRepository>(
   (ref) => ReviewPromptRepository(ref.watch(sharedPreferencesProvider)),
 );
+
+/// Short `riftrades.com/t/…` links for shared trades.
+final tradeLinkShortenerProvider =
+    Provider<TradeLinkShortener>((ref) => TradeLinkShortener());
 
 /// Lazily resolves Supabase so widget tests without [Supabase.initialize]
 /// can still construct the checker (failures surface inside [AppUpdateChecker.check]).
