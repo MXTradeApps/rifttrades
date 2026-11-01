@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/card_filter_bar.dart';
+import '../../app/text_field_clear_button.dart';
 import '../../app/theme.dart';
 import '../../app/ui.dart';
 import '../../app/widgets.dart';
@@ -91,12 +92,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               decoration: InputDecoration(
                 hintText: 'Search all cards…',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: _clear,
-                      ),
+                suffixIcon: TextFieldClearButton.maybe(
+                  text: _controller.text,
+                  tooltip: 'Clear search',
+                  onPressed: _clear,
+                ),
               ),
             ),
           ),
@@ -373,6 +373,13 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
     });
   }
 
+  void _clear() {
+    _debounce?.cancel();
+    _controller.clear();
+    ref.read(searchFiltersProvider.notifier).setQuery('');
+    setState(() {});
+  }
+
   /// Pull-to-refresh: re-query Supabase so the latest synced prices show up,
   /// then toast when the pipeline last updated pricing.
   Future<void> _refresh() => refreshPricesWithToast(context, ref);
@@ -400,16 +407,11 @@ class _SetCardsScreenState extends ConsumerState<SetCardsScreen> {
               decoration: InputDecoration(
                 hintText: 'Search in ${widget.setName}…',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _controller.clear();
-                          ref.read(searchFiltersProvider.notifier).setQuery('');
-                          setState(() {});
-                        },
-                      ),
+                suffixIcon: TextFieldClearButton.maybe(
+                  text: _controller.text,
+                  tooltip: 'Clear search',
+                  onPressed: _clear,
+                ),
               ),
             ),
           ),

@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import Header from '../components/elements/Header.jsx';
 import { Page, PageHeader, SectionTitle } from '../components/layout/Page.jsx';
 import { tk } from '../theme/tokens.js';
+import { SearchClearAdornment } from '../components/search/index.js';
 import { useSets } from '../hooks/useSets.js';
 import { useCardData } from '../hooks/useCardData.jsx';
 
@@ -175,6 +176,12 @@ const SetList = () => {
                             <InputAdornment position="start">
                                 <SearchIcon sx={{ color: 'text.secondary' }} />
                             </InputAdornment>
+                        ),
+                        endAdornment: (
+                            <SearchClearAdornment
+                                value={query}
+                                onClear={() => setQuery('')}
+                            />
                         ),
                     }}
                 />

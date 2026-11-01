@@ -8,6 +8,11 @@ jest.mock('../../src/services/entitlements.js', () => ({
     fetchEntitlement: jest.fn(),
 }));
 
+jest.mock('../../src/utils/featureAccess.js', () => ({
+    FEATURES_UNLOCKED: false,
+    hasProFeatures: (isPro) => Boolean(isPro),
+}));
+
 import { supabase } from '../../src/lib/supabase.js';
 import { fetchEntitlement } from '../../src/services/entitlements.js';
 import {

@@ -1,3 +1,8 @@
+jest.mock('../../src/utils/featureAccess.js', () => ({
+  FEATURES_UNLOCKED: false,
+  hasProFeatures: (isPro) => Boolean(isPro),
+}));
+
 // Mock the Supabase boundary so we never touch `import.meta.env` / the network.
 jest.mock('../../src/lib/supabase.js', () => {
   const auth = { getUser: jest.fn() };

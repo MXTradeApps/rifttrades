@@ -37,6 +37,7 @@ void main() {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         subscriptionProvider.overrideWith(() => _FakeSubscription(isPro: isPro)),
+        featuresUnlockedProvider.overrideWithValue(false),
       ],
     );
     addTearDown(container.dispose);

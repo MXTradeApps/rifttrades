@@ -129,21 +129,27 @@ See [ENVIRONMENTS.md](ENVIRONMENTS.md).
 | Accessor | Sources |
 | --- | --- |
 | `entitlementProvider` → `isProProvider` | `CustomerInfo` + `rift_entitlements` |
+| `hasProFeaturesProvider` | `FeatureAccess.unlocked` **or** `isProProvider` |
 
-Nothing else decides what "Pro" means. Mobile grants access when **either** source
-says so. Use `entitlementResolvedProvider` before destructive free-tier trims so
+`isProProvider` is still the purchase answer. Feature gates read
+`hasProFeaturesProvider` instead, so every product feature can stay free while
+RevenueCat, the paywall, and Settings subscription UI remain. Flip
+`FeatureAccess.unlocked` (mobile) / `FEATURES_UNLOCKED` (web) to `false` to
+enforce caps and Pro gates again.
+
+Use `entitlementResolvedProvider` before destructive free-tier trims so
 an unknown state cannot delete data.
 
 ### Free-tier caps
 
 Defined in `lib/core/logic/free_limits.dart`: binder 50, want list 25, loaned 25,
-saved trades 3 (trim oldest). See [../context.md](../context.md).
+saved trades 3 (trim oldest). See [../context.md](../context.md). Not enforced
+while `FeatureAccess.unlocked` is true.
 
 ### Pro-only features
 
-| Feature | Gate |
-| --- | --- |
-| Find Trade Filler | `ensurePro` in `showTradeFillerSheet` |
+None while `FeatureAccess.unlocked` is true. `ensurePro` and `ProGate` stay
+so a paid tier can return. Find Trade Filler is ungated.
 
 ## Debugging "I paid but I don't have Pro"
 

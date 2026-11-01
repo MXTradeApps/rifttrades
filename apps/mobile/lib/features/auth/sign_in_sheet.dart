@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/text_field_clear_button.dart';
 import '../../core/models/account.dart';
 import '../../core/providers.dart';
 import 'auth_provider_icons.dart';
@@ -89,11 +90,24 @@ class _SignInSheetState extends ConsumerState<SignInSheet> {
   final _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onFieldChanged);
+    _passwordController.addListener(_onFieldChanged);
+  }
+
+  @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _emailController
+      ..removeListener(_onFieldChanged)
+      ..dispose();
+    _passwordController
+      ..removeListener(_onFieldChanged)
+      ..dispose();
     super.dispose();
   }
+
+  void _onFieldChanged() => setState(() {});
 
   Future<void> _signIn(AuthProviderKind provider) async {
     setState(() {
@@ -218,9 +232,13 @@ class _SignInSheetState extends ConsumerState<SignInSheet> {
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Email',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: TextFieldClearButton.maybe(
+                      text: _emailController.text,
+                      onPressed: _emailController.clear,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -236,16 +254,7 @@ class _SignInSheetState extends ConsumerState<SignInSheet> {
                   decoration: InputDecoration(
                     labelText: 'Password',
                     border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      onPressed: () => setState(
-                        () => _obscurePassword = !_obscurePassword,
-                      ),
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                    ),
+                    suffixIcon: _passwordSuffix(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -284,6 +293,29 @@ class _SignInSheetState extends ConsumerState<SignInSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _passwordSuffix() {
+    final visibility = IconButton(
+      onPressed: () => setState(
+        () => _obscurePassword = !_obscurePassword,
+      ),
+      tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+      icon: Icon(
+        _obscurePassword
+            ? Icons.visibility_outlined
+            : Icons.visibility_off_outlined,
+      ),
+    );
+    final clear = TextFieldClearButton.maybe(
+      text: _passwordController.text,
+      onPressed: _passwordController.clear,
+    );
+    if (clear == null) return visibility;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [clear, visibility],
     );
   }
 

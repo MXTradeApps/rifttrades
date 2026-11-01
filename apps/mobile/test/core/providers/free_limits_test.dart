@@ -26,6 +26,7 @@ void main() {
 
   Future<ProviderContainer> makeContainer({
     required bool isPro,
+    bool featuresUnlocked = false,
     Map<String, Object> seed = const {},
   }) async {
     SharedPreferences.setMockInitialValues(seed);
@@ -34,6 +35,7 @@ void main() {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         subscriptionProvider.overrideWith(() => _FakeSubscription(isPro: isPro)),
+        featuresUnlockedProvider.overrideWithValue(featuresUnlocked),
       ],
     );
     addTearDown(container.dispose);
@@ -44,6 +46,30 @@ void main() {
   }
 
   Trade buildTrade(String id) => Trade(id: id, createdAt: DateTime.now());
+
+  group('features unlocked switch', () {
+    test('lets a free account past every cap', () async {
+      final c = await makeContainer(isPro: false, featuresUnlocked: true);
+      expect(c.read(isProProvider), isFalse);
+      expect(c.read(hasProFeaturesProvider), isTrue);
+      expect(c.read(freeUsageProvider), isNull);
+
+      final binder = c.read(binderProvider.notifier);
+      for (var i = 0; i < FreeLimits.binderCards + 1; i++) {
+        expect(binder.add(buildCard(id: 'c-$i')), isTrue);
+      }
+      expect(c.read(binderProvider), hasLength(FreeLimits.binderCards + 1));
+
+      final trades = c.read(tradeHistoryProvider.notifier);
+      for (var i = 0; i < FreeLimits.savedTrades + 2; i++) {
+        expect(trades.addTrade(buildTrade('t-$i')), 0);
+      }
+      expect(
+        c.read(tradeHistoryProvider),
+        hasLength(FreeLimits.savedTrades + 2),
+      );
+    });
+  });
 
   group('documented free-tier caps', () {
     test(

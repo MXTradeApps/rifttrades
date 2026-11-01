@@ -9,7 +9,8 @@ const EntitlementContext = createContext({});
  * way every Pro decision on mobile resolves through `entitlementProvider`.
  *
  * Returns:
- * - `isPro` — whether Pro features are unlocked
+ * - `isPro` — whether this account has an active Pro subscription.
+ *   Feature gates also honour `FEATURES_UNLOCKED` via `hasProFeatures`.
  * - `isInTrial`, `hasBillingIssue`, `isSandbox`, `expiresAt`, `productId`,
  *   `purchasedFrom` — detail for status copy
  * - `loading` — the row has not been read yet; gates should stay closed

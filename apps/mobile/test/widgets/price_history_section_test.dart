@@ -49,6 +49,7 @@ void main() {
     Object? priceHistoryError,
     Future<List<PricePoint>> Function(String cardId)? onPriceHistory,
     bool isPro = false,
+    bool? featuresUnlocked,
   }) async {
     await pumpApp(
       tester,
@@ -58,6 +59,7 @@ void main() {
       priceHistoryError: priceHistoryError,
       onPriceHistory: onPriceHistory,
       isPro: isPro,
+      featuresUnlocked: featuresUnlocked,
     );
     await tester.pump();
     await tester.pump();
@@ -159,12 +161,31 @@ void main() {
     expect(find.byType(LineChart), findsOneWidget);
   });
 
-  testWidgets('free + older snapshots show Pro line, not a span control',
+  testWidgets('unlocked features show span control for a free account',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await pumpDetails(
+      tester,
+      catalog: [card],
+      priceHistory: {card.id: chartable(withOlder: true)},
+    );
+
+    expect(find.text('See full history with Pro'), findsNothing);
+    expect(find.byKey(PriceHistorySection.spanToggleKey), findsOneWidget);
+    expect(find.byType(LineChart), findsOneWidget);
+  });
+
+  testWidgets('enforced free tier shows Pro line, not a span control',
       (tester) async {
     await pumpDetails(
       tester,
       catalog: [card],
       priceHistory: {card.id: chartable(withOlder: true)},
+      featuresUnlocked: false,
     );
 
     expect(find.text('See full history with Pro'), findsOneWidget);

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { hasProFeatures } from '../utils/featureAccess';
 import { fetchEntitlement } from './entitlements';
 import { tradesOverFreeLimit } from '../utils/freeLimits';
 
@@ -37,7 +38,7 @@ async function requireAuthenticatedUser(unauthedMessage) {
  */
 async function trimToFreeWindow(userId) {
     const { entitlement } = await fetchEntitlement(userId);
-    if (entitlement.isPro) return 0;
+    if (hasProFeatures(entitlement.isPro)) return 0;
 
     const { data, error } = await supabase
         .from('rift_trades')

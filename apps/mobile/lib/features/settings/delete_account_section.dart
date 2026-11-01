@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/text_field_clear_button.dart';
 import '../../core/data/auth_repository.dart';
 import '../../core/providers.dart';
 import 'settings_screen.dart' show SettingsSectionLabel;
@@ -143,9 +144,16 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
               autocorrect: false,
               enableSuggestions: false,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
                 hintText: _required,
+                suffixIcon: TextFieldClearButton.maybe(
+                  text: _controller.text,
+                  onPressed: () {
+                    _controller.clear();
+                    setState(() {});
+                  },
+                ),
               ),
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) {

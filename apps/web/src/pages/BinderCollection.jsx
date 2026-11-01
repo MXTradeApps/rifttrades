@@ -66,6 +66,7 @@ import {
     entryRowKey,
     upsertEntry,
 } from '../services/binder.js';
+import { hasProFeatures } from '../utils/featureAccess.js';
 import { canAddDistinctCard, canCreateBinder, cardsFor, distinctOwnedCount } from '../utils/freeLimits.js';
 import { formatCurrency } from '../utils/helpers.js';
 import BinderValueDialog from '../components/binder/BinderValueDialog.jsx';
@@ -216,6 +217,7 @@ const BinderCollection = ({ isWanted = false }) => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { isPro, loading: entitlementLoading } = useEntitlement();
+    const featuresUnlocked = hasProFeatures(isPro);
     const { cards, cardGroups, pricesUpdatedAt: lastUpdatedTimestamp } = useCardData();
     const { openDetail } = useCardDetail();
 
@@ -435,7 +437,7 @@ const BinderCollection = ({ isWanted = false }) => {
         : distinctOwnedCount(allOwned, targetBinderId);
     const atFreeLimit =
         !entitlementLoading &&
-        !isPro &&
+        !featuresUnlocked &&
         !canAddDistinctCard(distinctInOpen, { isWanted, isPro: false });
     const openBinder = binders.find((b) => b.clientId === openBinderId);
 
@@ -452,7 +454,7 @@ const BinderCollection = ({ isWanted = false }) => {
                 && (e.binderId || TRADE_BINDER_ID) === binderId
                 && (e.condition || 'NM') === 'NM');
 
-        if (!existing && !canAddDistinctCard(distinctInOpen, { isWanted, isPro })) {
+        if (!existing && !canAddDistinctCard(distinctInOpen, { isWanted, isPro: featuresUnlocked })) {
             setLimitMessage(
                 `${isWanted ? 'Want lists' : 'Binders'} hold ${limit} cards on the free plan. Subscribe in the RiftTrades app to add more.`,
             );
@@ -727,7 +729,7 @@ const BinderCollection = ({ isWanted = false }) => {
     const handleCreateBinder = async () => {
         const { data: latest } = await getBinders();
         const liveCount = (latest?.binders || binders).length;
-        if (!canCreateBinder(liveCount, { isPro })) {
+        if (!canCreateBinder(liveCount, { isPro: featuresUnlocked })) {
             setLimitMessage(
                 'Binders hold 4 on the free plan. Subscribe in the RiftTrades app to add more.',
             );
@@ -737,7 +739,7 @@ const BinderCollection = ({ isWanted = false }) => {
         if (name == null) return;
         const { data, error: createError } = await createBinder({
             name,
-            isPro,
+            isPro: featuresUnlocked,
             liveCount: binders.length,
         });
         if (createError) {
@@ -817,7 +819,7 @@ const BinderCollection = ({ isWanted = false }) => {
             printingId: entry.cardId,
             condition: entry.condition || 'NM',
             quantity: qty,
-            isPro,
+            isPro: featuresUnlocked,
         });
         if (moveError) {
             if (moveError.reason === 'binder-cards-cap') {
@@ -1099,7 +1101,7 @@ const BinderCollection = ({ isWanted = false }) => {
 
                 {!showingGrid && (
                 <>
-                {!entitlementLoading && !isPro && entries.length / limit >= 0.7 && (
+                {!entitlementLoading && !featuresUnlocked && entries.length / limit >= 0.7 && (
                     <Alert severity="info" icon={false} sx={{ mb: 2 }}>
                         Free plan — {listLabel.toLowerCase()} holds {limit} cards
                         ({entries.length}/{limit}). Subscribe in the RiftTrades app for unlimited.

@@ -62,6 +62,7 @@ Future<({ProviderContainer container, StubSyncNotifier sync})> _pumpAddButton(
       accountProvider.overrideWithValue(AsyncValue.data(account)),
       syncProvider.overrideWith(() => sync),
       subscriptionProvider.overrideWith(() => _FakeSubscription(isPro: isPro)),
+      featuresUnlockedProvider.overrideWithValue(false),
       serverEntitlementProvider.overrideWith((ref) async => null),
     ],
   );

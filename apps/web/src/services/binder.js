@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { hasProFeatures } from '../utils/featureAccess';
 import { canAddDistinctCard, canCreateBinder } from '../utils/freeLimits';
 import { validateBinderName } from '../utils/binderNames';
 import { moveBinderCopies as planMove } from '../utils/binderMove';
@@ -512,7 +513,7 @@ export async function checkCanAddBinderCard({
         const { entitlement } = await fetchEntitlement(user.id);
         const allowed = canAddDistinctCard(existingDistinctCount, {
             isWanted,
-            isPro: entitlement.isPro,
+            isPro: hasProFeatures(entitlement.isPro),
         });
 
         return { allowed, error: null, isPro: entitlement.isPro };
@@ -760,7 +761,7 @@ export async function createBinder({ name }) {
             return { data: null, error: { message: unique.reason, reason: unique.reason } };
         }
         const { entitlement } = (await fetchEntitlement(user.id)) || {};
-        const entitled = Boolean(entitlement?.isPro);
+        const entitled = hasProFeatures(entitlement?.isPro);
         if (!canCreateBinder(live.length, { isPro: entitled })) {
             return { data: null, error: { reason: 'paywall' } };
         }
@@ -898,7 +899,7 @@ export async function applyBinderMove({
     );
     if (authError) return { data: null, error: authError };
     const { entitlement } = (await fetchEntitlement(user.id)) || {};
-    const entitled = Boolean(entitlement?.isPro);
+    const entitled = hasProFeatures(entitlement?.isPro);
     const planned = planMove({
         binders,
         entries: normalized,

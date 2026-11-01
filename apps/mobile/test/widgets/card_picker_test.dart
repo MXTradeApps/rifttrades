@@ -83,6 +83,29 @@ void main() {
     );
   });
 
+  testWidgets('clear button empties the field and resets the search', (
+    tester,
+  ) async {
+    await openMulti(tester, onPick: (_) async => true);
+
+    await tester.enterText(find.byType(TextField), 'Two');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha Two'), findsOneWidget);
+    expect(find.text('Alpha One'), findsNothing);
+
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+
+    expect(
+      (tester.widget<TextField>(find.byType(TextField))).controller?.text,
+      '',
+    );
+    expect(find.text('Alpha One'), findsOneWidget);
+    expect(find.text('Alpha Two'), findsOneWidget);
+  });
+
   testWidgets('multi-add pops when onPick returns false', (tester) async {
     await openMulti(tester, onPick: (_) async => false);
     await tester.pumpAndSettle();
