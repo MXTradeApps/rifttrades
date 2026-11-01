@@ -10,7 +10,7 @@ Sync Impact Report
 - Removed sections: none
 - Follow-up TODOs: none
 - Sources:
-  - specs/001-fab-parity (T007)
+  - Aug 22, 2026 multi-binder constitution amendment (T007)
   - context.md vocabulary update in the same change
 -->
 
