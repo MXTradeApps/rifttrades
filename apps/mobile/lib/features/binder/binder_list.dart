@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/text_field_clear_button.dart';
 import '../../app/theme.dart';
 import '../../app/ui.dart';
 import '../../app/widgets.dart';
@@ -127,13 +128,13 @@ class _BinderListState extends ConsumerState<BinderList> {
                       minWidth: 40,
                       minHeight: 36,
                     ),
-                    suffixIcon: _controller.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: _clearQuery,
-                            visualDensity: VisualDensity.compact,
-                          ),
+                    suffixIcon: TextFieldClearButton.maybe(
+                      text: _controller.text,
+                      tooltip: 'Clear search',
+                      iconSize: 18,
+                      compact: true,
+                      onPressed: _clearQuery,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 8,

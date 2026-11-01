@@ -55,6 +55,7 @@ Future<ProviderContainer> pumpApp(
   Object? printingRecentChangesError,
   bool isPro = false,
   FakePriceAlertRepository? priceAlerts,
+  bool? featuresUnlocked,
 }) async {
   SharedPreferences.setMockInitialValues(seed);
   final prefs = await SharedPreferences.getInstance();
@@ -107,6 +108,8 @@ Future<ProviderContainer> pumpApp(
       priceAlertRepositoryProvider
           .overrideWithValue(priceAlerts ?? FakePriceAlertRepository()),
       if (isPro) subscriptionProvider.overrideWith(_ProSubscription.new),
+      if (featuresUnlocked != null)
+        featuresUnlockedProvider.overrideWithValue(featuresUnlocked),
     ],
   );
   addTearDown(container.dispose);

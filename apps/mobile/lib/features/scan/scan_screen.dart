@@ -11,6 +11,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:showcaseview/showcaseview.dart';
 
 import '../../app/card_actions.dart';
+import '../../app/text_field_clear_button.dart';
 import '../../app/theme.dart';
 import '../../app/ui.dart';
 import '../../app/widgets.dart';
@@ -828,13 +829,24 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       context: context,
       builder: (ctx) => AlertDialog.adaptive(
         title: const Text('Find a card'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Name or number, e.g. 147/219',
+        content: StatefulBuilder(
+          builder: (context, setLocal) => TextField(
+            controller: controller,
+            autofocus: true,
+            onChanged: (_) => setLocal(() {}),
+            decoration: InputDecoration(
+              hintText: 'Name or number, e.g. 147/219',
+              suffixIcon: TextFieldClearButton.maybe(
+                text: controller.text,
+                tooltip: 'Clear search',
+                onPressed: () {
+                  controller.clear();
+                  setLocal(() {});
+                },
+              ),
+            ),
+            onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
           ),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [
           TextButton(

@@ -1,9 +1,9 @@
 import React from 'react';
-import { TextField, InputAdornment, IconButton, Box } from '@mui/material';
-import ClearIcon from '@mui/icons-material/Clear';
+import { TextField, InputAdornment, Box } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useSearch } from '../../hooks/useSearch';
 import SearchDropdown from './SearchDropdown';
+import SearchClearAdornment from './SearchClearAdornment';
 
 /**
  * SearchInput Component
@@ -76,23 +76,14 @@ const SearchInput = ({
                             />
                         </InputAdornment>
                     ),
-                    endAdornment: value && !disabled ? (
-                        <InputAdornment position="end">
-                            <IconButton
-                                size="small"
-                                onClick={handleClear}
-                                edge="end"
-                                aria-label="clear search"
-                                sx={{
-                                    p: dense ? 0.35 : 0.5,
-                                    color: 'text.secondary',
-                                    '&:hover': { color: 'text.primary', bgcolor: 'action.hover' }
-                                }}
-                            >
-                                <ClearIcon sx={{ fontSize: dense ? '0.95rem' : '1.1rem' }} />
-                            </IconButton>
-                        </InputAdornment>
-                    ) : null
+                    endAdornment: (
+                        <SearchClearAdornment
+                            value={value}
+                            onClear={handleClear}
+                            disabled={disabled}
+                            dense={dense}
+                        />
+                    )
                 }}
                 sx={{
                     '& .MuiOutlinedInput-root': {

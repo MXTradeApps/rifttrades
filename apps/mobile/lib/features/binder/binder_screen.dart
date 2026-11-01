@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:showcaseview/showcaseview.dart';
 
+import '../../app/text_field_clear_button.dart';
 import '../../app/theme.dart';
 import '../../core/logic/binder_names.dart';
 import '../../core/logic/free_limits.dart';
@@ -436,24 +437,24 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
   }
 
   Future<void> _createBinder(BuildContext context) async {
-    final isPro = ref.read(isProProvider);
+    final entitled = ref.read(hasProFeaturesProvider);
     if (!FreeLimits.canCreateBinder(
         ref.read(bindersProvider.notifier).live.length,
-        isPro: isPro)) {
+        isPro: entitled)) {
       await presentProPaywall(context, ref);
       if (!context.mounted) return;
-      if (!ref.read(isProProvider)) return;
+      if (!ref.read(hasProFeaturesProvider)) return;
     }
     final name = await _promptName(context, title: 'New Binder');
     if (name == null || !context.mounted) return;
     final result = ref
         .read(bindersProvider.notifier)
-        .create(name, isPro: ref.read(isProProvider));
+        .create(name, isPro: ref.read(hasProFeaturesProvider));
     if (!result.ok && context.mounted) {
       if (result.reason == 'paywall') {
         await presentProPaywall(context, ref);
         if (!context.mounted) return;
-        if (ref.read(isProProvider)) {
+        if (ref.read(hasProFeaturesProvider)) {
           final retry = ref
               .read(bindersProvider.notifier)
               .create(name, isPro: true);
@@ -528,11 +529,20 @@ class _BinderScreenState extends ConsumerState<BinderScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          key: const Key('binderNameField'),
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Binder name'),
+        content: ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) => TextField(
+            key: const Key('binderNameField'),
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Binder name',
+              suffixIcon: TextFieldClearButton.maybe(
+                text: controller.text,
+                onPressed: controller.clear,
+              ),
+            ),
+          ),
         ),
         actions: [
           TextButton(

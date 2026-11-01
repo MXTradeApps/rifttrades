@@ -19,7 +19,7 @@ import 'pro_paywall.dart';
 /// Returns true when Pro is active — immediately for existing subscribers, so
 /// the paywall never flashes for someone who already paid.
 Future<bool> ensurePro(BuildContext context, WidgetRef ref) async {
-  if (ref.read(isProProvider)) return true;
+  if (ref.read(hasProFeaturesProvider)) return true;
   return presentProPaywall(context, ref);
 }
 
@@ -60,7 +60,7 @@ class ProGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(isProProvider)) return child;
+    if (ref.watch(hasProFeaturesProvider)) return child;
     return locked ??
         ProUnlockCard(feature: feature, description: description);
   }

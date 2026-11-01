@@ -114,4 +114,54 @@ void main() {
       );
     });
   });
+
+  group('Xcode dart-defines helper', () {
+    // Hitting Run in Xcode does not pass --dart-define-from-file. The helper
+    // must still produce the production values so that path does not white-screen.
+    Map<String, String> decodeDefines(String encoded) {
+      final values = <String, String>{};
+      for (final part in encoded.split(',').where((p) => p.isNotEmpty)) {
+        final decoded = utf8.decode(base64.decode(part));
+        final separator = decoded.indexOf('=');
+        values[decoded.substring(0, separator)] = decoded.substring(
+          separator + 1,
+        );
+      }
+      return values;
+    }
+
+    ProcessResult runHelper({Map<String, String>? environment}) {
+      final inherited = Map<String, String>.from(Platform.environment)
+        ..remove('DART_DEFINES')
+        ..remove('APP_ENVIRONMENT');
+      if (environment != null) {
+        inherited.addAll(environment);
+      }
+      return Process.runSync('python3', [
+        'tool/xcode_dart_defines.py',
+      ], environment: inherited);
+    }
+
+    test('defaults to production when Xcode has no dart-defines', () {
+      final result = runHelper();
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      final values = decodeDefines((result.stdout as String).trim());
+      final production =
+          jsonDecode(File('env/production.json').readAsStringSync())
+              as Map<String, dynamic>;
+      expect(values['SUPABASE_URL'], production['SUPABASE_URL']);
+      expect(
+        values['SUPABASE_PUBLISHABLE_KEY'],
+        production['SUPABASE_PUBLISHABLE_KEY'],
+      );
+    });
+
+    test('keeps a Flutter CLI staging build instead of overwriting it', () {
+      const stagingUrl = 'https://example.supabase.co';
+      final existing = base64.encode(utf8.encode('SUPABASE_URL=$stagingUrl'));
+      final result = runHelper(environment: {'DART_DEFINES': existing});
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect((result.stdout as String).trim(), existing);
+    });
+  });
 }

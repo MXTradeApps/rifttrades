@@ -30,6 +30,11 @@ jest.mock('../../src/contexts/EntitlementContext.jsx', () => ({
     useEntitlement: () => ({ isPro: false, loading: false }),
 }));
 
+jest.mock('../../src/utils/featureAccess.js', () => ({
+    FEATURES_UNLOCKED: false,
+    hasProFeatures: (isPro) => Boolean(isPro),
+}));
+
 jest.mock('../../src/hooks/useCardData.jsx', () => {
     const { pricedPrinting: priced, unpricedPrinting: unpriced } = require('../fixtures/printings.js');
     return {

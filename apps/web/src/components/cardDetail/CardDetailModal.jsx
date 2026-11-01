@@ -31,6 +31,7 @@ import CardPriceAlerts from './CardPriceAlerts.jsx';
 import PriceAlertAppDialog from './PriceAlertAppDialog.jsx';
 import { printingsForCard } from '../../utils/printingsForCard.js';
 import { upsertEntry, getBinderEntries, TRADE_BINDER_ID } from '../../services/binder.js';
+import { hasProFeatures } from '../../utils/featureAccess.js';
 import { canAddDistinctCard, cardsFor, distinctOwnedCount } from '../../utils/freeLimits.js';
 import { targetOwnedBinderId } from '../../utils/openBinder.js';
 import { formatCardType } from '../../utils/searchUtils.js';
@@ -55,6 +56,7 @@ export function CardDetailModal({
     const { pathname } = useLocation();
     const { user } = useAuth();
     const { isPro } = useEntitlement();
+    const featuresUnlocked = hasProFeatures(isPro);
     const { cards, pricesUpdatedAt } = useCardData();
     const { isDark } = useThemeMode();
     const isPhone = useMediaQuery((t) => t.breakpoints.down('sm'));
@@ -136,7 +138,7 @@ export function CardDetailModal({
         }
         const wants = lists.wants || [];
         const existing = wants.find((e) => e.cardId === shown._uniqueId);
-        if (!existing && !canAddDistinctCard(wants.length, { isWanted: true, isPro })) {
+        if (!existing && !canAddDistinctCard(wants.length, { isWanted: true, isPro: featuresUnlocked })) {
             setWantBusy(false);
             setToast({ open: true, message: WANT_LIMIT_MESSAGE, severity: 'warning' });
             return;
@@ -186,7 +188,7 @@ export function CardDetailModal({
             e.cardId === shown._uniqueId && (e.binderId || TRADE_BINDER_ID) === binderId,
         );
         const distinct = distinctOwnedCount(owned, binderId);
-        if (!existing && !canAddDistinctCard(distinct, { isWanted: false, isPro })) {
+        if (!existing && !canAddDistinctCard(distinct, { isWanted: false, isPro: featuresUnlocked })) {
             setWantBusy(false);
             setToast({ open: true, message: BINDER_LIMIT_MESSAGE, severity: 'warning' });
             return;

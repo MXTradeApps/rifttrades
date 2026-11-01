@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "RiftTrades (production)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "apps/mobile",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define-from-file=env/production.json"]
+    },
+    {
+      "name": "RiftTrades (staging)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "apps/mobile",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define-from-file=env/staging.json"]
+    }
+  ]
+}

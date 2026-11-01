@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/text_field_clear_button.dart';
 import '../../app/widgets.dart';
 import '../../core/data/card_repository.dart';
 import '../../core/models/card_model.dart';
@@ -68,10 +69,17 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
   }
 
   void _onChanged(String value) {
+    setState(() {}); // refresh clear button
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), () {
       setState(() => _query = value);
     });
+  }
+
+  void _clear() {
+    _debounce?.cancel();
+    _controller.clear();
+    setState(() => _query = '');
   }
 
   Future<void> _onCardTap(CardModel card) async {
@@ -133,14 +141,20 @@ class _CardPickerScreenState extends ConsumerState<CardPickerScreen> {
               controller: _controller,
               autofocus: true,
               onChanged: _onChanged,
+              textInputAction: TextInputAction.search,
               // Mobile TextFields keep focus on outside taps by default, which
               // leaves the keyboard stuck open. Close it on an outside tap or
               // the keyboard's search key.
               onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search cards…',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: TextFieldClearButton.maybe(
+                  text: _controller.text,
+                  tooltip: 'Clear search',
+                  onPressed: _clear,
+                ),
               ),
             ),
           ),

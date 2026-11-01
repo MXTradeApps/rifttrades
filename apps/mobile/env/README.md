@@ -10,6 +10,12 @@ flutter build appbundle --release --dart-define-from-file=env/staging.json
 Without one of these the app throws at startup. That is deliberate — see the note
 in [supabase_config.dart](../lib/core/config/supabase_config.dart).
 
+Xcode Run is the exception: `ios/Flutter/xcode_backend_with_defines.sh` applies
+`production.json` when the build has no `SUPABASE_URL` yet, so opening
+`ios/Runner.xcworkspace` and hitting Run works. A CLI/CI build that already
+passed `--dart-define-from-file` (including staging) is left alone. To point
+an Xcode Run at staging, set `APP_ENVIRONMENT=staging` on the scheme.
+
 `production.json` points at **fabloodle** (`cnmxaccamqshgvesieez`).
 `staging.json` currently points at the former RiftTrades project
 (`tenrvaghaspwdvnwvgrh`) so sandbox purchases stay off production. Intended

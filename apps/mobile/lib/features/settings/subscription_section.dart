@@ -207,7 +207,7 @@ class _UpgradeCardState extends ConsumerState<_UpgradeCard> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Support development and unlock the Pro features. '
+              'Support development with a Pro subscription. '
               'Monthly or yearly, cancel any time.',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

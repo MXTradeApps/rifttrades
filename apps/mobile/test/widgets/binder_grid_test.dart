@@ -25,6 +25,7 @@ Future<ProviderContainer> pumpGrid(WidgetTester tester) async {
     tester,
     const BinderScreen(),
     seed: _onboarded(),
+    featuresUnlocked: false,
   );
   await tester.pump();
   return container;

@@ -107,6 +107,18 @@ void main() {
     await tester.pump();
     expect(tester.widget<FilledButton>(confirm).onPressed, isNotNull);
 
+    await tester.tap(find.byTooltip('Clear'));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '',
+    );
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+
+    await tester.enterText(find.byType(TextField), 'DELETE');
+    await tester.pump();
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNotNull);
+
     await tester.tap(confirm);
     await tester.pump();
     // Progress dialog, then completion.

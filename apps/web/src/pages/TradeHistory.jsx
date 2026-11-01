@@ -31,12 +31,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUserTrades, deleteTrade } from '../services/tradeHistory';
 import { useCardData } from '../hooks/useCardData.jsx';
 import { useEntitlement } from '../contexts/EntitlementContext.jsx';
+import { hasProFeatures } from '../utils/featureAccess.js';
 import { FreeLimits } from '../utils/freeLimits.js';
 import { useCardDetail } from '../contexts/CardDetailContext.jsx';
 import { normalizeTradeList, tradeDisplayName } from '../utils/tradeItems.js';
 import { CardThumbnail } from '../components/ui/CardImagePreview.jsx';
 import Header from '../components/elements/Header.jsx';
 import { Page, PageHeader, Panel, EmptyState } from '../components/layout/Page.jsx';
+import { SearchClearAdornment } from '../components/search/index.js';
 import SignInDialog from '../components/auth/SignInDialog.jsx';
 import { capture } from '../lib/analytics.js';
 
@@ -53,6 +55,7 @@ const TradeHistory = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { isPro, loading: entitlementLoading } = useEntitlement();
+    const featuresUnlocked = hasProFeatures(isPro);
     const { pricesUpdatedAt: lastUpdatedTimestamp, cardIdLookup } = useCardData();
     const [trades, setTrades] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -200,7 +203,7 @@ const TradeHistory = () => {
                     sight — same 70% pressure rule as mobile's FreeUsage.
                     Web cannot sell Pro (purchases live in the apps), so this
                     says where to buy rather than offering a checkout. */}
-                {!entitlementLoading && !isPro &&
+                {!entitlementLoading && !featuresUnlocked &&
                     trades.length / FreeLimits.savedTrades >= 0.7 && (
                     <Alert severity="info" icon={false} sx={{ mb: 3 }}>
                         Free plan — your {FreeLimits.savedTrades} most recent trades are kept.
@@ -220,6 +223,13 @@ const TradeHistory = () => {
                             <InputAdornment position="start">
                                 <SearchIcon sx={{ color: mutedColor }} />
                             </InputAdornment>
+                        ),
+                        endAdornment: (
+                            <SearchClearAdornment
+                                value={searchQuery}
+                                onClear={() => setSearchQuery('')}
+                                color={mutedColor}
+                            />
                         ),
                     }}
                 />

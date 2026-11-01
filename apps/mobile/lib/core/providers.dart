@@ -8,6 +8,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/feature_access.dart';
 import 'data/auth_repository.dart';
 import 'data/card_repository.dart';
 import 'data/set_logo_cache.dart';
@@ -569,8 +570,22 @@ final entitlementProvider = Provider<Entitlement>((ref) {
 
 /// The single check to gate a Pro feature on. Defaults to locked while the
 /// entitlement is still loading or couldn't be read.
+///
+/// Subscription UI must read this (or [entitlementProvider]), not
+/// [hasProFeaturesProvider] — that one is also true while every feature is
+/// unlocked for free.
 final isProProvider = Provider<bool>(
   (ref) => ref.watch(entitlementProvider).isPro,
+);
+
+/// Whether [FeatureAccess.unlocked] is on. Override to `false` in tests that
+/// exercise free-tier caps and paywall prompts.
+final featuresUnlockedProvider = Provider<bool>((ref) => FeatureAccess.unlocked);
+
+/// Whether product features should run unlocked: the temporary free switch,
+/// or a real Pro subscription.
+final hasProFeaturesProvider = Provider<bool>(
+  (ref) => ref.watch(featuresUnlockedProvider) || ref.watch(isProProvider),
 );
 
 /// Whether the customer's Pro state is actually known, as opposed to defaulting
@@ -602,7 +617,7 @@ final proOfferingProvider = FutureProvider<Offering?>((ref) async {
 /// Free-tier usage for upsell copy, or null for Pro customers (nothing is
 /// capped for them, so there is nothing to report).
 final freeUsageProvider = Provider<FreeUsage?>((ref) {
-  if (ref.watch(isProProvider)) return null;
+  if (ref.watch(hasProFeaturesProvider)) return null;
   final entries = ref.watch(binderProvider);
   final loanedCards = ref
       .watch(lendProvider)
@@ -1077,7 +1092,7 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
   }
 
   bool _canAddNewCard({required bool isWanted, String? binderId}) {
-    if (ref.read(isProProvider)) return true;
+    if (ref.read(hasProFeaturesProvider)) return true;
     if (isWanted) {
       final listed =
           state.where((e) => e.isWanted).map((e) => e.card.id).toSet().length;
@@ -1208,7 +1223,7 @@ class BinderNotifier extends Notifier<List<BinderEntry>> {
       printingId: printingId,
       condition: condition,
       quantity: quantity,
-      isPro: ref.read(isProProvider),
+      isPro: ref.read(hasProFeaturesProvider),
       freeBinderCardsCap: FreeLimits.binderCards,
     );
     if (result.ok) {
@@ -1397,7 +1412,7 @@ class LendNotifier extends Notifier<List<LendGroup>> {
   /// quantity across every lent-out group against [FreeLimits.loanedCards].
   bool _canLendMore(String groupId, int additional) {
     if (additional <= 0) return true;
-    if (ref.read(isProProvider)) return true;
+    if (ref.read(hasProFeaturesProvider)) return true;
     LendGroup? group;
     for (final g in state) {
       if (g.id == groupId) {
@@ -1457,7 +1472,7 @@ class TradeHistoryNotifier extends Notifier<List<Trade>> {
     // Never trim while the entitlement is still unknown. A Pro customer with no
     // signal would otherwise have their history cut, and _persist() turns those
     // drops into tombstones that sync outward to every other device.
-    if (ref.read(isProProvider) ||
+    if (ref.read(hasProFeaturesProvider) ||
         !ref.read(entitlementResolvedProvider) ||
         all.length <= FreeLimits.savedTrades) {
       state = all;

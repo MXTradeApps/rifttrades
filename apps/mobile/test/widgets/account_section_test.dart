@@ -274,6 +274,42 @@ void main() {
     expect(sync.requested, isEmpty);
   });
 
+  testWidgets('email field clear button empties the input', (tester) async {
+    final auth = _MockAuthRepository();
+    when(() => auth.availableProviders()).thenAnswer(
+      (_) async => const [AuthProviderKind.google],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(auth),
+          accountProvider.overrideWith((ref) => Stream.value(null)),
+          syncProvider.overrideWith(StubSyncNotifier.new),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SignInSheet())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sign in with email'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, 'Email'), 'a@b.com');
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.widgetWithText(TextField, 'Email')).controller?.text,
+      'a@b.com',
+    );
+
+    await tester.tap(find.byTooltip('Clear'));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.widgetWithText(TextField, 'Email')).controller?.text,
+      '',
+    );
+  });
+
   testWidgets('treats an auth stream error as signed out', (tester) async {
     await _pumpAccount(
       tester,

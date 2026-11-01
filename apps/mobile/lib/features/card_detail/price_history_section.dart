@@ -44,7 +44,7 @@ class _PriceHistorySectionState extends ConsumerState<PriceHistorySection> {
     final history = ref.watch(priceHistoryProvider(widget.cardId));
     final settings = ref.watch(settingsProvider);
     final pricing = ref.watch(pricingProvider);
-    final isPro = ref.watch(isProProvider);
+    final isPro = ref.watch(hasProFeaturesProvider);
 
     Widget body;
     if (history.hasError) {

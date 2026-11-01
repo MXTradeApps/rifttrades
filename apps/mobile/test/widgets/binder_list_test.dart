@@ -18,7 +18,10 @@ Map<String, Object> _onboarded() => {
           jsonEncode(OnboardingTourId.all.toList()),
     };
 
-Future<ProviderContainer> pumpGrid(WidgetTester tester) async {
+Future<ProviderContainer> pumpGrid(
+  WidgetTester tester, {
+  bool? featuresUnlocked,
+}) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
@@ -27,6 +30,7 @@ Future<ProviderContainer> pumpGrid(WidgetTester tester) async {
     tester,
     const BinderScreen(),
     seed: _onboarded(),
+    featuresUnlocked: featuresUnlocked,
   );
   await tester.pump();
   return container;
@@ -178,7 +182,7 @@ void main() {
 
   testWidgets('refuses a new Printing into a free Binder already at 50',
       (tester) async {
-    final container = await pumpGrid(tester);
+    final container = await pumpGrid(tester, featuresUnlocked: false);
     final binder = container.read(binderProvider.notifier);
     for (var i = 0; i < FreeLimits.binderCards; i++) {
       expect(
@@ -235,5 +239,42 @@ void main() {
     );
     expect(qtyUp.ok, isTrue);
     expect(binder.quantityOf('c-0', binderId: BinderIds.collection), 2);
+  });
+
+  testWidgets('clear button empties the field and resets the search', (
+    tester,
+  ) async {
+    final container = await pumpGrid(tester);
+    final binder = container.read(binderProvider.notifier);
+    binder.add(
+      buildCard(id: 'alpha', name: 'Alpha', tcgMarket: 1),
+      binderId: BinderIds.trade,
+    );
+    binder.add(
+      buildCard(id: 'zed', name: 'Zed', tcgMarket: 2),
+      binderId: BinderIds.trade,
+    );
+    await tester.pump();
+
+    await _openTrade(tester);
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Zed'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Zed');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsNothing);
+    expect(find.text('Zed'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+
+    expect(
+      (tester.widget<TextField>(find.byType(TextField))).controller?.text,
+      '',
+    );
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Zed'), findsOneWidget);
   });
 }
